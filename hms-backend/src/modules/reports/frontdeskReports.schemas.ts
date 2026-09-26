@@ -29,12 +29,15 @@ export const collectionReportQuerySchema = dateRangeSchema.extend({
   collectedById: z.string().uuid().optional(),
   method: z.enum(['CASH', 'CARD', 'BANK', 'ONLINE']).optional(),
   source: z.enum(['ADMISSION', 'VISIT']).optional(),
+  /** Receipt Status — ACTIVE (default) or REVERSED receipts. */
+  receiptStatus: z.enum(['ACTIVE', 'REVERSED']).optional(),
 });
 export type CollectionReportQuery = z.infer<typeof collectionReportQuerySchema>;
 
 export const outstandingInvoicesQuerySchema = dateRangeSchema.extend({
   departmentId: z.string().uuid().optional(),
   payerType: z.enum(['PANEL', 'SELF_PAY']).optional(),
+  status: z.enum(['UNPAID', 'PARTIALLY_PAID']).optional(),
   minOutstanding: z.coerce.number().optional(),
 });
 export type OutstandingInvoicesQuery = z.infer<typeof outstandingInvoicesQuerySchema>;
@@ -58,6 +61,10 @@ export type DepartmentRevenueQuery = z.infer<typeof departmentRevenueQuerySchema
 
 export const admissionPaymentCollectionQuerySchema = dateRangeSchema.extend({
   admissionRecordId: z.string().uuid().optional(),
+  /** Free-text Admission No search (partial, case-insensitive). */
+  admissionNumber: z.string().trim().max(50).optional(),
+  departmentId: z.string().uuid().optional(),
+  status: z.enum(['PENDING', 'FULFILLED', 'PARTIALLY_FULFILLED', 'CANCELLED']).optional(),
   collectedById: z.string().uuid().optional(),
   method: z.enum(['CASH', 'CARD', 'BANK', 'ONLINE']).optional(),
 });
@@ -77,3 +84,17 @@ export type ReceiptExceptionLogQuery = z.infer<typeof receiptExceptionLogQuerySc
 
 export const cashierPerformanceQuerySchema = dateRangeSchema;
 export type CashierPerformanceQuery = z.infer<typeof cashierPerformanceQuerySchema>;
+
+/** reporting.md §2 #7 — ONE combined Discounts / Refunds / Voids exception report, narrowed by a Type filter. */
+export const financialExceptionsQuerySchema = dateRangeSchema.extend({
+  type: z.enum(['DISCOUNT', 'REFUND', 'VOID']).optional(),
+  performedById: z.string().uuid().optional(),
+});
+export type FinancialExceptionsQuery = z.infer<typeof financialExceptionsQuerySchema>;
+
+/** reporting.md §2 #1 — Daily Billing Summary: Period + Cashier + Department. */
+export const billingSummaryQuerySchema = dateRangeSchema.extend({
+  cashierId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
+});
+export type BillingSummaryQuery = z.infer<typeof billingSummaryQuerySchema>;

@@ -382,9 +382,9 @@ export const frontdeskApiService = {
     return res.data.data;
   },
 
-  /** `GET /cash/balance-sheet` — the logged-in cashier's own unsettled collections (§4.9). */
-  async getCashBalance() {
-    const res = await apiClient.get<{ data: any }>('/cash/balance-sheet');
+  /** `GET /cash/balance-sheet` (§4.9). No params = the live unsettled shift (what settlement uses); pass a period for the historical Balance Sheet view. */
+  async getCashBalance(period?: { preset: string; fromDate?: string; toDate?: string }) {
+    const res = await apiClient.get<{ data: any }>('/cash/balance-sheet', { params: period });
     return res.data.data;
   },
 };

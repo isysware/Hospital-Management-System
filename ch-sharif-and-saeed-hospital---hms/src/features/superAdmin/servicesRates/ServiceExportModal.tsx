@@ -22,6 +22,7 @@ import {
   getProfileFieldValue,
 } from '../../../services/hospitalProfileService';
 import { formatDisplayDate } from '../../../utils/dateConstants';
+import { useToast } from '../../../context/ToastContext';
 
 interface ServiceExportModalProps {
   isOpen: boolean;
@@ -38,9 +39,9 @@ export const ServiceExportModal: React.FC<ServiceExportModalProps> = ({
   filters,
   currentUser,
 }) => {
+  const toast = useToast();
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingExcel, setDownloadingExcel] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -58,11 +59,10 @@ export const ServiceExportModal: React.FC<ServiceExportModalProps> = ({
     try {
       setDownloadingPdf(true);
       await downloadServicesPDF(services, filters, currentUser);
-      setToastMessage('PDF report generated and downloaded successfully.');
-      setTimeout(() => setToastMessage(null), 4000);
+      toast.success('PDF report generated and downloaded successfully.', 'Export Complete');
     } catch (err) {
       console.error(err);
-      setToastMessage('Failed to generate PDF. Please try again.');
+      toast.error('Failed to generate PDF. Please try again.', 'Export Failed');
     } finally {
       setDownloadingPdf(false);
     }
@@ -72,11 +72,10 @@ export const ServiceExportModal: React.FC<ServiceExportModalProps> = ({
     try {
       setDownloadingExcel(true);
       await downloadServicesExcel(services, filters, currentUser);
-      setToastMessage('Excel workbook (.xlsx) downloaded successfully.');
-      setTimeout(() => setToastMessage(null), 4000);
+      toast.success('Excel workbook (.xlsx) downloaded successfully.', 'Export Complete');
     } catch (err) {
       console.error(err);
-      setToastMessage('Failed to export Excel. Please try again.');
+      toast.error('Failed to export Excel. Please try again.', 'Export Failed');
     } finally {
       setDownloadingExcel(false);
     }
@@ -115,14 +114,6 @@ export const ServiceExportModal: React.FC<ServiceExportModalProps> = ({
 
         {/* Body */}
         <div className="p-6 space-y-5">
-          {/* Toast Notification */}
-          {toastMessage && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>{toastMessage}</span>
-            </div>
-          )}
-
           {/* Scope Card */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-2">
             <div className="flex items-center justify-between">

@@ -9,25 +9,14 @@ import { PharmacyRequestsView } from './PharmacyRequestsView';
 import { DischargeClearancesView } from './DischargeClearancesView';
 import { AdmissionPaymentRequestsView } from './AdmissionPaymentRequestsView';
 import { FinalDischargeView } from './FinalDischargeView';
-import { AdmissionReportsView } from './AdmissionReportsView';
+import { AdmissionRegisterReportView, DischargeClearanceReportView } from './AdmissionExtraReports';
 import {
-  AdmissionDailySummaryView,
-  AdmissionRegisterReportView,
-  InpatientCensusReportView,
-  BedOccupancyReportView,
-  BedTransferHistoryReportView,
-  LengthOfStayReportView,
-  ServiceConsumptionReportView,
-  InpatientOutstandingReportView,
-  DischargeClearanceReportView,
-} from './AdmissionExtraReports';
-import {
-  PharmacyMedicineRequestsView,
-  MedicineFulfillmentReportView,
-  HighValueApprovalReportView,
-  PharmacyClearanceStatusView,
-  AdmissionPaymentRequestStatusView,
-} from './AdmissionPharmacyReports';
+  AdmissionSummaryView,
+  CensusBedReportView,
+  TransferLosReportView,
+  HospitalBillStatusReportView,
+  PharmacyRequestFulfillmentView,
+} from './AdmissionSimpleReports';
 import { ModulePlaceholderView } from '../shared/ModulePlaceholderView';
 
 interface AdmissionModuleViewProps {
@@ -88,36 +77,32 @@ export const AdmissionModuleView: React.FC<AdmissionModuleViewProps> = ({ module
       return <DischargeClearancesView />;
     case 'final_discharge':
       return <FinalDischargeView />;
+    // reporting.md §3 — the 7 Admission reports. Older report ids from the
+    // v7.5 catalog map onto the report that absorbed them, so saved links
+    // and bookmarks still land somewhere sensible.
     case 'admission_reports':
-      return <AdmissionReportsView />;
     case 'adm_daily_summary':
-      return <AdmissionDailySummaryView />;
+      return <AdmissionSummaryView />;
     case 'adm_register_report':
       return <AdmissionRegisterReportView />;
     case 'adm_census':
-      return <InpatientCensusReportView />;
     case 'adm_bed_occupancy':
-      return <BedOccupancyReportView />;
+      return <CensusBedReportView />;
+    case 'adm_transfer_los':
     case 'adm_bed_transfers':
-      return <BedTransferHistoryReportView />;
     case 'adm_length_of_stay':
-      return <LengthOfStayReportView />;
-    case 'adm_service_consumption':
-      return <ServiceConsumptionReportView />;
+      return <TransferLosReportView />;
     case 'adm_outstanding_balance':
-      return <InpatientOutstandingReportView />;
+    case 'adm_payment_request_status':
+    case 'adm_service_consumption':
+      return <HospitalBillStatusReportView />;
+    case 'adm_pharmacy_requests':
+    case 'adm_medicine_fulfillment':
+    case 'adm_high_value_approvals':
+    case 'adm_pharmacy_clearance_status':
+      return <PharmacyRequestFulfillmentView />;
     case 'adm_discharge_clearance_report':
       return <DischargeClearanceReportView />;
-    case 'adm_payment_request_status':
-      return <AdmissionPaymentRequestStatusView />;
-    case 'adm_pharmacy_requests':
-      return <PharmacyMedicineRequestsView />;
-    case 'adm_medicine_fulfillment':
-      return <MedicineFulfillmentReportView />;
-    case 'adm_high_value_approvals':
-      return <HighValueApprovalReportView />;
-    case 'adm_pharmacy_clearance_status':
-      return <PharmacyClearanceStatusView />;
     default:
       return <ModulePlaceholderView moduleId={moduleId} moduleName={moduleName} groupTitle={groupTitle} />;
   }

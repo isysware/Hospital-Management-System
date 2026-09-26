@@ -5,6 +5,7 @@ import type { CollectAdmissionPaymentBody } from './admissionBilling.schemas';
 import { admissionService } from '@/modules/admission/admission.service';
 
 import { generateReceiptNumber, generateFinalBillNumber } from '@/shared/idGenerator';
+import { patientPaymentStatus, patientResponsibility } from '@/shared/invoicePaymentStatus';
 
 const invoiceInclude = {
   department: { select: { id: true, name: true, code: true } },
@@ -85,7 +86,7 @@ export const admissionBillingService = {
     const unallocatedCreditTotal = remainingCredit;
 
     const departmentInvoices = admission.hospitalInvoices.map((inv) => {
-      const rawOutstanding = Decimal.max(0, inv.total.minus(inv.paidTotal));
+      const rawOutstanding = Decimal.max(0, patientResponsibility(inv).minus(inv.paidTotal));
       const creditApplied = Decimal.min(remainingCredit, rawOutstanding);
       remainingCredit = remainingCredit.minus(creditApplied);
       return {
@@ -150,7 +151,7 @@ export const admissionBillingService = {
         panelPatient: { select: { id: true, fullName: true, mrNumber: true } },
         selfPayEncounter: { select: { id: true, fullName: true, phone: true } },
         bed: { include: { room: { include: { ward: true } } } },
-        hospitalInvoices: { where: { sourceType: 'ADMISSION' }, select: { id: true, total: true } },
+        hospitalInvoices: { where: { sourceType: 'ADMISSION' }, select: { id: true, total: true, patientShare: true, panelReceivable: true, panelPatientId: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -181,7 +182,8 @@ export const admissionBillingService = {
     }
 
     return admissions.map((a) => {
-      const currentCharges = a.hospitalInvoices.reduce((sum, inv) => sum.plus(inv.total), new Decimal(0));
+      // Patient-facing: what the patient owes (patient share on panel invoices), not the company's part.
+      const currentCharges = a.hospitalInvoices.reduce((sum, inv) => sum.plus(patientResponsibility(inv)), new Decimal(0));
       const totalPaid = paidByAdmission.get(a.id) ?? new Decimal(0);
       const outstanding = Decimal.max(0, currentCharges.minus(totalPaid));
       const availableCredit = Decimal.max(0, totalPaid.minus(currentCharges));
@@ -255,7 +257,8 @@ export const admissionBillingService = {
       orderBy: { collectedAt: 'asc' },
     });
 
-    const totalCharges = admission.hospitalInvoices.reduce((sum, inv) => sum.plus(inv.total), new Decimal(0));
+    // Patient-facing balance: panel receivable is tracked separately below (panelOutstanding).
+    const totalCharges = admission.hospitalInvoices.reduce((sum, inv) => sum.plus(patientResponsibility(inv)), new Decimal(0));
     const totalPaid = receipts.reduce((sum, r) => sum.plus(r.amount), new Decimal(0));
     const outstandingBalance = Decimal.max(0, totalCharges.minus(totalPaid));
     const availableCredit = Decimal.max(0, totalPaid.minus(totalCharges));
@@ -544,11 +547,7 @@ export const admissionBillingService = {
         const invoice = invoices.find((i) => i.id === alloc.invoiceId);
         if (invoice) {
           const newPaidTotal = invoice.paidTotal.plus(alloc.amount);
-          const newStatus = newPaidTotal.greaterThanOrEqualTo(invoice.total)
-            ? 'PAID'
-            : newPaidTotal.greaterThan(0)
-              ? 'PARTIALLY_PAID'
-              : 'UNPAID';
+          const newStatus = patientPaymentStatus(invoice, newPaidTotal);
           await tx.hospitalInvoice.update({
             where: { id: invoice.id },
             data: { paidTotal: newPaidTotal, status: newStatus },

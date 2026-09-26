@@ -37,6 +37,13 @@ const MainPortalRouter: React.FC = () => {
     }
   }, [isAuthenticated, currentUser, currentPath, activePortal, navigate]);
 
+  // Front Desk uses Montserrat (see `.portal-front-desk` in index.css). Set on
+  // <html> so modals rendered into <body> pick it up too.
+  useEffect(() => {
+    const isFrontDesk = isAuthenticated && currentPortal === 'front-desk';
+    document.documentElement.classList.toggle('portal-front-desk', isFrontDesk);
+  }, [isAuthenticated, currentPortal]);
+
   // Guard against obsolete removed routes / modules
   useEffect(() => {
     // If user attempts to access /pharmacy route directly

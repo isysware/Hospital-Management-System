@@ -58,6 +58,7 @@ import {
 import { useAuth } from '../../../context/AuthContext';
 import { Select, Textarea, NumberInput, TextInput, CNICInput } from '../../../components/forms/FormControls';
 import { focusNextField, focusNextFieldOnEnter } from '../../../utils/formNavigation';
+import { useToast } from '../../../context/ToastContext';
 
 // Ward-dropdown sentinel meaning "browse standalone Rooms with no parent Ward"
 // (the Room -> Bed structure) — never a real ward id.
@@ -94,6 +95,7 @@ const emptyForm = (): CreateAdmissionFormValues => ({
  */
 export const NewAdmissionView: React.FC = () => {
   const { currentUser } = useAuth();
+  const toast = useToast();
   const formContainerRef = useRef<HTMLDivElement>(null);
   const submitButtonRef = useRef<HTMLButtonElement>(null);
   const handleEnterNext = (e: React.KeyboardEvent<HTMLElement>) => focusNextFieldOnEnter(e, formContainerRef.current);
@@ -227,13 +229,19 @@ export const NewAdmissionView: React.FC = () => {
   // either the current ward's own rooms, or (sentinel) standalone rooms with no ward.
   const wardRooms = useMemo(() => {
     const wantsStandalone = selectedWardId === STANDALONE_ROOMS_SENTINEL;
-    return allRooms.filter((r) => {
+    const filtered = allRooms.filter((r) => {
       if (wantsStandalone ? Boolean(r.wardId) : r.wardId !== selectedWardId) return false;
       if (r.status !== 'Active') return false;
       return allBeds.some(
         (b) => b.roomId === r.id && b.occupancyStatus === 'Available' && b.operationalStatus === 'Active'
       );
     });
+    return filtered.slice().sort((a, b) =>
+      (a.roomNumber || a.name || '').localeCompare(b.roomNumber || b.name || '', undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      })
+    );
   }, [allRooms, allBeds, selectedWardId]);
 
   // A real Ward may also carry beds directly (no Room in between).
@@ -245,18 +253,19 @@ export const NewAdmissionView: React.FC = () => {
   }, [allBeds, selectedWardId]);
 
   const roomBeds = useMemo(() => {
+    let list: Bed[] = [];
     if (selectedRoomId) {
-      return allBeds.filter(
+      list = allBeds.filter(
         (b) => b.roomId === selectedRoomId && b.occupancyStatus === 'Available' && b.operationalStatus === 'Active'
       );
-    }
-    // No room chosen: fall back to the selected ward's own direct beds (if any).
-    if (selectedWardId && selectedWardId !== STANDALONE_ROOMS_SENTINEL) {
-      return allBeds.filter(
+    } else if (selectedWardId && selectedWardId !== STANDALONE_ROOMS_SENTINEL) {
+      list = allBeds.filter(
         (b) => b.wardId === selectedWardId && !b.roomId && b.occupancyStatus === 'Available' && b.operationalStatus === 'Active'
       );
     }
-    return [];
+    return list.slice().sort((a, b) =>
+      (a.bedNumber || '').localeCompare(b.bedNumber || '', undefined, { numeric: true, sensitivity: 'base' })
+    );
   }, [allBeds, selectedRoomId, selectedWardId]);
 
 
@@ -355,65 +364,40 @@ export const NewAdmissionView: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+    const showValidationError = (msg: string) => { setFormError(msg); toast.error(msg, 'Validation Error'); };
 
     // 1. Patient Fields Validation
-    if (!fullName.trim()) {
-      setFormError('Patient Full Name is required.');
-      return;
-    }
-    if (!fatherGuardianName.trim()) {
-      setFormError('Guardian Name is required.');
-      return;
-    }
-    if (!guardianRelation) {
-      setFormError('Please select Guardian Relation.');
-      return;
-    }
+    if (!fullName.trim()) { showValidationError('Patient Full Name is required.'); return; }
+    if (!fatherGuardianName.trim()) { showValidationError('Guardian Name is required.'); return; }
+    if (!guardianRelation) { showValidationError('Please select Guardian Relation.'); return; }
     if (guardianCnic.trim() && !isValidCnic(normalizeCnic(guardianCnic))) {
-      setFormError('Father / Guardian CNIC must follow the Pakistani format: XXXXX-XXXXXXX-X (13 digits).');
+      showValidationError('Father / Guardian CNIC must follow the Pakistani format: XXXXX-XXXXXXX-X (13 digits).');
       return;
     }
-    if (!primaryPhone.trim()) {
-      setFormError('Contact Phone is required.');
-      return;
-    }
-    if (!isValidPhone(primaryPhone)) {
-      setFormError('Please enter a valid phone number (at least 10 digits).');
-      return;
-    }
+    if (!primaryPhone.trim()) { showValidationError('Contact Phone is required.'); return; }
+    if (!isValidPhone(primaryPhone)) { showValidationError('Please enter a valid phone number (at least 10 digits).'); return; }
     const ageNum = Number(age);
-    if (!age.trim() || isNaN(ageNum) || ageNum < 0 || ageNum > 130) {
-      setFormError('Please enter a valid age in years.');
-      return;
-    }
+    if (!age.trim() || isNaN(ageNum) || ageNum < 0 || ageNum > 130) { showValidationError('Please enter a valid age in years.'); return; }
     if (payerType === 'Corporate / Panel') {
       if (!selectedExistingPatient) {
-        setFormError('Front Desk cannot register new panel patients. Please search and select an existing verified panel patient from the registry above, or contact Super Admin / Admin.');
+        showValidationError('Front Desk cannot register new panel patients. Please search and select an existing verified panel patient from the registry above, or contact Super Admin / Admin.');
         return;
       }
-      if (!panelId) {
-        setFormError('Please select a Corporate Panel.');
-        return;
-      }
+      if (!panelId) { showValidationError('Please select a Corporate Panel.'); return; }
       if (corporatePanels.find(p => p.id === panelId)?.memberIdRequired && !panelMemberId.trim()) {
-        setFormError('Panel Member ID / Card Number is required.');
-        return;
+        showValidationError('Panel Member ID / Card Number is required.'); return;
       }
       if (corporatePanels.find(p => p.id === panelId)?.authorizationRequired && !authorizationNumber.trim()) {
-        setFormError('Authorization / Guarantee Number is required by this company before admission.');
-        return;
+        showValidationError('Authorization / Guarantee Number is required by this company before admission.'); return;
       }
-      // §2.1 point 2 — "validate active membership" before admitting against this registry record.
       if (selectedExistingPatient.status !== 'ACTIVE') {
-        setFormError(`This panel patient's membership is ${selectedExistingPatient.status} — cannot admit against an inactive registry record.`);
+        showValidationError(`This panel patient's membership is ${selectedExistingPatient.status} — cannot admit against an inactive registry record.`);
         return;
       }
     }
-
-    // 2. Admission Fields Validation — Department is optional (falls back to
-    // the ward's own department, or the hospital's first active department).
+    // 2. Admission Fields Validation
     if (!selectedWard && !selectedRoomId) {
-      setFormError('Please select an Inpatient Ward, or a standalone Room, for admission.');
+      showValidationError('Please select an Inpatient Ward, or a standalone Room, for admission.');
       return;
     }
 
@@ -425,7 +409,7 @@ export const NewAdmissionView: React.FC = () => {
 
       if (payerType === 'Corporate / Panel') {
         if (!selectedExistingPatient) {
-          setFormError('Front Desk cannot register new panel patients. Please search and select an existing verified panel patient.');
+          showValidationError('Front Desk cannot register new panel patients. Please search and select an existing verified panel patient.');
           setIsSaving(false);
           return;
         }
@@ -468,7 +452,7 @@ export const NewAdmissionView: React.FC = () => {
         );
 
         if (!regRes.success || !regRes.patient) {
-          setFormError(regRes.error || 'Failed to register patient for admission.');
+          showValidationError(regRes.error || 'Failed to register patient for admission.');
           setIsSaving(false);
           return;
         }
@@ -500,8 +484,14 @@ export const NewAdmissionView: React.FC = () => {
       setCreatedAdvanceReceipt(advanceReceipt);
       setCreatedInvoice(invoice);
       refreshHierarchy();
+      toast.success(
+        `Admission ${admission.admissionNumber} created for ${admission.patientName}.`,
+        'Admission Created'
+      );
     } catch (err: any) {
-      setFormError(err?.response?.data?.error?.message || err?.message || 'Failed to create admission.');
+      const errMsg = err?.response?.data?.error?.message || err?.message || 'Failed to create admission.';
+      setFormError(errMsg);
+      toast.error(errMsg, 'Admission Failed');
     } finally {
       setIsSaving(false);
     }
@@ -1064,8 +1054,13 @@ export const NewAdmissionView: React.FC = () => {
                       (b) => b.roomId === r.id && b.occupancyStatus === 'Available' && b.operationalStatus === 'Active'
                     ).length;
 
+                    const cleanRoomNum = (r.roomNumber || '').trim();
+                    const roomPrefix = cleanRoomNum
+                      ? (/^room\b/i.test(cleanRoomNum) ? `${cleanRoomNum} - ` : `Room ${cleanRoomNum} - `)
+                      : '';
+
                     return {
-                      label: `${r.roomNumber ? `Room ${r.roomNumber} - ` : ''}${r.name} (${availCount} bed${availCount > 1 ? 's' : ''} available)`,
+                      label: `${roomPrefix}${r.name} (${availCount} bed${availCount > 1 ? 's' : ''} available)`,
                       value: r.id,
                     };
                   }),

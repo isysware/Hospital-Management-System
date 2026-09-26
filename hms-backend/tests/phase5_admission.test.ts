@@ -953,6 +953,7 @@ describe('Phase 5: Inpatient Admission, Bed Lifecycle & Dual Clearance Discharge
       (prisma.staff.findUnique as any).mockResolvedValue({
         id: 'doctor-1',
         fullName: 'Dr. Kamran Sheikh',
+        isActive: true,
         departmentId: 'dept-1',
         department: { name: 'General Medicine' },
         clinicalAuthUsername: 'dr.kamran',
@@ -990,6 +991,34 @@ describe('Phase 5: Inpatient Admission, Bed Lifecycle & Dual Clearance Discharge
         expect.objectContaining({ where: { id: 'adm-001' }, data: { status: 'DISCHARGE_PENDING' } }),
       );
       expect(result.admission.status).toBe('DISCHARGE_PENDING');
+    });
+
+    it('verify step returns the doctor identity only, and rejects a deactivated doctor', async () => {
+      (prisma.staff.findUnique as any).mockResolvedValue({
+        id: 'doctor-1',
+        employeeId: '1001',
+        fullName: 'Dr. Kamran Sheikh',
+        designation: 'Consultant',
+        isActive: true,
+        department: { name: 'General Medicine' },
+        clinicalAuthActive: true,
+        clinicalAuthPasswordHash: doctorPasswordHash,
+      });
+      await expect(admissionService.verifyDischargeDoctor('dr.kamran', 'Correct-Doctor-Pass1')).resolves.toEqual({
+        staffId: 'doctor-1',
+        employeeId: '1001',
+        fullName: 'Dr. Kamran Sheikh',
+        designation: 'Consultant',
+        department: 'General Medicine',
+      });
+
+      (prisma.staff.findUnique as any).mockResolvedValue({
+        id: 'doctor-1',
+        isActive: false,
+        clinicalAuthActive: true,
+        clinicalAuthPasswordHash: doctorPasswordHash,
+      });
+      await expect(admissionService.verifyDischargeDoctor('dr.kamran', 'Correct-Doctor-Pass1')).rejects.toThrow('Invalid doctor credentials');
     });
 
     it('rejects a wrong doctor password', async () => {

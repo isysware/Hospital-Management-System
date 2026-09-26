@@ -25,7 +25,7 @@ router.get(
 router.get(
   '/frontdesk-billing',
   view,
-  validate({ query: getSuperAdminDashboardQuerySchema }),
+  validate({ query: fds.billingSummaryQuerySchema }),
   asyncHandler(dashboardController.getFrontDeskBillingReport),
 );
 
@@ -47,6 +47,8 @@ router.get('/frontdesk/invoices/:invoiceId/ledger', view, validate({ params: fds
 router.get('/frontdesk/panel-payer', view, validate({ query: fds.panelPayerReportQuerySchema }), asyncHandler(fd.panelPayerReport));
 router.get('/frontdesk/receipt-exceptions', view, validate({ query: fds.receiptExceptionLogQuerySchema }), asyncHandler(fd.receiptExceptionLog));
 router.get('/frontdesk/cashier-performance', view, validate({ query: fds.cashierPerformanceQuerySchema }), asyncHandler(fd.cashierPerformance));
+router.get('/frontdesk/exceptions', view, validate({ query: fds.financialExceptionsQuerySchema }), asyncHandler(fd.financialExceptions));
+router.get('/frontdesk/filter-options', view, asyncHandler(fd.filterOptions));
 
 // ── Admission Reports (Reporting Guide v7.5 §5) ────────────────────────────
 router.get('/admission/daily-summary', view, validate({ query: ads.admissionDailySummaryQuerySchema }), asyncHandler(adm.dailySummary));
@@ -64,6 +66,12 @@ router.get(
 router.get('/admission/service-consumption', view, validate({ query: ads.serviceConsumptionQuerySchema }), asyncHandler(adm.serviceConsumption));
 router.get('/admission/outstanding', view, validate({ query: ads.inpatientOutstandingQuerySchema }), asyncHandler(adm.inpatientOutstanding));
 router.get('/admission/discharge-clearance', view, validate({ query: ads.dischargeClearanceQuerySchema }), asyncHandler(adm.dischargeClearance));
+router.get('/admission/summary', view, validate({ query: ads.admissionSummaryQuerySchema }), asyncHandler(adm.summary));
+router.get('/admission/census-beds', view, validate({ query: ads.censusBedQuerySchema }), asyncHandler(adm.censusBeds));
+router.get('/admission/transfer-los', view, validate({ query: ads.transferLosQuerySchema }), asyncHandler(adm.transferLos));
+router.get('/admission/hospital-bill-status', view, validate({ query: ads.hospitalBillStatusQuerySchema }), asyncHandler(adm.hospitalBillStatus));
+router.get('/admission/pharmacy-request-fulfillment', view, validate({ query: ads.pharmacyRequestFulfillmentQuerySchema }), asyncHandler(adm.pharmacyRequestFulfillment));
+router.get('/admission/filter-options', view, asyncHandler(adm.filterOptions));
 
 // ── Admission — Pharmacy-linked Reports (Reporting Guide v7.5 §5.9–5.12) ──
 router.get('/admission/pharmacy-requests', view, validate({ query: apds.pharmacyRequestReportQuerySchema }), asyncHandler(admPharm.medicineRequests));

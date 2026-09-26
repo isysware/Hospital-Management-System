@@ -15,9 +15,86 @@ import {
   StaffCategory,
   STAFF_PORTAL_ROLES,
   STAFF_CATEGORIES,
+  PORTAL_ELIGIBLE_CATEGORIES,
+  SalaryBasis,
+  isCommissionBasis,
+  defaultWizardExtras,
 } from '../types/staffUser';
 import { DepartmentService } from './departmentService';
+import { ServiceRatesService } from './serviceRatesService';
 import { formatDisplayDate } from '../utils/dateConstants';
+
+// ── Add Staff wizard → backend payload mappers ─────────────────────────────
+
+/** Which wizard sections the user edited — only those are re-saved on Edit. */
+export interface StaffWizardChanges {
+  schedule: boolean;
+  salary: boolean;
+  commission: boolean;
+  bank: boolean;
+}
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const num = (v: number | '') => (v === '' ? 0 : Number(v));
+const apiError = (err: any, fallback: string): string => {
+  const e = err?.response?.data?.error;
+  // errorHandler maps Zod issues to { field, issue }.
+  const detail = Array.isArray(e?.details) && e.details.length > 0 ? `: ${e.details.map((d: any) => d.issue ?? d.message).filter(Boolean).join('; ')}` : '';
+  return e?.message ? `${e.message}${detail}` : err?.message || fallback;
+};
+
+const hasSalary = (v: StaffUserFormValues) => v.salaryEnabled && v.baseSalary !== '' && Number(v.baseSalary) > 0;
+
+function toSchedulePayload(v: StaffUserFormValues) {
+  return v.weeklySchedule.map((d) => ({
+    dayOfWeek: d.dayOfWeek,
+    isWorking: d.isWorking,
+    useShiftDefault: d.useShiftDefault,
+    startTime: d.isWorking && !d.useShiftDefault ? d.startTime : null,
+    endTime: d.isWorking && !d.useShiftDefault ? d.endTime : null,
+    breakMinutes: num(d.breakMinutes),
+  }));
+}
+
+function toSalaryPayload(v: StaffUserFormValues) {
+  return {
+    salaryBasis: v.salaryBasis,
+    baseAmount: Number(v.baseSalary),
+    salaryTaxMethod: v.salaryTaxMethod || null,
+    salaryTaxValue: v.salaryTaxMethod ? num(v.salaryTaxValue) : null,
+    fixedAllowance: num(v.salaryAllowance),
+    fixedDeduction: num(v.salaryDeduction),
+    paymentMethod: v.bankEnabled ? v.bank.paymentMethod : null,
+    effectiveFrom: v.salaryEffectiveFrom || todayISO(),
+  };
+}
+
+function toCommissionPayload(v: StaffUserFormValues) {
+  return {
+    rules: v.commissionRules
+      .filter((r) => r.enabled)
+      .map((r) => ({ serviceRateId: r.serviceRateId, ruleType: r.ruleType, rate: num(r.rate), basis: r.basis })),
+    commissionTaxMethod: v.commissionTaxMethod || null,
+    commissionTaxValue: v.commissionTaxMethod ? num(v.commissionTaxValue) : null,
+    effectiveFrom: v.commissionEffectiveFrom || todayISO(),
+  };
+}
+
+function toBankPayload(v: StaffUserFormValues, effectiveFrom: string) {
+  const b = v.bank;
+  return {
+    paymentMethod: b.paymentMethod,
+    bankName: b.bankName.trim() || null,
+    branchName: b.branchName.trim() || null,
+    accountTitle: b.accountTitle.trim() || null,
+    accountNumber: b.accountNumber.trim() || null,
+    iban: b.iban.trim() || null,
+    walletAccount: b.walletAccount.trim() || null,
+    preferredForSalary: b.preferredForSalary,
+    preferredForCommission: b.preferredForCommission,
+    effectiveFrom: effectiveFrom || todayISO(),
+  };
+}
 
 /**
  * Live Staff Users service — combines two real backend resources into one
@@ -67,6 +144,16 @@ function toStaffUser(raw: Record<string, any>): StaffUser {
   const departmentNames: string[] =
     staffDepts.length > 0 ? staffDepts.map((sd: any) => sd.department?.name ?? '') : raw.department?.name ? [raw.department.name] : [];
 
+  const staffServices: Array<{ serviceRateId: string; serviceRate?: { id: string; name: string; encounterType?: string | null } }> =
+    raw.staffServices ?? [];
+  const assignedServiceIds = staffServices.map((s) => s.serviceRateId);
+  const assignedServiceNames = staffServices.map((s) => s.serviceRate?.name ?? '');
+  // staff.md §4/§7 — a doctor's OPD/Observation/Emergency eligibility comes
+  // from the encounterType of the services actually assigned to them at
+  // Staff Add, not a separate manual toggle. OR'd with the raw flag so any
+  // legacy manually-set value keeps working too.
+  const assignedEncounterTypes = new Set(staffServices.map((s) => s.serviceRate?.encounterType).filter(Boolean));
+
   return {
     id: raw.id,
     employeeCode: raw.employeeId,
@@ -76,11 +163,16 @@ function toStaffUser(raw: Record<string, any>): StaffUser {
     alternatePhone: raw.alternatePhone || undefined,
     email: raw.email || '',
     cnic: raw.cnic || undefined,
-    designation: raw.designation,
-    departmentId: raw.departmentId,
+    dateOfBirth: raw.dateOfBirth || undefined,
+    designation: raw.designation || '',
+    departmentId: raw.departmentId || '',
     departmentName: raw.department?.name || '',
     departmentIds,
     departmentNames,
+    assignedServiceIds,
+    assignedServiceNames,
+    assignedShiftId: raw.assignedShiftId ?? raw.assignedShift?.id ?? null,
+    assignedShiftName: raw.assignedShift?.name ?? null,
     staffCategory: raw.category as StaffCategory,
     accessType: pu ? 'PORTAL_USER' : 'STAFF_RECORD_ONLY',
     assignedPortal,
@@ -98,9 +190,9 @@ function toStaffUser(raw: Record<string, any>): StaffUser {
     clinicalAuthUsername: raw.clinicalAuthUsername ?? null,
     clinicalAuthActive: !!raw.clinicalAuthActive,
     clinicalAuthUpdatedAt: raw.clinicalAuthUpdatedAt ? formatTimestamp(raw.clinicalAuthUpdatedAt) : undefined,
-    availableForOpd: !!raw.availableForOpd,
-    availableForObservation: !!raw.availableForObservation,
-    availableForEmergency: !!raw.availableForEmergency,
+    availableForOpd: !!raw.availableForOpd || assignedEncounterTypes.has('OPD'),
+    availableForObservation: !!raw.availableForObservation || assignedEncounterTypes.has('OBSERVATION'),
+    availableForEmergency: !!raw.availableForEmergency || assignedEncounterTypes.has('EMERGENCY'),
     doctorSponsoredDiscountTrackingEnabled: !!raw.doctorSponsoredDiscountTrackingEnabled,
     linkedActivityCount: 0,
     notes: raw.notes || undefined,
@@ -220,213 +312,105 @@ export class StaffUserService {
     return cachedStaffUsers.some((u) => u.username && u.username.toLowerCase() === clean && u.id !== currentId);
   }
 
-  /** `POST /staff` (+ `POST /portal-users` when Portal User access is requested) */
-  static async createStaffUser(values: StaffUserFormValues, currentUser: User | null): Promise<{ success: boolean; user?: StaffUser; error?: string }> {
-    if (!values.fullName.trim()) return { success: false, error: 'Full Name is required.' };
-    if (!values.phone.trim()) return { success: false, error: 'Primary phone number is required.' };
-    if (!values.designation.trim()) return { success: false, error: 'Designation is required.' };
-    if (!values.departmentId) return { success: false, error: 'Department selection is required.' };
-    if (values.cnic && !this.isValidCNIC(values.cnic)) {
-      return { success: false, error: 'Invalid CNIC format. Please use standard format (xxxxx-xxxxxxx-x).' };
-    }
+  /** staff.md §5 — guidance only; never auto-grants access. */
+  static isPortalEligible(category: StaffCategory): boolean {
+    return PORTAL_ELIGIBLE_CATEGORIES.includes(category);
+  }
 
-    if (values.accessType === 'PORTAL_USER') {
-      if (!values.assignedPortal) return { success: false, error: 'Assigned Portal is required for Portal User.' };
-      if (!values.staffRole) return { success: false, error: 'Staff Role is required for Portal User.' };
-      const allowedRoles = STAFF_PORTAL_ROLES[values.assignedPortal as StaffPortalKey] || [];
-      if (!allowedRoles.includes(values.staffRole as StaffRole)) {
-        return { success: false, error: `Staff role "${values.staffRole}" is incompatible with portal "${values.assignedPortal}".` };
-      }
-      if (!values.username.trim()) return { success: false, error: 'Username is required for Portal User.' };
-      if (!values.password) return { success: false, error: 'Temporary password is required for Portal User.' };
-      const passValidation = this.isValidPassword(values.password);
-      if (!passValidation.valid) return { success: false, error: passValidation.message };
-      if (values.password !== values.confirmPassword) return { success: false, error: 'Password and Confirm Password do not match.' };
-    }
+  static isValidDateOfBirth(dob: string): boolean {
+    if (!dob) return false;
+    const d = new Date(dob);
+    if (Number.isNaN(d.getTime())) return false;
+    return d.getTime() < Date.now();
+  }
+
+  /**
+   * `POST /staff` — the full Add Staff wizard (Staff Portal Access Salary
+   * Commission.pdf §2) in ONE request: Staff Master, Weekly Timing, Salary
+   * Profile, Commission Setup and Bank Account are saved in a single backend
+   * transaction, so a failure never leaves a half-created staff member.
+   * Portal access stays a separate workflow.
+   */
+  static async createStaffUser(values: StaffUserFormValues, currentUser: User | null): Promise<{ success: boolean; user?: StaffUser; error?: string }> {
+    const invalid = this.validateCoreValues(values);
+    if (invalid) return { success: false, error: invalid };
 
     try {
       const staffRes = await apiClient.post<{ data: Record<string, any> }>('/staff', {
-        fullName: values.fullName.trim(),
-        fatherGuardianName: values.fatherGuardianName?.trim() || undefined,
-        cnic: values.cnic?.trim() || undefined,
-        category: values.staffCategory,
-        departmentId: values.departmentId,
-        // Doctor multi-department: send the full list so the junction table is populated
-        ...(values.staffCategory === 'Doctor' && values.departmentIds && values.departmentIds.length > 0
-          ? { departmentIds: values.departmentIds }
+        ...this.toStaffMasterPayload(values),
+        assignedShiftId: values.assignedShiftId || undefined,
+        joiningDate: values.joiningDate || undefined,
+        ...(values.scheduleEnabled ? { weeklySchedule: toSchedulePayload(values) } : {}),
+        ...(hasSalary(values) ? { salaryProfile: toSalaryPayload(values) } : {}),
+        ...(hasSalary(values) && isCommissionBasis(values.salaryBasis) ? { commission: toCommissionPayload(values) } : {}),
+        ...(values.bankEnabled ? { bankAccount: toBankPayload(values, values.joiningDate) } : {}),
+        ...(values.staffCategory === 'Doctor' && values.clinicalUsername.trim() && values.clinicalPassword
+          ? { clinicalAuth: { username: values.clinicalUsername.trim(), password: values.clinicalPassword } }
           : {}),
-        designation: values.designation.trim(),
-        phone: values.phone.trim(),
-        alternatePhone: values.alternatePhone?.trim() || undefined,
-        email: values.email?.trim() || undefined,
-        joiningDate: new Date().toISOString().slice(0, 10), // not yet collected by this form — defaults to today
-        availableForOpd: values.availableForOpd,
-        availableForObservation: values.availableForObservation,
-        availableForEmergency: values.availableForEmergency,
-        doctorSponsoredDiscountTrackingEnabled: values.doctorSponsoredDiscountTrackingEnabled,
       });
       const staffId = staffRes.data.data.id;
 
-      // Canonical Salary Profile creation (if enabled)
-      if (values.salaryEnabled && values.baseSalary && Number(values.baseSalary) > 0) {
-        await this.saveSalaryProfile(staffId, {
-          salaryBasis: values.salaryBasis || 'MONTHLY',
-          baseAmount: Number(values.baseSalary),
-          effectiveFrom: values.salaryEffectiveFrom || new Date().toISOString().slice(0, 10),
-        });
-      }
-
-      if (values.accessType === 'PORTAL_USER') {
-        await apiClient.post('/portal-users', {
-          staffId,
-          fullName: values.fullName.trim(),
-          username: values.username.trim().toLowerCase(),
-          email: values.email?.trim() || undefined,
-          phone: values.phone.trim(),
-          password: values.password,
-          role: KEY_TO_PORTAL_ROLE[values.assignedPortal as StaffPortalKey],
-        });
-      }
       if (values.status === 'INACTIVE') {
         await apiClient.post(`/staff/${staffId}/deactivate`);
-      }
-
-      // Patient Discharge Credentials (Clinical Discharge Authorization — Doctors only)
-      if (
-        values.staffCategory === 'Doctor' &&
-        values.clinicalAuthUsername?.trim() &&
-        values.clinicalAuthPassword?.trim()
-      ) {
-        await this.setClinicalAuth(
-          staffId,
-          values.clinicalAuthUsername.trim(),
-          values.clinicalAuthPassword.trim()
-        );
-        if (values.clinicalAuthActive === false) {
-          await this.setClinicalAuthActive(staffId, false);
-        }
       }
 
       await fetchStaffUsers();
       const created = this.getStaffUserById(staffId);
       return { success: true, user: created };
     } catch (err: any) {
-      return { success: false, error: err?.message || 'Failed to create staff user.' };
+      return { success: false, error: apiError(err, 'Failed to create staff user.') };
     }
   }
 
-  /** `PATCH /staff/:id` (+ create/update/remove the linked `/portal-users*` record as access type changes) */
-  static async updateStaffUser(id: string, values: StaffUserFormValues, currentUser: User | null): Promise<{ success: boolean; user?: StaffUser; error?: string }> {
+  /**
+   * `PATCH /staff/:id` for the Staff Master, then only the wizard sections the
+   * user actually changed — each is effective-dated server-side (history kept).
+   * Salary is saved before commission because commission is only allowed on a
+   * "+ Commission" salary type.
+   */
+  static async updateStaffUser(
+    id: string,
+    values: StaffUserFormValues,
+    currentUser: User | null,
+    changed: StaffWizardChanges = { schedule: false, salary: false, commission: false, bank: false },
+  ): Promise<{ success: boolean; user?: StaffUser; error?: string }> {
     const existing = this.getStaffUserById(id);
     if (!existing) return { success: false, error: 'Staff user not found.' };
-
-    if (!values.fullName.trim()) return { success: false, error: 'Full Name is required.' };
-    if (!values.phone.trim()) return { success: false, error: 'Primary phone number is required.' };
-    if (!values.departmentId) return { success: false, error: 'Department selection is required.' };
-    if (values.cnic && !this.isValidCNIC(values.cnic)) {
-      return { success: false, error: 'Invalid CNIC format. Please use standard format (xxxxx-xxxxxxx-x).' };
-    }
-
-    if (values.accessType === 'PORTAL_USER') {
-      if (!values.assignedPortal || !values.staffRole) {
-        return { success: false, error: 'Assigned Portal and Staff Role are required for Portal User.' };
-      }
-      if (existing.accessType === 'STAFF_RECORD_ONLY') {
-        if (!values.username.trim()) return { success: false, error: 'Username is required for Portal User.' };
-        if (!values.password) return { success: false, error: 'Temporary password is required when enabling Portal User access.' };
-        const passValidation = this.isValidPassword(values.password);
-        if (!passValidation.valid) return { success: false, error: passValidation.message };
-        if (values.password !== values.confirmPassword) return { success: false, error: 'Password and Confirm Password do not match.' };
-      }
-    }
+    const invalid = this.validateCoreValues(values);
+    if (invalid) return { success: false, error: invalid };
 
     try {
       await apiClient.patch(`/staff/${id}`, {
-        fullName: values.fullName.trim(),
-        fatherGuardianName: values.fatherGuardianName?.trim() || undefined,
-        cnic: values.cnic?.trim() || undefined,
-        category: values.staffCategory,
-        departmentId: values.departmentId,
-        // Doctor multi-department: sync the junction table on every update
-        ...(values.staffCategory === 'Doctor' && values.departmentIds && values.departmentIds.length > 0
-          ? { departmentIds: values.departmentIds }
-          : {}),
-        designation: values.designation.trim(),
-        phone: values.phone.trim(),
-        alternatePhone: values.alternatePhone?.trim() || undefined,
-        email: values.email?.trim() || undefined,
+        ...this.toStaffMasterPayload(values),
         isActive: values.status !== 'INACTIVE',
-        availableForOpd: values.availableForOpd,
-        availableForObservation: values.availableForObservation,
-        availableForEmergency: values.availableForEmergency,
-        doctorSponsoredDiscountTrackingEnabled: values.doctorSponsoredDiscountTrackingEnabled,
+        assignedShiftId: values.assignedShiftId || null,
+        joiningDate: values.joiningDate || undefined,
       });
 
-      // Canonical Salary Profile update/creation (if enabled)
-      if (values.salaryEnabled && values.baseSalary && Number(values.baseSalary) > 0) {
-        await this.saveSalaryProfile(id, {
-          salaryBasis: values.salaryBasis || 'MONTHLY',
-          baseAmount: Number(values.baseSalary),
-          effectiveFrom: values.salaryEffectiveFrom || new Date().toISOString().slice(0, 10),
-        });
+      const wantsSuspended = values.status === 'SUSPENDED';
+      const portalUserId = getPortalUserId(existing);
+      if (portalUserId && wantsSuspended !== (existing.status === 'SUSPENDED')) {
+        await apiClient.post(`/portal-users/${portalUserId}/status`, { status: wantsSuspended ? 'SUSPENDED' : 'ACTIVE' });
       }
 
-      const portalUserId = getPortalUserId(existing);
-      if (values.accessType === 'PORTAL_USER') {
-        if (portalUserId) {
-          await apiClient.patch(`/portal-users/${portalUserId}`, {
-            fullName: values.fullName.trim(),
-            email: values.email?.trim() || undefined,
-            phone: values.phone.trim(),
-            role: KEY_TO_PORTAL_ROLE[values.assignedPortal as StaffPortalKey],
-          });
-          const wantsSuspended = values.status === 'SUSPENDED';
-          if (wantsSuspended !== (existing.status === 'SUSPENDED')) {
-            await apiClient.post(`/portal-users/${portalUserId}/status`, { status: wantsSuspended ? 'SUSPENDED' : 'ACTIVE' });
-          }
-        } else {
-          // Converting from STAFF_RECORD_ONLY to PORTAL_USER
-          await apiClient.post('/portal-users', {
-            staffId: id,
-            fullName: values.fullName.trim(),
-            username: values.username.trim().toLowerCase(),
-            email: values.email?.trim() || undefined,
-            phone: values.phone.trim(),
-            password: values.password,
-            role: KEY_TO_PORTAL_ROLE[values.assignedPortal as StaffPortalKey],
-          });
-        }
-      } else if (portalUserId) {
-        // Converting to STAFF_RECORD_ONLY: remove portal access if it has no linked activity.
+      const steps: [boolean, string, () => Promise<unknown>][] = [
+        [changed.schedule && values.scheduleEnabled, 'weekly timing', () =>
+          apiClient.put(`/staff/${id}/weekly-schedule`, { effectiveFrom: todayISO(), days: toSchedulePayload(values) })],
+        [changed.salary && hasSalary(values), 'salary profile', () => apiClient.post(`/staff/${id}/salary-profile`, toSalaryPayload(values))],
+        [(changed.salary || changed.commission) && hasSalary(values) && isCommissionBasis(values.salaryBasis), 'commission setup', () =>
+          apiClient.put(`/staff/${id}/commission`, toCommissionPayload(values))],
+        [changed.bank && values.bankEnabled, 'bank account', () => apiClient.post(`/staff/${id}/bank-account`, toBankPayload(values, todayISO()))],
+        // A new password (re)sets the discharge credential; blank keeps the current one.
+        [values.staffCategory === 'Doctor' && !!values.clinicalUsername.trim() && !!values.clinicalPassword, 'discharge credentials', () =>
+          apiClient.post(`/staff/${id}/clinical-auth`, { username: values.clinicalUsername.trim(), password: values.clinicalPassword })],
+      ];
+      for (const [run, label, call] of steps) {
+        if (!run) continue;
         try {
-          await apiClient.delete(`/portal-users/${portalUserId}`);
+          await call();
         } catch (err: any) {
           await fetchStaffUsers();
-          return {
-            success: false,
-            error: err?.message || 'This account has linked activity and its portal access cannot be removed. Suspend it instead.',
-          };
-        }
-      }
-
-      // Patient Discharge Credentials (Clinical Discharge Authorization — Doctors only)
-      if (values.staffCategory === 'Doctor') {
-        const docUsername = values.clinicalAuthUsername?.trim();
-        const docPassword = values.clinicalAuthPassword?.trim();
-        if (docUsername && docPassword) {
-          const isConfigured = !!existing.clinicalAuthUsername;
-          if (isConfigured && docUsername === existing.clinicalAuthUsername) {
-            await this.resetClinicalAuthPassword(id, docPassword);
-          } else {
-            await this.setClinicalAuth(id, docUsername, docPassword);
-          }
-        }
-        if (
-          values.clinicalAuthActive !== undefined &&
-          values.clinicalAuthActive !== existing.clinicalAuthActive &&
-          (existing.clinicalAuthUsername || docUsername)
-        ) {
-          await this.setClinicalAuthActive(id, values.clinicalAuthActive);
+          return { success: false, error: `Staff record updated, but ${label} failed — ${apiError(err, 'unknown error')}` };
         }
       }
 
@@ -434,7 +418,89 @@ export class StaffUserService {
       const updated = this.getStaffUserById(id);
       return { success: true, user: updated };
     } catch (err: any) {
-      return { success: false, error: err?.message || 'Failed to update staff user.' };
+      return { success: false, error: apiError(err, 'Failed to update staff user.') };
+    }
+  }
+
+  private static validateCoreValues(values: StaffUserFormValues): string | null {
+    if (!values.fullName.trim()) return 'Full Name is required.';
+    if (!values.fatherGuardianName.trim()) return 'Father / Guardian Name is required.';
+    if (!values.phone.trim()) return 'Primary phone number is required.';
+    if (!values.cnic.trim() || !this.isValidCNIC(values.cnic)) return 'A valid CNIC (xxxxx-xxxxxxx-x) is required.';
+    if (!this.isValidDateOfBirth(values.dateOfBirth)) return 'A valid Date of Birth is required.';
+    if (values.staffCategory === 'Doctor') {
+      if (!values.departmentIds || values.departmentIds.length === 0) return 'Doctor requires at least one Clinical Department.';
+      if (!values.serviceIds || values.serviceIds.length === 0) return 'Doctor requires at least one Assigned Service.';
+    }
+    return null;
+  }
+
+  private static toStaffMasterPayload(values: StaffUserFormValues) {
+    return {
+      fullName: values.fullName.trim(),
+      fatherGuardianName: values.fatherGuardianName.trim(),
+      cnic: values.cnic.trim(),
+      dateOfBirth: values.dateOfBirth,
+      category: values.staffCategory,
+      phone: values.phone.trim(),
+      alternatePhone: values.alternatePhone?.trim() || undefined,
+      email: values.email?.trim() || undefined,
+      designation: values.designation?.trim() || undefined,
+      // Only sync department/service assignments when this is a Doctor —
+      // never wipe an existing (Staff 360-set) department for other categories.
+      ...(values.staffCategory === 'Doctor' ? { departmentIds: values.departmentIds, serviceIds: values.serviceIds } : {}),
+    };
+  }
+
+  /**
+   * Separate Portal Access workflow (staff.md §5) — grants an existing
+   * STAFF_RECORD_ONLY staff member a login on one of the existing HMS
+   * portals. Never called from the Add/Edit Staff form.
+   */
+  static async grantPortalAccess(
+    staffId: string,
+    values: { assignedPortal: StaffPortalKey; username: string; password: string },
+  ): Promise<{ success: boolean; error?: string }> {
+    const staff = this.getStaffUserById(staffId);
+    if (!staff) return { success: false, error: 'Staff user not found.' };
+    if (!values.assignedPortal) return { success: false, error: 'Portal selection is required.' };
+    if (!values.username.trim()) return { success: false, error: 'Username is required.' };
+    const passValidation = this.isValidPassword(values.password);
+    if (!passValidation.valid) return { success: false, error: passValidation.message };
+
+    try {
+      await apiClient.post('/portal-users', {
+        staffId,
+        fullName: staff.fullName,
+        username: values.username.trim().toLowerCase(),
+        email: staff.email || undefined,
+        phone: staff.phone,
+        password: values.password,
+        role: KEY_TO_PORTAL_ROLE[values.assignedPortal],
+      });
+      await fetchStaffUsers();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.response?.data?.error?.message || err?.message || 'Failed to grant portal access.' };
+    }
+  }
+
+  /** Revokes an existing portal login, converting the staff member back to STAFF_RECORD_ONLY. */
+  static async revokePortalAccess(staffId: string): Promise<{ success: boolean; error?: string }> {
+    const staff = this.getStaffUserById(staffId);
+    if (!staff) return { success: false, error: 'Staff user not found.' };
+    const portalUserId = getPortalUserId(staff);
+    if (!portalUserId) return { success: true };
+
+    try {
+      await apiClient.delete(`/portal-users/${portalUserId}`);
+      await fetchStaffUsers();
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.response?.data?.error?.message || err?.message || 'This account has linked activity and its portal access cannot be removed. Suspend it instead.',
+      };
     }
   }
 
@@ -515,11 +581,13 @@ export class StaffUserService {
   static async saveSalaryProfile(
     id: string,
     values: {
-      salaryBasis: 'MONTHLY' | 'PER_DAY';
+      salaryBasis: SalaryBasis;
       baseAmount: number;
       payrollDivisor?: number;
       salaryTaxMethod?: 'PERCENTAGE' | 'FIXED' | '';
       salaryTaxValue?: number | '';
+      fixedAllowance?: number;
+      fixedDeduction?: number;
       effectiveFrom: string;
     },
   ): Promise<{ success: boolean; error?: string }> {
@@ -530,6 +598,8 @@ export class StaffUserService {
         payrollDivisor: values.payrollDivisor,
         salaryTaxMethod: values.salaryTaxMethod || undefined,
         salaryTaxValue: values.salaryTaxValue === '' ? undefined : values.salaryTaxValue,
+        fixedAllowance: values.fixedAllowance,
+        fixedDeduction: values.fixedDeduction,
         effectiveFrom: values.effectiveFrom,
       });
       return { success: true };
@@ -623,13 +693,15 @@ export class StaffUserService {
         employee_code: 'EMP-FD-10',
         full_name: 'Bilal Khan',
         father_guardian_name: 'Muhammad Khan',
+        cnic: '35201-1122334-1',
+        date_of_birth: '1995-04-12',
         phone: '+92 300 1234567',
         alternate_phone: '',
         email: 'bilal.khan@sharif-saeed.hospital',
-        cnic: '35201-1122334-1',
         designation: 'Reception Officer',
-        department_code: 'DEP-09',
-        staff_category: 'Front Desk / Reception',
+        department_code: '',
+        services: '',
+        staff_category: 'Front Desk / Billing',
         access_type: 'PORTAL_USER',
         assigned_portal: 'front-desk',
         staff_role: 'Front Desk Officer',
@@ -640,12 +712,14 @@ export class StaffUserService {
         employee_code: 'EMP-DOC-15',
         full_name: 'Dr. Shahzad Ali',
         father_guardian_name: 'Ali Nawaz',
+        cnic: '35202-2233445-2',
+        date_of_birth: '1980-08-01',
         phone: '+92 300 7654321',
         alternate_phone: '',
         email: 'shahzad.ali@sharif-saeed.hospital',
-        cnic: '35202-2233445-2',
         designation: 'Consultant Pediatrician',
         department_code: 'DEP-04',
+        services: 'CONS-OPD, LAB-CBC',
         staff_category: 'Doctor',
         access_type: 'STAFF_RECORD_ONLY',
         assigned_portal: '',
@@ -657,6 +731,8 @@ export class StaffUserService {
 
     const instructionsData = [
       { Instruction: 'Allowed staff_category values:', ValidOptions: STAFF_CATEGORIES.join(', ') },
+      { Instruction: 'Mandatory fields (all rows):', ValidOptions: 'full_name, father_guardian_name, cnic (xxxxx-xxxxxxx-x), date_of_birth (YYYY-MM-DD), phone, staff_category' },
+      { Instruction: 'Doctor rows only:', ValidOptions: 'department_code (Clinical Department) and services (comma-separated active service codes) are required' },
       { Instruction: 'Allowed access_type values:', ValidOptions: 'PORTAL_USER, STAFF_RECORD_ONLY' },
       { Instruction: 'Allowed assigned_portal values:', ValidOptions: 'front-desk, admission, inventory (Leave blank for STAFF_RECORD_ONLY)' },
       { Instruction: 'Allowed status values:', ValidOptions: 'ACTIVE, INACTIVE, SUSPENDED' },
@@ -697,6 +773,13 @@ export class StaffUserService {
             deptMap.set(d.name.toLowerCase(), { id: d.id, name: d.name });
           });
 
+          const activeServices = ServiceRatesService.getServices().filter((s) => s.status === 'Active');
+          const serviceMap = new Map<string, { id: string; name: string }>();
+          activeServices.forEach((s) => {
+            serviceMap.set(s.code.toLowerCase(), { id: s.id, name: s.name });
+            serviceMap.set(s.id.toLowerCase(), { id: s.id, name: s.name });
+          });
+
           const seenBatchCodes = new Set<string>();
           const seenBatchUsernames = new Set<string>();
           const rows: ImportedStaffRow[] = [];
@@ -712,8 +795,10 @@ export class StaffUserService {
             const alternatePhone = String(row.alternate_phone || '').trim();
             const email = String(row.email || row.Email || '').trim().toLowerCase();
             const cnic = String(row.cnic || row.CNIC || '').trim();
+            const dateOfBirth = String(row.date_of_birth || row.DateOfBirth || row.dob || '').trim();
             const designation = String(row.designation || row.Designation || '').trim();
             const departmentCode = String(row.department_code || row.DepartmentCode || row.department || '').trim();
+            const serviceCodesRaw = String(row.services || row.Services || '').trim();
             const staffCategory = String(row.staff_category || row.StaffCategory || row.category || '').trim();
             const accessType = String(row.access_type || row.AccessType || 'PORTAL_USER').trim().toUpperCase();
             const assignedPortal = String(row.assigned_portal || row.AssignedPortal || row.portal || '').trim().toLowerCase();
@@ -732,21 +817,39 @@ export class StaffUserService {
             }
 
             if (!fullName) errors.push('Staff Full Name is required.');
+            if (!fatherGuardianName) errors.push('Father / Guardian Name is required.');
             if (!phone) errors.push('Phone number is required.');
-            if (!designation) errors.push('Designation is required.');
-
-            let resolvedDept: { id: string; name: string } | undefined;
-            if (!departmentCode) {
-              errors.push('Department code is required.');
-            } else {
-              resolvedDept = deptMap.get(departmentCode.toLowerCase());
-              if (!resolvedDept) {
-                errors.push(`Unknown department code "${departmentCode}".`);
-              }
+            if (!dateOfBirth || Number.isNaN(new Date(dateOfBirth).getTime())) {
+              errors.push('A valid Date of Birth is required.');
             }
 
             if (!staffCategory || !STAFF_CATEGORIES.includes(staffCategory as StaffCategory)) {
-              errors.push(`Invalid staff category "${staffCategory}". Allowed: ${STAFF_CATEGORIES.slice(0, 5).join(', ')}...`);
+              errors.push(`Invalid staff category "${staffCategory}". Allowed: ${STAFF_CATEGORIES.join(', ')}.`);
+            }
+
+            const isDoctor = staffCategory === 'Doctor';
+            let resolvedDept: { id: string; name: string } | undefined;
+            if (isDoctor) {
+              if (!departmentCode) {
+                errors.push('Doctor requires at least one Clinical Department (department_code).');
+              } else {
+                resolvedDept = deptMap.get(departmentCode.toLowerCase());
+                if (!resolvedDept) errors.push(`Unknown department code "${departmentCode}".`);
+              }
+
+              if (!serviceCodesRaw) {
+                errors.push('Doctor requires at least one Assigned Service (services).');
+              } else {
+                const unknown = serviceCodesRaw
+                  .split(',')
+                  .map((c) => c.trim())
+                  .filter(Boolean)
+                  .filter((c) => !serviceMap.has(c.toLowerCase()));
+                if (unknown.length > 0) errors.push(`Unknown/inactive service code(s): ${unknown.join(', ')}.`);
+              }
+            } else if (departmentCode) {
+              resolvedDept = deptMap.get(departmentCode.toLowerCase());
+              if (!resolvedDept) errors.push(`Unknown department code "${departmentCode}".`);
             }
 
             if (accessType !== 'PORTAL_USER' && accessType !== 'STAFF_RECORD_ONLY') {
@@ -790,12 +893,12 @@ export class StaffUserService {
               }
             }
 
-            if (cnic) {
-              if (!this.isValidCNIC(cnic)) {
-                errors.push('CNIC must follow format xxxxx-xxxxxxx-x.');
-              } else if (existingCnics.has(cnic.toLowerCase())) {
-                errors.push(`CNIC "${cnic}" already registered to another staff user.`);
-              }
+            if (!cnic) {
+              errors.push('CNIC is required.');
+            } else if (!this.isValidCNIC(cnic)) {
+              errors.push('CNIC must follow format xxxxx-xxxxxxx-x.');
+            } else if (existingCnics.has(cnic.toLowerCase())) {
+              errors.push(`CNIC "${cnic}" already registered to another staff user.`);
             }
 
             if (status !== 'ACTIVE' && status !== 'INACTIVE' && status !== 'SUSPENDED') {
@@ -811,9 +914,11 @@ export class StaffUserService {
               alternatePhone,
               email,
               cnic,
+              dateOfBirth,
               designation,
               departmentCode,
               departmentName: resolvedDept?.name,
+              serviceCodes: isDoctor ? serviceCodesRaw : undefined,
               staffCategory,
               accessType,
               assignedPortal: accessType === 'PORTAL_USER' ? assignedPortal : undefined,
@@ -859,10 +964,34 @@ export class StaffUserService {
     const failures: string[] = [];
     let importedCount = 0;
 
+    const activeServices = ServiceRatesService.getServices().filter((s) => s.status === 'Active');
+    const serviceMap = new Map<string, string>(); // code/id (lowercase) -> serviceRateId
+    activeServices.forEach((s) => {
+      serviceMap.set(s.code.toLowerCase(), s.id);
+      serviceMap.set(s.id.toLowerCase(), s.id);
+    });
+
     for (const row of validRows) {
-      const dept = deptMap.get(row.departmentCode.toLowerCase());
-      if (!dept) {
+      const isDoctor = row.staffCategory === 'Doctor';
+      const dept = row.departmentCode ? deptMap.get(row.departmentCode.toLowerCase()) : undefined;
+      if (isDoctor && !dept) {
         failures.push(`${row.employeeCode}: department "${row.departmentCode}" not found`);
+        continue;
+      }
+      const serviceIds = isDoctor
+        ? Array.from(
+            new Set(
+              (row.serviceCodes || '')
+                .split(',')
+                .map((c) => c.trim().toLowerCase())
+                .filter(Boolean)
+                .map((c) => serviceMap.get(c))
+                .filter((id): id is string => !!id),
+            ),
+          )
+        : [];
+      if (isDoctor && serviceIds.length === 0) {
+        failures.push(`${row.employeeCode}: no valid active services resolved from "${row.serviceCodes}"`);
         continue;
       }
       const tempPassword = `Staff#${Math.floor(1000 + Math.random() * 9000)}`;
@@ -873,39 +1002,50 @@ export class StaffUserService {
             employeeCode: row.employeeCode,
             fatherGuardianName: row.fatherGuardianName || '',
             cnic: row.cnic || '',
+            dateOfBirth: row.dateOfBirth || '',
             phone: row.phone,
             alternatePhone: row.alternatePhone || '',
             email: row.email,
             designation: row.designation,
-            departmentId: dept.id,
-            departmentName: dept.name,
             staffCategory: row.staffCategory as StaffCategory,
             status: (row.status as StaffStatus) || 'ACTIVE',
-            accessType: row.accessType as StaffAccessType,
-            assignedPortal: (row.assignedPortal as StaffPortalKey) || '',
-            staffRole: row.staffRole || '',
-            username: row.username || '',
-            password: tempPassword,
-            confirmPassword: tempPassword,
-            requirePasswordChange: true,
-            doctorSponsoredDiscountTrackingEnabled: false,
+            departmentIds: dept ? [dept.id] : [],
+            serviceIds,
+            assignedShiftId: '',
+            salaryEnabled: false,
+            salaryBasis: 'MONTHLY',
+            baseSalary: '',
+            salaryTaxMethod: '',
+            salaryTaxValue: '',
+            salaryEffectiveFrom: new Date().toISOString().slice(0, 10),
+            ...defaultWizardExtras(),
           },
           currentUser
         );
-        if (!result.success) {
+        if (!result.success || !result.user) {
           failures.push(`${row.employeeCode}: ${result.error}`);
           continue;
         }
         importedCount += 1;
-        if (row.accessType === 'PORTAL_USER' && row.username) {
-          generatedCredentials.push({
-            employeeCode: row.employeeCode,
-            fullName: row.fullName,
-            portal: row.assignedPortal || '',
-            role: row.staffRole || 'Staff',
+
+        if (row.accessType === 'PORTAL_USER' && row.username && row.assignedPortal) {
+          const portalResult = await this.grantPortalAccess(result.user.id, {
+            assignedPortal: row.assignedPortal as StaffPortalKey,
             username: row.username,
-            temporaryPassword: tempPassword,
+            password: tempPassword,
           });
+          if (!portalResult.success) {
+            failures.push(`${row.employeeCode}: staff record created, but portal access failed — ${portalResult.error}`);
+          } else {
+            generatedCredentials.push({
+              employeeCode: row.employeeCode,
+              fullName: row.fullName,
+              portal: row.assignedPortal || '',
+              role: row.staffRole || 'Staff',
+              username: row.username,
+              temporaryPassword: tempPassword,
+            });
+          }
         }
       } catch (err: any) {
         failures.push(`${row.employeeCode}: ${err?.message || 'Failed to import'}`);

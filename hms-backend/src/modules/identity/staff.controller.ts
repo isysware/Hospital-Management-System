@@ -8,6 +8,9 @@ import type {
   SetClinicalAuthBody,
   ResetClinicalAuthPasswordBody,
   CreateSalaryProfileBody,
+  ReplaceWeeklyScheduleBody,
+  CreateBankAccountBody,
+  CommissionSetup,
 } from './staff.schemas';
 
 export const staffController = {
@@ -82,5 +85,23 @@ export const staffController = {
     if (!req.user) throw new AuthenticationError();
     const profile = await staffService.createSalaryProfile(req.params.id as string, req.body as CreateSalaryProfileBody, req.user.sub);
     res.status(201).json({ data: profile });
+  },
+
+  async replaceWeeklySchedule(req: Request, res: Response) {
+    if (!req.user) throw new AuthenticationError();
+    const days = await staffService.replaceWeeklySchedule(req.params.id as string, req.body as ReplaceWeeklyScheduleBody, req.user.sub);
+    res.json({ data: days });
+  },
+
+  async replaceCommissionSetup(req: Request, res: Response) {
+    if (!req.user) throw new AuthenticationError();
+    const rules = await staffService.replaceCommissionSetup(req.params.id as string, req.body as CommissionSetup, req.user.sub);
+    res.json({ data: rules });
+  },
+
+  async createBankAccount(req: Request, res: Response) {
+    if (!req.user) throw new AuthenticationError();
+    const account = await staffService.createBankAccount(req.params.id as string, req.body as CreateBankAccountBody, req.user.sub);
+    res.status(201).json({ data: account });
   },
 };

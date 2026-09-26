@@ -654,7 +654,7 @@ export const dashboardService = {
         id: d.id,
         name: d.fullName,
         department: d.department?.name || 'Unassigned',
-        designation: d.designation,
+        designation: d.designation || 'Doctor',
         shiftLabel,
         patientsBooked,
         status: patientsBooked > 0 ? 'On Duty' : 'On Roster',

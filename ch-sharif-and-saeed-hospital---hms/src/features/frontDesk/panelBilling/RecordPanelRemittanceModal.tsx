@@ -154,6 +154,7 @@ export const RecordPanelRemittanceModal: React.FC<RecordPanelRemittanceModalProp
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500">PKR</span>
                 <input
                   type="number"
+                  onWheel={(e) => e.currentTarget.blur()}
                   min={1}
                   max={totalOutstanding}
                   step="0.01"

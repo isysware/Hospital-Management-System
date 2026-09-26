@@ -36,6 +36,7 @@ import {
   getAllPatients,
 } from '../../../services/patientRegistryService';
 import { getActiveCorporatePanels, fetchCorporatePanels, type CorporatePanel } from '../../../services/panelService';
+import { useToast } from '../../../context/ToastContext';
 
 export const PAKISTAN_CITIES = [
   'Lahore',
@@ -99,6 +100,7 @@ export const PatientModal: React.FC<PatientModalProps> = ({
   patientToEdit,
   onOpenExistingPatient,
 }) => {
+  const toast = useToast();
   const isEditMode = Boolean(patientToEdit);
   // Company transfer is allowed (panel.md §14 backlog item 1 — every past
   // invoice now freezes its own payer, so moving a patient's live
@@ -440,7 +442,12 @@ export const PatientModal: React.FC<PatientModalProps> = ({
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const isValid = Object.keys(newErrors).length === 0;
+    if (!isValid) {
+      const firstError = Object.values(newErrors)[0];
+      if (firstError) toast.error(firstError, 'Validation Error');
+    }
+    return isValid;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -448,11 +455,13 @@ export const PatientModal: React.FC<PatientModalProps> = ({
 
     // If exact duplicate exists, block creation completely
     if (duplicateWarning?.isExactCnic || duplicateWarning?.isExactPassport) {
+      toast.error('Exact duplicate detected (matching CNIC/Passport). Cannot register duplicate patient.', 'Duplicate Error');
       return;
     }
 
     // If weaker match exists and not yet dismissed by staff
     if (duplicateWarning?.isPossibleDuplicate && !ignoreWeakDuplicateWarning) {
+      toast.warning('Possible duplicate patient found. Please review existing records or click proceed.', 'Duplicate Warning');
       return;
     }
 
@@ -893,6 +902,7 @@ export const PatientModal: React.FC<PatientModalProps> = ({
                   </label>
                   <input
                     type="number"
+                    onWheel={(e) => e.currentTarget.blur()}
                     value={formData.age}
                     onChange={handleAgeChange}
                     disabled={Boolean(formData.dateOfBirth)}

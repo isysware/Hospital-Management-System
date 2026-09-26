@@ -12,6 +12,9 @@ import {
   setClinicalAuthBodySchema,
   resetClinicalAuthPasswordBodySchema,
   createSalaryProfileBodySchema,
+  replaceWeeklyScheduleBodySchema,
+  createBankAccountBodySchema,
+  commissionSetupSchema,
 } from './staff.schemas';
 
 /** §4.1, §8.3 — mounted at `/api/v1/staff`. SUPER_ADMIN / ADMIN only. */
@@ -77,6 +80,26 @@ router.post(
   authorize('identity', 'edit'),
   validate({ params: staffIdParamsSchema, body: createSalaryProfileBodySchema }),
   asyncHandler(staffController.createSalaryProfile),
+);
+
+// Staff Add Wizard steps 6 and 9 when editing an existing staff member.
+router.put(
+  '/:id/weekly-schedule',
+  authorize('identity', 'edit'),
+  validate({ params: staffIdParamsSchema, body: replaceWeeklyScheduleBodySchema }),
+  asyncHandler(staffController.replaceWeeklySchedule),
+);
+router.put(
+  '/:id/commission',
+  authorize('identity', 'edit'),
+  validate({ params: staffIdParamsSchema, body: commissionSetupSchema }),
+  asyncHandler(staffController.replaceCommissionSetup),
+);
+router.post(
+  '/:id/bank-account',
+  authorize('identity', 'edit'),
+  validate({ params: staffIdParamsSchema, body: createBankAccountBodySchema }),
+  asyncHandler(staffController.createBankAccount),
 );
 
 export default router;

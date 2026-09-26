@@ -8,6 +8,7 @@ import {
   VALID_WARD_TYPES,
   VALID_GENDER_POLICIES,
 } from '../../../services/wardsRoomsBedsService';
+import { useToast } from '../../../context/ToastContext';
 
 interface WardModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const WardModal: React.FC<WardModalProps> = ({
   staffUsers = [],
   floors = [],
 }) => {
+  const toast = useToast();
   const isEditing = !!ward;
 
   const [formValues, setFormValues] = useState<WardFormValues>({
@@ -116,6 +118,8 @@ export const WardModal: React.FC<WardModalProps> = ({
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      const firstError = Object.values(newErrors)[0];
+      toast.error(firstError, 'Validation Error');
       return;
     }
 
@@ -346,6 +350,7 @@ export const WardModal: React.FC<WardModalProps> = ({
               <input
                 id="ward-form-fixed-price"
                 type="number"
+                onWheel={(e) => e.currentTarget.blur()}
                 min="0"
                 step="1"
                 value={formValues.fixedPrice ?? ''}

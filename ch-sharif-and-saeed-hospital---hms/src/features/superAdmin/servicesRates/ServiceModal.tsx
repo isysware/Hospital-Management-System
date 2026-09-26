@@ -4,6 +4,7 @@ import { HospitalService, ServiceFormValues } from '../../../types/serviceRates'
 import { Department } from '../../../types/department';
 import { ServiceRatesService, VALID_BILLING_UNITS } from '../../../services/serviceRatesService';
 import { fetchDepartments } from '../../../services/departmentService';
+import { useToast } from '../../../context/ToastContext';
 
 export type ServiceStreamType = 'HOSPITAL' | 'OUTSOURCED';
 
@@ -16,6 +17,7 @@ interface ServiceModalProps {
 }
 
 export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onSave, service }) => {
+  const toast = useToast();
   const isEditing = !!service;
   const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const [departmentsLoading, setDepartmentsLoading] = useState(true);
@@ -125,6 +127,8 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      const firstError = Object.values(newErrors)[0];
+      toast.error(firstError, 'Validation Error');
       return;
     }
 
@@ -369,15 +373,19 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
                     <input
                       id="service-form-rate"
                       type="number"
+                      onWheel={(e) => e.currentTarget.blur()}
                       min="0"
                       step="any"
-                      value={formValues.standardRate}
-                      onChange={(e) =>
+                      placeholder="0"
+                      value={formValues.standardRate === 0 ? '' : formValues.standardRate}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const raw = e.target.value;
                         setFormValues((prev) => ({
                           ...prev,
-                          standardRate: parseFloat(e.target.value) || 0,
-                        }))
-                      }
+                          standardRate: raw === '' ? 0 : (parseFloat(raw) || 0),
+                        }));
+                      }}
                       className="w-full pl-12 pr-3 py-2 text-xs font-bold text-slate-900 rounded-lg border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A]"
                     />
                   </div>

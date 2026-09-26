@@ -418,10 +418,12 @@ export const admissionReportsService = {
         updatedAt: { gte: start, lte: end },
         ...(query.departmentId ? { departmentId: query.departmentId } : {}),
         ...(query.wardId ? { bed: { OR: [{ wardId: query.wardId }, { room: { wardId: query.wardId } }] } } : {}),
+        ...(query.doctorStaffId ? { doctorStaffId: query.doctorStaffId } : {}),
       },
       include: {
         ...patientNameSelect,
         doctor: { select: { fullName: true } },
+        department: { select: { name: true } },
         dischargeClearances: true,
         hospitalInvoices: { select: { total: true, paidTotal: true } },
         dischargeSummary: { select: { authorizedAt: true, initiatedByUser: { select: { displayName: true, username: true } } } },
@@ -430,7 +432,7 @@ export const admissionReportsService = {
       take: 500,
     });
 
-    const rowsOut = rows.map((r) => {
+    const rowsAll = rows.map((r) => {
       const clinical = r.dischargeClearances.find((c) => c.clearanceType === 'CLINICAL')?.status ?? (r.dischargeSummary ? 'CLEARED' : 'PENDING');
       const hospital = r.dischargeClearances.find((c) => c.clearanceType === 'HOSPITAL_BILLING')?.status ?? 'PENDING';
       const pharmacy = r.dischargeClearances.find((c) => c.clearanceType === 'PHARMACY')?.status ?? 'PENDING';
@@ -438,16 +440,29 @@ export const admissionReportsService = {
       return {
         admissionNumber: r.admissionNumber,
         patient: patientDisplayName(r),
+        department: r.department.name,
         doctor: r.doctor?.fullName ?? null,
+        admissionStatus: r.status,
         clinicalReady: clinical === 'CLEARED',
         hospitalClearance: hospital,
         hospitalDue,
+        // Negative due = patient has credit (paid more than billed).
+        balanceStatus: hospitalDue.isZero() ? 'SETTLED' : hospitalDue.isNegative() ? 'CREDIT' : 'OUTSTANDING',
         pharmacyClearance: pharmacy,
         dischargeReady: clinical === 'CLEARED' && (hospital === 'CLEARED' || hospital === 'NOT_APPLICABLE') && (pharmacy === 'CLEARED' || pharmacy === 'NOT_APPLICABLE'),
         completedBy: r.dischargeSummary?.initiatedByUser?.displayName || r.dischargeSummary?.initiatedByUser?.username || null,
         dischargeDate: r.dischargedAt,
       };
     });
+
+    // Clearance filters are derived per row (clinical falls back to the
+    // discharge summary), so they apply after the query.
+    const rowsOut = rowsAll.filter(
+      (r) =>
+        (!query.clinicalStatus || (query.clinicalStatus === 'READY') === r.clinicalReady) &&
+        (!query.hospitalClearance || r.hospitalClearance === query.hospitalClearance) &&
+        (!query.pharmacyClearance || r.pharmacyClearance === query.pharmacyClearance),
+    );
 
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },

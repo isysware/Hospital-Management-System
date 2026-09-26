@@ -701,3 +701,27 @@ User reported "panel patient ki entry Front Desk se nahi hogi" — on investigat
 2. Pharmacy/historical ledger reconciliation, discharge financial clearance, claim lifecycle and concurrent remittance allocation checks (item 4).
 3. Repair legacy migration/test baseline (16 pre-existing failures) and run authenticated browser end-to-end checks when available (item 5).
 4. Decide whether/when to install `@types/react` (§17.3) — separate from the numbered backlog, but worth deciding on purpose rather than leaving prop-shape bugs permanently invisible to `tsc`.
+
+## 18. Panel billing correctness pass + workspace redesign - 2026-09-26
+
+### 18.1 Bugs found and fixed
+
+1. **Panel invoice status was always computed from the FULL total** (root cause: DB trigger `derive_hospital_invoice_payment_status` from migration `20260922160000`, plus 7 copy-pasted status computations in services). `paid_total` only holds patient cash, so a panel invoice whose patient paid their whole share stayed PARTIALLY_PAID forever (fully covered: UNPAID forever) and appeared in outstanding lists/reports. Fix: shared `patientResponsibility()` / `patientPaymentStatus()` in `hms-backend/src/shared/invoicePaymentStatus.ts` (patient share on a correctly split panel invoice, else total), used by invoices/appointments/admission/admissionBilling services; trigger replaced by migration `20260926120000_invoice_status_trigger_patient_share`, which also re-derives every stored status. (`20260926110000_panel_invoice_patient_status` was an earlier data-only attempt the trigger overrode — harmless, superseded.)
+2. **Panel admissions could never get billing clearance** unless the patient also paid the company's share: `reconcileAdmissionDischarge` compared patient receipts with the full total. Now only the patient's responsibility gates HOSPITAL_BILLING clearance; an open panel receivable never blocks patient exit (§5.3). Admission statement / records list / ledger patient outstanding use the same rule.
+3. **Remittance over-allocation**: (a) the same invoice listed twice in explicit allocations could exceed its receivable — now rejected; (b) two remittances at the same moment could both allocate the same outstanding — now serialized with a `corporate_panels` row lock; (c) proportional auto-allocation could put 0.01 more than owed on the last invoice — now rounds down and spreads leftover paisas only where room remains. VOID invoices are excluded from remittance, statement and ledger.
+4. **Super Admin Panel Billing screen showed wrong money**: "Received" was patient cash and "Still Owes" = company share − patient cash; the pending filter used patient status; "30 Days Net" was a hardcoded fallback; exports passed an undefined user.
+
+### 18.2 UI
+
+`features/frontDesk/panelBilling/PanelBillingWorkspace.tsx` — one workspace used by both Front Desk (`PanelBillingView`) and Super Admin (`SuperAdminPanelBillingView`): landscape filter bar (company, status: company due / patient due / settled, department, from/to, search), Account Summary table (company vs patient: billed / received / outstanding), tabs Invoices / Company Ledger / Company Payments / Contract Check as bordered report tables with totals and export. All figures come from the statement endpoint (now also returns invoice date, source, member ID). Removed the unused `PanelLedgerSection`, `PanelInterimStatementSection`, `PanelRemittanceHistorySection`.
+
+### 18.3 Verification
+
+- Backend `tsc` clean; frontend `tsc` clean for touched files.
+- Tests: new `tests/panelPatientResponsibility.test.ts` (6: responsibility/status rules, panel discharge clears with company share open, blocked while patient share is due, self-pay unchanged); `phase8_panelBilling` +2 (duplicate allocation, rounding never exceeds outstanding) and mock gained `$queryRaw`. Full suite: 241 pass, 21 fail — the same pre-existing failures (phase5 admission, admissionEstimate, phase4 settlement), none in panel code.
+- Live HTTP run against the dev DB with throwaway company/rule/patient (all deleted afterward; the DB had no real panel data): 50% split posts 1000/1000; patient cannot pay above share; paid share → PAID and off the unpaid lists; refund → PARTIALLY_PAID → repay → PAID; duplicate allocation rejected; two simultaneous full remittances → exactly one succeeds, realized = receivable; statement/ledger separate patient and company correctly; remittance never touches patient paidTotal. 18/18 passed.
+- Not browser-verified.
+
+### 18.4 Still open
+
+Pharmacy bridge posting audit, claim lifecycle (statement/claim documents + submission history), provider settlement from realized collections, a configurable open-panel clearance policy (today: patient may always exit once their own share is settled), authorization limit consumption, category-specific required documents.

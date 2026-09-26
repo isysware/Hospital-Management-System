@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ClipboardList, FileSpreadsheet, Wallet, AlertCircle, Tag, RotateCcw, Building2, CreditCard, Eye, Loader2, Landmark, Printer, Users, FileText } from 'lucide-react';
+import { ClipboardList, FileSpreadsheet, Wallet, AlertCircle, Tag, Building2, CreditCard, Eye, Loader2, Landmark, Printer, Users, FileText } from 'lucide-react';
 import { GenericReportView } from '../../../components/reports/GenericReportView';
 import { Modal } from '../../../components/common/Modal';
+import { TextInput } from '../../../components/forms/FormControls';
 import { formatPKR } from '../../../utils/formatters';
 import { InvoiceDetailModal } from '../billing/InvoiceDetailModal';
 import {
@@ -9,53 +10,76 @@ import {
   fetchInvoiceRegister,
   fetchCollectionReport,
   fetchOutstandingInvoices,
-  fetchDiscountReport,
-  fetchRefundVoidReport,
+  fetchFinancialExceptions,
   fetchDepartmentRevenue,
   fetchAdmissionPaymentCollections,
   fetchInvoiceLedger,
   fetchPanelPayerReport,
   fetchReceiptExceptionLog,
   fetchCashierPerformance,
+  fetchFrontDeskFilterOptions,
   EncounterRow,
   InvoiceRow,
   CollectionRow,
   OutstandingRow,
-  DiscountRow,
-  RefundVoidRow,
+  FinancialExceptionRow,
   DepartmentRevenueRow,
   AdmissionPaymentCollectionRow,
   LedgerEntry,
   PanelPayerRow,
   ReceiptExceptionRow,
   CashierPerformanceRow,
+  FrontDeskFilterOptions,
 } from '../../../services/frontdeskReportsService';
+import { useReportFilters, useFilterOptions, FilterSelect, opts } from '../../../components/reports/reportFilters';
 
-/** Reporting Guide v7.5 §3.2 — planned/arrived visits and OPD/Observation/Emergency encounters. */
-export const EncounterRegisterView: React.FC = () => (
-  <GenericReportView<EncounterRow>
-    title="Appointment / Visit / Encounter Register"
-    subtitle="Chronological register of OPD, Observation and Emergency encounters."
-    icon={ClipboardList}
-    filenamePrefix="Encounter_Register"
-    fetchReport={fetchEncounterRegister}
-    rowKey={(r, i) => `${r.invoiceNumber}-${i}`}
-    columns={[
-      { header: 'Invoice #', cell: (r) => r.invoiceNumber },
-      { header: 'Date/Time', cell: (r) => r.occurredAt },
-      { header: 'Patient', cell: (r) => r.patient },
-      { header: 'Payer', cell: (r) => r.payer },
-      { header: 'Department', cell: (r) => r.department || '—' },
-      { header: 'Doctor', cell: (r) => r.doctor || '—' },
-      { header: 'Visit Type', cell: (r) => r.encounterType || r.visitType },
-      { header: 'Status', cell: (r) => r.status },
-      { header: 'Created By', cell: (r) => r.createdBy || '—' },
-    ]}
-  />
-);
+const EMPTY_OPTIONS: FrontDeskFilterOptions = { departments: [], doctors: [], cashiers: [], panels: [] };
+const useFdOptions = () => useFilterOptions(fetchFrontDeskFilterOptions, EMPTY_OPTIONS);
+
+const PAYMENT_STATUS = opts(['UNPAID', 'Unpaid'], ['PARTIALLY_PAID', 'Partially Paid'], ['PAID', 'Paid'], ['VOID', 'Void']);
+const PAYER_TYPE = opts(['SELF_PAY', 'Self-Pay'], ['PANEL', 'Panel']);
+const PAYMENT_METHOD = opts(['CASH', 'Cash'], ['CARD', 'Card / POS'], ['BANK', 'Bank Transfer'], ['ONLINE', 'Online']);
+
+/** reporting.md §2 #2 — OPD / Observation / Emergency encounters. */
+export const EncounterRegisterView: React.FC = () => {
+  const options = useFdOptions();
+  const { filters, bind, reset } = useReportFilters({ encounterType: '', departmentId: '', doctorStaffId: '', status: '' });
+  return (
+    <GenericReportView<EncounterRow>
+      title="Encounter Register"
+      subtitle="OPD, Observation and Emergency encounters with department, doctor and status."
+      icon={ClipboardList}
+      filenamePrefix="Encounter_Register"
+      fetchReport={(range) => fetchEncounterRegister(range, filters)}
+      onResetExtraFilters={reset}
+      extraFilters={
+        <>
+          <FilterSelect label="Encounter Service" options={opts(['OPD', 'OPD'], ['OBSERVATION', 'Observation'], ['EMERGENCY', 'Emergency'])} {...bind('encounterType')} />
+          <FilterSelect label="Department" options={options.departments} {...bind('departmentId')} />
+          <FilterSelect label="Doctor" options={options.doctors} {...bind('doctorStaffId')} />
+          <FilterSelect label="Status" options={PAYMENT_STATUS} {...bind('status')} />
+        </>
+      }
+      rowKey={(r, i) => `${r.invoiceNumber}-${i}`}
+      columns={[
+        { header: 'Encounter #', cell: (r) => r.invoiceNumber },
+        { header: 'Patient', cell: (r) => r.patient },
+        { header: 'Service', cell: (r) => r.encounterType || r.visitType },
+        { header: 'Payer', cell: (r) => r.payer },
+        { header: 'Department', cell: (r) => r.department || '—' },
+        { header: 'Doctor', cell: (r) => r.doctor || '—' },
+        { header: 'Date/Time', cell: (r) => r.occurredAt },
+        { header: 'Status', cell: (r) => r.status },
+        { header: 'Created By', cell: (r) => r.createdBy || '—' },
+      ]}
+    />
+  );
+};
 
 /** Reporting Guide v7.5 §3.3 — primary billing register across all Hospital-side invoices. Each row drills into its §3.5 Patient/Invoice Ledger. */
 export const InvoiceRegisterView: React.FC = () => {
+  const options = useFdOptions();
+  const { filters, bind, reset } = useReportFilters({ departmentId: '', status: '', payerType: '' });
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [ledgerTarget, setLedgerTarget] = useState<{ id: string; number: string } | null>(null);
   const [ledger, setLedger] = useState<{ invoiceNumber: string; patient: string; entries: LedgerEntry[] } | null>(null);
@@ -78,11 +102,19 @@ export const InvoiceRegisterView: React.FC = () => {
     <>
       <GenericReportView<InvoiceRow>
         key={refreshKey}
-        title="Billing / Invoice Register"
+        title="Invoice Register"
         subtitle="Every Hospital-side invoice — visit billing and Admission Hospital bills."
         icon={FileSpreadsheet}
         filenamePrefix="Invoice_Register"
-        fetchReport={fetchInvoiceRegister}
+        fetchReport={(range) => fetchInvoiceRegister(range, filters)}
+        onResetExtraFilters={reset}
+        extraFilters={
+          <>
+            <FilterSelect label="Department" options={options.departments} {...bind('departmentId')} />
+            <FilterSelect label="Payment Status" options={PAYMENT_STATUS} {...bind('status')} />
+            <FilterSelect label="Panel / Self-Pay" options={PAYER_TYPE} {...bind('payerType')} />
+          </>
+        }
         rowKey={(r) => r.invoiceNumber}
         columns={[
           { header: 'Invoice #', cell: (r) => r.invoiceNumber },
@@ -237,125 +269,126 @@ export const InvoiceRegisterView: React.FC = () => {
   );
 };
 
-/** Reporting Guide v7.5 §3.4 — cashier/user-wise collection across Hospital receipts. */
-export const CollectionReportViewPage: React.FC = () => (
-  <GenericReportView<CollectionRow>
-    title="Collection & Receipt Report"
-    subtitle="Every payment receipt, including active Admission partial payments."
-    icon={Wallet}
-    filenamePrefix="Collection_Report"
-    fetchReport={fetchCollectionReport}
-    rowKey={(r) => r.receiptNumber}
-    columns={[
-      { header: 'Receipt #', cell: (r) => r.receiptNumber },
-      { header: 'Reference', cell: (r) => r.reference },
-      { header: 'Patient', cell: (r) => r.patient },
-      { header: 'Amount', align: 'right', cell: (r) => formatPKR(r.amount), excelValue: (r) => r.amount },
-      { header: 'Method', cell: (r) => r.method },
-      { header: 'Date/Time', cell: (r) => r.occurredAt },
-      { header: 'Collected By', cell: (r) => r.collectedBy },
-    ]}
-  />
-);
 
-/** Reporting Guide v7.5 §4.1 — open receivable list. */
-export const OutstandingInvoicesView: React.FC = () => (
-  <GenericReportView<OutstandingRow>
-    title="Outstanding / Partial Invoice Report"
-    subtitle="Open receivables for follow-up and management control."
-    icon={AlertCircle}
-    filenamePrefix="Outstanding_Invoices"
-    fetchReport={fetchOutstandingInvoices}
-    rowKey={(r) => r.invoiceNumber}
-    columns={[
-      { header: 'Invoice #', cell: (r) => r.invoiceNumber },
-      { header: 'Patient', cell: (r) => r.patient },
-      { header: 'Department', cell: (r) => r.department || '—' },
-      { header: 'Net', align: 'right', cell: (r) => formatPKR(r.net), excelValue: (r) => r.net },
-      { header: 'Paid', align: 'right', cell: (r) => formatPKR(r.paid), excelValue: (r) => r.paid },
-      { header: 'Outstanding', align: 'right', cell: (r) => formatPKR(r.outstanding), excelValue: (r) => r.outstanding },
-      { header: 'Created By', cell: (r) => r.createdBy || '—' },
-      { header: 'Status', cell: (r) => r.status },
-    ]}
-  />
-);
+/** reporting.md §2 #4 — every receipt with method and collector. */
+export const CollectionReportViewPage: React.FC = () => {
+  const options = useFdOptions();
+  const { filters, bind, reset } = useReportFilters({ method: '', receiptStatus: '', collectedById: '' });
+  return (
+    <GenericReportView<CollectionRow>
+      title="Collection & Receipt Report"
+      subtitle="Every payment receipt, including Admission partial payments. Card/Online show here but are never counted as physical cash."
+      icon={Wallet}
+      filenamePrefix="Collection_Report"
+      fetchReport={(range) => fetchCollectionReport(range, filters)}
+      onResetExtraFilters={reset}
+      extraFilters={
+        <>
+          <FilterSelect label="Payment Method" options={PAYMENT_METHOD} {...bind('method')} />
+          <FilterSelect label="Receipt Status" options={opts(['ACTIVE', 'Active'], ['REVERSED', 'Reversed / Voided'])} {...bind('receiptStatus')} />
+          <FilterSelect label="Cashier" options={options.cashiers} {...bind('collectedById')} />
+        </>
+      }
+      rowKey={(r) => r.receiptNumber}
+      columns={[
+        { header: 'Receipt #', cell: (r) => r.receiptNumber },
+        { header: 'Invoice / Admission #', cell: (r) => r.reference },
+        { header: 'Patient', cell: (r) => r.patient },
+        { header: 'Amount', align: 'right', cell: (r) => formatPKR(r.amount), excelValue: (r) => r.amount },
+        { header: 'Method', cell: (r) => r.method },
+        { header: 'Date/Time', cell: (r) => r.occurredAt },
+        { header: 'Collected By', cell: (r) => r.collectedBy },
+        { header: 'Status', cell: (r) => (r.status === 'REVERSED' ? 'Reversed' : 'Active') },
+      ]}
+    />
+  );
+};
 
-/** Reporting Guide v7.5 §4.2 — manual + panel discounts with approval trail. */
-export const DiscountReportViewPage: React.FC = () => (
-  <GenericReportView<DiscountRow>
-    title="Discount / Panel Discount Report"
-    subtitle="Manual discounts, configured Panel discounts and their reasons."
-    icon={Tag}
-    filenamePrefix="Discount_Report"
-    fetchReport={fetchDiscountReport}
-    rowKey={(r, i) => `${r.invoiceNumber}-${i}`}
-    columns={[
-      { header: 'Invoice #', cell: (r) => r.invoiceNumber },
-      { header: 'Patient / Panel', cell: (r) => r.patientOrPanel },
-      { header: 'Service', cell: (r) => r.service },
-      { header: 'Standard Amount', align: 'right', cell: (r) => formatPKR(r.standardAmount), excelValue: (r) => r.standardAmount },
-      { header: 'Discount Amount', align: 'right', cell: (r) => formatPKR(r.discountAmount), excelValue: (r) => r.discountAmount },
-      { header: 'Net', align: 'right', cell: (r) => formatPKR(r.net), excelValue: (r) => r.net },
-      { header: 'Reason', cell: (r) => r.reason || '—' },
-    ]}
-  />
-);
+/** reporting.md §2 #5 — open receivables (unpaid + partially paid). */
+export const OutstandingInvoicesView: React.FC = () => {
+  const options = useFdOptions();
+  const { filters, bind, reset } = useReportFilters({ departmentId: '', status: '', payerType: '' });
+  return (
+    <GenericReportView<OutstandingRow>
+      title="Outstanding / Partial Invoices"
+      subtitle="Unpaid and partially paid invoices for follow-up."
+      icon={AlertCircle}
+      filenamePrefix="Outstanding_Invoices"
+      fetchReport={(range) => fetchOutstandingInvoices(range, filters)}
+      onResetExtraFilters={reset}
+      extraFilters={
+        <>
+          <FilterSelect label="Department" options={options.departments} {...bind('departmentId')} />
+          <FilterSelect label="Status" options={opts(['UNPAID', 'Unpaid'], ['PARTIALLY_PAID', 'Partially Paid'])} {...bind('status')} />
+          <FilterSelect label="Panel / Self-Pay" options={PAYER_TYPE} {...bind('payerType')} />
+        </>
+      }
+      rowKey={(r) => r.invoiceNumber}
+      columns={[
+        { header: 'Invoice #', cell: (r) => r.invoiceNumber },
+        { header: 'Patient', cell: (r) => r.patient },
+        { header: 'Payer', cell: (r) => r.payer },
+        { header: 'Department', cell: (r) => r.department || '—' },
+        { header: 'Net', align: 'right', cell: (r) => formatPKR(r.net), excelValue: (r) => r.net },
+        { header: 'Paid', align: 'right', cell: (r) => formatPKR(r.paid), excelValue: (r) => r.paid },
+        { header: 'Outstanding', align: 'right', cell: (r) => formatPKR(r.outstanding), excelValue: (r) => r.outstanding },
+        { header: 'Last Payment', cell: (r) => r.lastPaymentAt || '—' },
+        { header: 'Status', cell: (r) => (r.status === 'PARTIALLY_PAID' ? 'Partially Paid' : 'Unpaid') },
+      ]}
+    />
+  );
+};
 
-/** Reporting Guide v7.5 §4.3 — controlled financial reversals; original transaction always preserved. */
-export const RefundVoidReportViewPage: React.FC = () => {
+const EXCEPTION_BADGE: Record<FinancialExceptionRow['type'], string> = {
+  DISCOUNT: 'bg-amber-100 text-amber-800 border-amber-300',
+  REFUND: 'bg-rose-100 text-rose-800 border-rose-300',
+  VOID: 'bg-slate-200 text-slate-800 border-slate-300',
+};
+
+/** reporting.md §2 #7 — ONE combined Discounts / Refunds / Voids report with a Type filter (replaces the separate Discount and Refund/Void reports). */
+export const FinancialExceptionsReportView: React.FC = () => {
+  const options = useFdOptions();
+  const { filters, bind, reset } = useReportFilters({ type: '', performedById: '' });
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
 
   return (
     <>
-      <GenericReportView<RefundVoidRow>
-        title="Refund / Void / Reversal Report"
-        subtitle="Exception report for controlled financial reversals."
-        icon={RotateCcw}
-        filenamePrefix="Refund_Void_Report"
-        fetchReport={fetchRefundVoidReport}
-        rowKey={(r, i) => `${r.reference}-${r.type}-${i}`}
+      <GenericReportView<FinancialExceptionRow>
+        title="Discounts / Refunds / Voids"
+        subtitle="Every discount, refund and voided/reversed receipt in one place. Use Type to narrow it down."
+        icon={Tag}
+        filenamePrefix="Discounts_Refunds_Voids"
+        fetchReport={(range) => fetchFinancialExceptions(range, filters)}
+        onResetExtraFilters={reset}
+        extraFilters={
+          <>
+            <FilterSelect label="Type" options={opts(['DISCOUNT', 'Discount'], ['REFUND', 'Refund'], ['VOID', 'Void / Reversal'])} {...bind('type')} />
+            <FilterSelect label="Performed By" options={options.cashiers} {...bind('performedById')} />
+          </>
+        }
+        rowKey={(r, i) => `${r.type}-${r.reference}-${i}`}
         columns={[
-          { header: 'Reference', cell: (r) => r.reference },
-          { header: 'Original Invoice', cell: (r) => r.originalInvoice || '—' },
           { header: 'Type', cell: (r) => r.type },
-          { header: 'Amount', align: 'right', cell: (r) => formatPKR(r.amount), excelValue: (r) => r.amount },
-          { header: 'Performed By', cell: (r) => r.performedBy },
           { header: 'Date/Time', cell: (r) => r.occurredAt },
-          { header: 'Action', cell: () => 'View' },
+          { header: 'Reference', cell: (r) => r.reference },
+          { header: 'Invoice #', cell: (r) => r.invoiceNumber || '—' },
+          { header: 'Patient / Panel', cell: (r) => r.patient || '—' },
+          { header: 'Amount', align: 'right', cell: (r) => formatPKR(r.amount), excelValue: (r) => r.amount },
+          { header: 'Reason', cell: (r) => r.reason || '—' },
+          { header: 'Performed By', cell: (r) => r.performedBy },
+          { header: 'Action', cell: () => '' },
         ]}
         renderCell={(col, row) => {
           if (col.header === 'Type') {
-            return (
-              <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  row.type === 'REFUND'
-                    ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                    : 'bg-amber-100 text-amber-800 border border-amber-300'
-                }`}
-              >
-                {row.type}
-              </span>
-            );
-          }
-          if (col.header === 'Original Invoice' && row.originalInvoice && row.invoiceId) {
-            return (
-              <button
-                type="button"
-                onClick={() => setSelectedInvoiceId(row.invoiceId || null)}
-                className="font-bold text-[#08775A] hover:underline hover:text-[#065f46] transition-colors cursor-pointer text-left"
-                title="Click to view original invoice"
-              >
-                {row.originalInvoice}
-              </button>
-            );
+            return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${EXCEPTION_BADGE[row.type]}`}>{row.type}</span>;
           }
           if (col.header === 'Action') {
             return row.invoiceId ? (
               <button
                 type="button"
-                onClick={() => setSelectedInvoiceId(row.invoiceId || null)}
+                onClick={() => setSelectedInvoiceId(row.invoiceId)}
                 className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#08775A] hover:bg-[#065f46] text-white rounded text-xs font-semibold shadow-2xs transition-colors"
-                title="View original invoice details"
+                title="View the invoice"
               >
                 <Eye className="h-3.5 w-3.5" />
                 <span>View</span>
@@ -368,14 +401,7 @@ export const RefundVoidReportViewPage: React.FC = () => {
         }}
       />
 
-      {/* Invoice Detail Modal */}
-      {selectedInvoiceId && (
-        <InvoiceDetailModal
-          invoiceId={selectedInvoiceId}
-          onClose={() => setSelectedInvoiceId(null)}
-          onChanged={() => {}}
-        />
-      )}
+      {selectedInvoiceId && <InvoiceDetailModal invoiceId={selectedInvoiceId} onClose={() => setSelectedInvoiceId(null)} onChanged={() => {}} />}
     </>
   );
 };
@@ -400,27 +426,50 @@ export const DepartmentRevenueReportView: React.FC = () => (
   />
 );
 
-/** Reporting Guide v7.5 §3.6 — Hospital payments Front Desk collected for active/discharge-stage admissions. */
-export const AdmissionPaymentCollectionsView: React.FC = () => (
-  <GenericReportView<AdmissionPaymentCollectionRow>
-    title="Admission Hospital Payment Collection Report"
-    subtitle="Hospital payments Front Desk collected against Admission payment requests."
-    icon={CreditCard}
-    filenamePrefix="Admission_Payment_Collections"
-    fetchReport={fetchAdmissionPaymentCollections}
-    rowKey={(r, i) => `${r.admissionNumber}-${r.receiptNo || i}`}
-    columns={[
-      { header: 'Admission #', cell: (r) => r.admissionNumber },
-      { header: 'Patient', cell: (r) => r.patient },
-      { header: 'Requested Amount', align: 'right', cell: (r) => formatPKR(r.requestedAmount), excelValue: (r) => r.requestedAmount },
-      { header: 'Receipt #', cell: (r) => r.receiptNo || '—' },
-      { header: 'Collected Amount', align: 'right', cell: (r) => formatPKR(r.collectedAmount), excelValue: (r) => r.collectedAmount },
-      { header: 'Method', cell: (r) => r.method || '—' },
-      { header: 'Collected By', cell: (r) => r.collectedBy || '—' },
-      { header: 'Status', cell: (r) => r.status },
-    ]}
-  />
-);
+
+/** reporting.md §2 #6 — Hospital payments Front Desk collected against Admission payment requests. */
+export const AdmissionPaymentCollectionsView: React.FC = () => {
+  const options = useFdOptions();
+  const { filters, bind, reset } = useReportFilters({ admissionNumber: '', departmentId: '', method: '', status: '' });
+  return (
+    <GenericReportView<AdmissionPaymentCollectionRow>
+      title="Admission Payment Collections"
+      subtitle="Hospital payments collected against Admission payment requests, with the Hospital due still remaining."
+      icon={CreditCard}
+      filenamePrefix="Admission_Payment_Collections"
+      fetchReport={(range) => fetchAdmissionPaymentCollections(range, filters)}
+      onResetExtraFilters={reset}
+      noTotalColumns={['Hospital Due', 'Remaining Due']}
+      extraFilters={
+        <>
+          <div className="w-40">
+            <TextInput label="Admission No" placeholder="e.g. ADM-00012" {...bind('admissionNumber')} />
+          </div>
+          <FilterSelect label="Department" options={options.departments} {...bind('departmentId')} />
+          <FilterSelect label="Payment Method" options={PAYMENT_METHOD} {...bind('method')} />
+          <FilterSelect
+            label="Status"
+            options={opts(['PENDING', 'Pending'], ['PARTIALLY_FULFILLED', 'Partially Paid'], ['FULFILLED', 'Paid'], ['CANCELLED', 'Cancelled'])}
+            {...bind('status')}
+          />
+        </>
+      }
+      rowKey={(r, i) => `${r.admissionNumber}-${r.receiptNo || i}`}
+      columns={[
+        { header: 'Admission #', cell: (r) => r.admissionNumber },
+        { header: 'Patient', cell: (r) => r.patient },
+        { header: 'Department', cell: (r) => r.department || '—' },
+        { header: 'Hospital Due', align: 'right', cell: (r) => formatPKR(r.requestedAmount), excelValue: (r) => r.requestedAmount },
+        { header: 'Receipt #', cell: (r) => r.receiptNo || '—' },
+        { header: 'Collected', align: 'right', cell: (r) => formatPKR(r.collectedAmount), excelValue: (r) => r.collectedAmount },
+        { header: 'Method', cell: (r) => r.method || '—' },
+        { header: 'Remaining Due', align: 'right', cell: (r) => formatPKR(r.remainingDue), excelValue: (r) => r.remainingDue },
+        { header: 'Collected By', cell: (r) => r.collectedBy || '—' },
+        { header: 'Status', cell: (r) => r.status },
+      ]}
+    />
+  );
+};
 
 /** Reporting Guide v7.5 §9 menu — "Panel / Payer Reporting": billing/collections grouped by payer (Corporate Panel or Self-Pay). */
 export const PanelPayerReportView: React.FC = () => (

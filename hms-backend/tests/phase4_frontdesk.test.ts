@@ -64,6 +64,10 @@ vi.mock('@/db/client', () => {
     commissionReversal: {
       create: vi.fn(),
     },
+    // No Salary Profile = legacy commission-only doctor (commission still accrues).
+    staffSalaryProfile: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
     hospitalProfile: {
       findFirst: vi.fn(),
     },
@@ -619,6 +623,7 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
   describe('3. Doctor Commission Calculation Engine (§4.5, D15 §4, D16 p.21)', () => {
     it('calculates doctor commission on NET eligible amount and computes hospital share', async () => {
       const mockTx: any = {
+        staffSalaryProfile: { findFirst: vi.fn().mockResolvedValue(null) },
         doctorCommissionAccrual: {
           findUnique: vi.fn().mockResolvedValue(null),
           create: vi.fn().mockImplementation((args) => args.data),
@@ -660,6 +665,7 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
 
     it('calculates FIXED_PER_SERVICE doctor commission', async () => {
       const mockTx: any = {
+        staffSalaryProfile: { findFirst: vi.fn().mockResolvedValue(null) },
         doctorCommissionAccrual: {
           findUnique: vi.fn().mockResolvedValue(null),
           create: vi.fn().mockImplementation((args) => args.data),
@@ -694,6 +700,27 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
       // 900 * 2 = 1800 PKR
       expect(accrual.commissionAmount).toEqual(new Decimal(1800));
       expect(accrual.ruleSnapshot.hospitalRemainingShare).toBe(2200);
+    });
+
+    it('accrues no commission for a doctor on a plain Monthly/Daily salary type (PDF §9)', async () => {
+      const mockTx: any = {
+        staffSalaryProfile: { findFirst: vi.fn().mockResolvedValue({ salaryBasis: 'MONTHLY' }) },
+        doctorCommissionAccrual: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
+        doctorCommissionRule: { findFirst: vi.fn().mockResolvedValue({ id: 'rule-x', ruleType: 'PERCENTAGE', rate: new Decimal(20), basis: 'NET' }) },
+      };
+      const lineItem = {
+        id: 'line-no-comm',
+        serviceRateId,
+        quantity: new Decimal(1),
+        lineGross: new Decimal(1000),
+        discountAmount: new Decimal(0),
+        lineNet: new Decimal(1000),
+      };
+
+      const accrual = await commissionService.calculateAndAccrueCommission(mockTx, lineItem, doctorStaffId);
+
+      expect(accrual).toBeNull();
+      expect(mockTx.doctorCommissionAccrual.create).not.toHaveBeenCalled();
     });
 
     it('creates linked commission reversal on refund without silent delete', async () => {

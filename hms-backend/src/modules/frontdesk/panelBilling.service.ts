@@ -127,13 +127,13 @@ export const panelBillingService = {
     // company — a receivable stays on the books of the company it was
     // actually billed to, even after the patient transfers elsewhere.
     const invoiceWhere: Prisma.HospitalInvoiceWhereInput = panelPatientId
-      ? { corporatePanelId, panelPatientId, panelReceivable: { gt: 0 } }
-      : { corporatePanelId, panelReceivable: { gt: 0 } };
+      ? { corporatePanelId, panelPatientId, panelReceivable: { gt: 0 }, status: { not: 'VOID' } }
+      : { corporatePanelId, panelReceivable: { gt: 0 }, status: { not: 'VOID' } };
     const invoices = await prisma.hospitalInvoice.findMany({
       where: invoiceWhere,
       include: {
         department: { select: { id: true, name: true, code: true } },
-        panelPatient: { select: { id: true, fullName: true, mrNumber: true } },
+        panelPatient: { select: { id: true, fullName: true, mrNumber: true, panelMemberId: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -155,6 +155,9 @@ export const panelBillingService = {
       return {
         hospitalInvoiceId: inv.id,
         invoiceNumber: inv.invoiceNumber,
+        createdAt: inv.createdAt,
+        sourceType: inv.sourceType,
+        encounterType: inv.encounterType,
         panelPatient: inv.panelPatient,
         department: inv.department,
         total: inv.total,
@@ -206,12 +209,18 @@ export const panelBillingService = {
       const corporatePanel = await tx.corporatePanel.findUnique({ where: { id: corporatePanelId } });
       if (!corporatePanel) throw new NotFoundError('Corporate panel not found');
 
+      // Serialize remittances per company: two payments recorded at the same
+      // moment would otherwise both read the same outstanding balances and
+      // together over-allocate (over-realize) the receivable.
+      await tx.$queryRaw`SELECT id FROM corporate_panels WHERE id = ${corporatePanelId} FOR UPDATE`;
+
       // Keyed off each invoice's own frozen corporatePanelId (panel.md §14
       // backlog item 1) so a remittance always allocates against the exact
       // company it was actually paid by, even for invoices whose patient
       // has since transferred to a different company.
       const invoices = await tx.hospitalInvoice.findMany({
-        where: { corporatePanelId, panelReceivable: { gt: 0 } },
+        where: { corporatePanelId, panelReceivable: { gt: 0 }, status: { not: 'VOID' } },
+        orderBy: { createdAt: 'asc' },
       });
       if (invoices.length === 0) {
         throw new NotFoundError('No panel-receivable invoices exist for this panel');
@@ -231,6 +240,13 @@ export const panelBillingService = {
       let allocations: { hospitalInvoiceId: string; amount: Decimal }[];
 
       if (body.allocations && body.allocations.length > 0) {
+        // Each entry is checked against the invoice's outstanding on its own,
+        // so the same invoice listed twice could otherwise be over-allocated.
+        const seen = new Set<string>();
+        for (const a of body.allocations) {
+          if (seen.has(a.hospitalInvoiceId)) throw new ValidationError('Each invoice can appear only once in a remittance allocation');
+          seen.add(a.hospitalInvoiceId);
+        }
         const byId = new Map(invoices.map((inv) => [inv.id, inv]));
         let sum = new Decimal(0);
         allocations = body.allocations.map((a) => {
@@ -264,15 +280,21 @@ export const panelBillingService = {
           );
         }
 
-        let allocated = new Decimal(0);
-        allocations = eligible.map((x, idx) => {
-          const isLast = idx === eligible.length - 1;
-          const share = isLast
-            ? amountDecimal.minus(allocated)
-            : amountDecimal.mul(x.outstanding).div(totalOutstanding).toDecimalPlaces(2);
-          allocated = allocated.plus(share);
-          return { hospitalInvoiceId: x.invoice.id, amount: share };
-        });
+        // Proportional shares rounded DOWN to the paisa (never above an
+        // invoice's outstanding), then the leftover paisas go to the oldest
+        // invoices that still have room — so the total is exact and no
+        // invoice is ever allocated more than it owes.
+        allocations = eligible.map((x) => ({
+          hospitalInvoiceId: x.invoice.id,
+          amount: Decimal.min(x.outstanding, amountDecimal.mul(x.outstanding).div(totalOutstanding).toDecimalPlaces(2, Decimal.ROUND_DOWN)),
+        }));
+        let leftover = amountDecimal.minus(allocations.reduce((s, a) => s.plus(a.amount), new Decimal(0)));
+        for (let i = 0; i < allocations.length && leftover.greaterThan(0); i++) {
+          const room = eligible[i]!.outstanding.minus(allocations[i]!.amount);
+          const add = Decimal.min(room, leftover);
+          allocations[i]!.amount = allocations[i]!.amount.plus(add);
+          leftover = leftover.minus(add);
+        }
       }
 
       const remittance = await tx.panelRemittance.create({
@@ -315,7 +337,7 @@ export const panelBillingService = {
     // whichever company the patient currently belongs to.
     const [chargeInvoices, allPatientInvoices, remittances] = await Promise.all([
       prisma.hospitalInvoice.findMany({
-        where: { corporatePanelId, panelReceivable: { gt: 0 } },
+        where: { corporatePanelId, panelReceivable: { gt: 0 }, status: { not: 'VOID' } },
         select: {
           id: true,
           invoiceNumber: true,
@@ -328,7 +350,7 @@ export const panelBillingService = {
         orderBy: { createdAt: 'asc' },
       }),
       prisma.hospitalInvoice.findMany({
-        where: { corporatePanelId },
+        where: { corporatePanelId, status: { not: 'VOID' } },
         select: { patientShare: true, paidTotal: true },
       }),
       prisma.panelRemittance.findMany({

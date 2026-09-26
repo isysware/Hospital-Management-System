@@ -12,6 +12,7 @@ import {
 import { Modal } from '../../../components/common/Modal';
 import { ConfirmModal } from '../../../components/common/ConfirmModal';
 import { TextInput, NumberInput, Textarea, MultiSelect, Toggle } from '../../../components/forms/FormControls';
+import { useToast } from '../../../context/ToastContext';
 
 const EMPTY_FORM: OutsourcedProviderFormValues = {
   code: '',
@@ -43,6 +44,7 @@ const PAYMENT_METHOD_OPTIONS: { label: string; value: PaymentMethod }[] = (
  * `/api/v1/setup/outsourced-providers`, real DB, no mock data.
  */
 export const SuperAdminOutsourcedProvidersView: React.FC = () => {
+  const toast = useToast();
   const [providers, setProviders] = useState<OutsourcedProvider[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -56,7 +58,6 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   const [statusTarget, setStatusTarget] = useState<OutsourcedProvider | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const loadProviders = async () => {
     setIsLoading(true);
@@ -122,7 +123,9 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formValues.name.trim()) {
-      setFormError('Provider name is required.');
+      const msg = 'Provider name is required.';
+      setFormError(msg);
+      toast.error(msg, 'Validation Error');
       return;
     }
     setIsSaving(true);
@@ -130,15 +133,17 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
     try {
       if (editingProvider) {
         await OutsourcedProviderService.updateProvider(editingProvider.id, formValues);
-        setToast({ message: `Provider "${formValues.name}" updated successfully.`, type: 'success' });
+        toast.success(`Provider "${formValues.name}" updated successfully.`);
       } else {
         await OutsourcedProviderService.createProvider(formValues);
-        setToast({ message: `Provider "${formValues.name}" registered successfully.`, type: 'success' });
+        toast.success(`Provider "${formValues.name}" registered successfully.`);
       }
       setIsFormOpen(false);
       await loadProviders();
     } catch (err: any) {
-      setFormError(err?.response?.data?.error?.message || err?.message || 'Failed to save provider.');
+      const msg = err?.response?.data?.error?.message || err?.message || 'Failed to save provider.';
+      setFormError(msg);
+      toast.error(msg, 'Save Error');
     } finally {
       setIsSaving(false);
     }
@@ -148,11 +153,11 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
     if (!statusTarget) return;
     try {
       await OutsourcedProviderService.deactivateProvider(statusTarget.id);
-      setToast({ message: `Provider "${statusTarget.name}" deactivated.`, type: 'success' });
+      toast.success(`Provider "${statusTarget.name}" deactivated.`);
       setStatusTarget(null);
       await loadProviders();
     } catch (err: any) {
-      setToast({ message: err?.response?.data?.error?.message || 'Failed to deactivate provider.', type: 'error' });
+      toast.error(err?.response?.data?.error?.message || 'Failed to deactivate provider.');
       setStatusTarget(null);
     }
   };
@@ -184,22 +189,6 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
 
   return (
     <div className="space-y-5 animate-in fade-in duration-150">
-      {toast && (
-        <div
-          className={`p-4 rounded-xl border flex items-center justify-between shadow-xs ${
-            toast.type === 'success' ? 'bg-[#effaf5] border-[#c2e7db] text-[#08775A]' : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}
-        >
-          <div className="flex items-center gap-2.5 text-xs font-semibold">
-            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            <span>{toast.message}</span>
-          </div>
-          <button onClick={() => setToast(null)} className="text-xs font-bold opacity-70 hover:opacity-100">
-            Dismiss
-          </button>
-        </div>
-      )}
-
       {/* Header */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

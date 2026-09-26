@@ -11,7 +11,13 @@ import type {
   ServiceConsumptionQuery,
   InpatientOutstandingQuery,
   DischargeClearanceQuery,
+  AdmissionSummaryQuery,
+  CensusBedQuery,
+  TransferLosQuery,
+  HospitalBillStatusQuery,
+  PharmacyRequestFulfillmentQuery,
 } from './admissionReports.schemas';
+import { admissionSimpleReportsService as simple } from './admissionSimpleReports.service';
 
 export const admissionReportsController = {
   dailySummary: async (req: Request, res: Response) => {
@@ -45,5 +51,25 @@ export const admissionReportsController = {
   },
   dischargeClearance: async (req: Request, res: Response) => {
     res.json({ data: await svc.getDischargeClearanceReport(req.query as unknown as DischargeClearanceQuery) });
+  },
+
+  // reporting.md §3 — simplified 7-report Admission set
+  summary: async (req: Request, res: Response) => {
+    res.json({ data: await simple.getAdmissionSummary(req.query as unknown as AdmissionSummaryQuery) });
+  },
+  censusBeds: async (req: Request, res: Response) => {
+    res.json({ data: await simple.getCensusBedReport(req.query as unknown as CensusBedQuery) });
+  },
+  transferLos: async (req: Request, res: Response) => {
+    res.json({ data: await simple.getTransferLosReport(req.query as unknown as TransferLosQuery) });
+  },
+  hospitalBillStatus: async (req: Request, res: Response) => {
+    res.json({ data: await simple.getHospitalBillStatus(req.query as unknown as HospitalBillStatusQuery) });
+  },
+  pharmacyRequestFulfillment: async (req: Request, res: Response) => {
+    res.json({ data: await simple.getPharmacyRequestFulfillment(req.query as unknown as PharmacyRequestFulfillmentQuery) });
+  },
+  filterOptions: async (_req: Request, res: Response) => {
+    res.json({ data: await simple.getFilterOptions() });
   },
 };

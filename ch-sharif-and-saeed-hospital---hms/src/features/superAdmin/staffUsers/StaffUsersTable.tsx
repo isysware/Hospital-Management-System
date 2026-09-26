@@ -3,6 +3,7 @@ import {
   Eye,
   Edit2,
   KeyRound,
+  ShieldPlus,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -16,6 +17,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { StaffUser } from '../../../types/staffUser';
+import { StaffUserService } from '../../../services/staffUserService';
 
 interface StaffUsersTableProps {
   staffList: StaffUser[];
@@ -24,6 +26,7 @@ interface StaffUsersTableProps {
   onResetPassword: (staff: StaffUser) => void;
   onClinicalAuth: (staff: StaffUser) => void;
   onSalaryProfile: (staff: StaffUser) => void;
+  onPortalAccess: (staff: StaffUser) => void;
   onOpenStatusModal: (staff: StaffUser, targetStatus: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED') => void;
   onDelete: (staff: StaffUser) => void;
 }
@@ -35,6 +38,7 @@ export const StaffUsersTable: React.FC<StaffUsersTableProps> = ({
   onResetPassword,
   onClinicalAuth,
   onSalaryProfile,
+  onPortalAccess,
   onOpenStatusModal,
   onDelete,
 }) => {
@@ -96,6 +100,14 @@ export const StaffUsersTable: React.FC<StaffUsersTableProps> = ({
 
   const getPortalBadge = (user: StaffUser) => {
     if (user.accessType === 'STAFF_RECORD_ONLY') {
+      if (StaffUserService.isPortalEligible(user.staffCategory)) {
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+            <AlertTriangle className="h-3 w-3 text-amber-600" />
+            Portal Access Required
+          </span>
+        );
+      }
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
           <UserCheck className="h-3 w-3 text-slate-500" />
@@ -164,14 +176,17 @@ export const StaffUsersTable: React.FC<StaffUsersTableProps> = ({
               <th className="py-3 px-3 whitespace-nowrap">Designation</th>
               <th className="py-3 px-3 whitespace-nowrap">Department</th>
               <th className="py-3 px-3 whitespace-nowrap">Portal / Access</th>
+              <th className="py-3 px-3 whitespace-nowrap">Username</th>
               <th className="py-3 px-3 text-center whitespace-nowrap">Status</th>
+              <th className="py-3 px-3 whitespace-nowrap">Last Login</th>
+              <th className="py-3 px-3 whitespace-nowrap">Updated By</th>
               <th className="py-3 px-3 text-right whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#e2eae5] text-[#111827]">
             {paginatedList.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-12 text-center text-[#8b9e95]">
+                <td colSpan={11} className="py-12 text-center text-[#8b9e95]">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <ShieldAlert className="h-8 w-8 text-[#8b9e95]" />
                     <span className="font-medium text-sm text-[#52665e]">No staff records found</span>
@@ -220,12 +235,7 @@ export const StaffUsersTable: React.FC<StaffUsersTableProps> = ({
                     {/* 6. Portal / Access */}
                     <td className="py-3 px-3 whitespace-nowrap">{getPortalBadge(staff)}</td>
 
-                    {/* 7. Role */}
-                    <td className="py-3 px-3 text-[#52665e] whitespace-nowrap">
-                      {staff.staffRole || '—'}
-                    </td>
-
-                    {/* 8. Username */}
+                    {/* 7. Username */}
                     <td className="py-3 px-3 font-mono text-[11px] text-[#111827] whitespace-nowrap">
                       {isPortalUser && staff.username ? staff.username : '—'}
                     </td>
@@ -276,6 +286,17 @@ export const StaffUsersTable: React.FC<StaffUsersTableProps> = ({
                             <KeyRound className="h-3.5 w-3.5" />
                           </button>
                         )}
+
+                        {/* Portal Access — separate workflow from Staff Master (staff.md §5) */}
+                        <button
+                          onClick={() => onPortalAccess(staff)}
+                          className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                            isPortalUser ? 'text-[#08775A] hover:bg-[#e7f6f1]' : 'text-[#52665e] hover:text-[#129b70] hover:bg-[#e7f6f1]'
+                          }`}
+                          title={isPortalUser ? 'Manage Portal Access' : 'Grant Portal Access'}
+                        >
+                          <ShieldPlus className="h-3.5 w-3.5" />
+                        </button>
 
                         {/* v7.2 Clinical Discharge Authorization (doctors only) */}
                         {staff.staffCategory === 'Doctor' && (

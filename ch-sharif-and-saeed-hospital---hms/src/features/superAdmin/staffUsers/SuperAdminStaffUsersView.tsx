@@ -17,14 +17,19 @@ import {
   StaffUserFormValues,
   StaffStatus,
 } from '../../../types/staffUser';
-import { StaffUserService, fetchStaffUsers } from '../../../services/staffUserService';
+import { StaffUserService, fetchStaffUsers, StaffWizardChanges } from '../../../services/staffUserService';
 import { DepartmentService, fetchDepartments } from '../../../services/departmentService';
+import { ServiceRatesService, fetchServices } from '../../../services/serviceRatesService';
+import { fetchShifts } from '../../../services/shiftService';
 import { Department } from '../../../types/department';
+import { HospitalService } from '../../../types/serviceRates';
+import { Shift } from '../../../types/shift';
 import { useAuth } from '../../../context/AuthContext';
 import { StaffUsersKPIBar } from './StaffUsersKPIBar';
 import { StaffUsersFilterBar } from './StaffUsersFilterBar';
 import { StaffUsersTable } from './StaffUsersTable';
 import { StaffUserModal } from './StaffUserModal';
+import { PortalAccessModal } from './PortalAccessModal';
 import { StaffUserDetailModal } from './StaffUserDetailModal';
 import { StaffUserResetPasswordModal } from './StaffUserResetPasswordModal';
 import { ClinicalAuthModal } from './ClinicalAuthModal';
@@ -34,6 +39,7 @@ import { StaffUserDeleteModal } from './StaffUserDeleteModal';
 import { StaffUserImportModal } from './StaffUserImportModal';
 import { StaffUserExportModal } from './StaffUserExportModal';
 import { StaffUserDossierModal } from './StaffUserDossierModal';
+import { useToast } from '../../../context/ToastContext';
 
 const DEFAULT_FILTERS: StaffUserFilterState = {
   searchTerm: '',
@@ -47,8 +53,11 @@ const DEFAULT_FILTERS: StaffUserFilterState = {
 
 export const SuperAdminStaffUsersView: React.FC = () => {
   const { currentUser } = useAuth();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [staffList, setStaffList] = useState<StaffUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [services, setServices] = useState<HospitalService[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
   const [filters, setFilters] = useState<StaffUserFilterState>(DEFAULT_FILTERS);
 
   // Modals state
@@ -58,6 +67,7 @@ export const SuperAdminStaffUsersView: React.FC = () => {
   const [resetPasswordStaff, setResetPasswordStaff] = useState<StaffUser | null>(null);
   const [clinicalAuthStaff, setClinicalAuthStaff] = useState<StaffUser | null>(null);
   const [salaryProfileStaff, setSalaryProfileStaff] = useState<StaffUser | null>(null);
+  const [portalAccessStaff, setPortalAccessStaff] = useState<StaffUser | null>(null);
   const [statusTarget, setStatusTarget] = useState<{
     staff: StaffUser;
     status: StaffStatus;
@@ -67,17 +77,9 @@ export const SuperAdminStaffUsersView: React.FC = () => {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [dossierStaff, setDossierStaff] = useState<StaffUser | null>(null);
 
-  // Toast notification state
-  const [toastMessage, setToastMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
-
+  // showToast helper delegates to react-toastify via context
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
-    setToastMessage({ text, type });
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 4000);
+    type === 'success' ? toastSuccess(text) : toastError(text);
   };
 
   const [isLoading, setIsLoading] = useState(true);
@@ -88,12 +90,16 @@ export const SuperAdminStaffUsersView: React.FC = () => {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [list, depts] = await Promise.all([
+      const [list, depts, svcs, shiftRows] = await Promise.all([
         fetchStaffUsers(),
         fetchDepartments(),
+        fetchServices(),
+        fetchShifts(),
       ]);
       setStaffList(list);
       setDepartments(depts);
+      setServices(svcs);
+      setShifts(shiftRows);
     } catch (err: any) {
       setLoadError(err?.message || 'Failed to load staff users from the server.');
     } finally {
@@ -111,12 +117,12 @@ export const SuperAdminStaffUsersView: React.FC = () => {
   }, [staffList, filters]);
 
   // Handlers for Add/Edit
-  const handleSaveStaff = async (values: StaffUserFormValues) => {
+  const handleSaveStaff = async (values: StaffUserFormValues, changes: StaffWizardChanges) => {
     if (editingStaff) {
-      // Edit
-      const res = await StaffUserService.updateStaffUser(editingStaff.id, values, currentUser);
-      if (res.success && res.user) {
-        showToast(`Staff member "${res.user.fullName}" updated successfully.`);
+      // Edit — only the wizard sections the user changed are re-saved.
+      const res = await StaffUserService.updateStaffUser(editingStaff.id, values, currentUser, changes);
+      if (res.success) {
+        showToast(`Staff member "${res.user?.fullName || values.fullName}" updated successfully.`);
         setEditingStaff(null);
         await refreshData();
       } else {
@@ -125,8 +131,8 @@ export const SuperAdminStaffUsersView: React.FC = () => {
     } else {
       // Add
       const res = await StaffUserService.createStaffUser(values, currentUser);
-      if (res.success && res.user) {
-        showToast(`Staff member "${res.user.fullName}" added successfully.`);
+      if (res.success) {
+        showToast(`Staff member "${res.user?.fullName || values.fullName}" added successfully.`);
         setIsAddModalOpen(false);
         await refreshData();
       } else {
@@ -167,31 +173,6 @@ export const SuperAdminStaffUsersView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Toast Notification Banner */}
-      {toastMessage && (
-        <div
-          className={`p-4 rounded-xl border flex items-center justify-between transition-all duration-300 ${
-            toastMessage.type === 'success'
-              ? 'bg-[#e7f6f1] border-[#c2e7db] text-[#0e7d5a]'
-              : 'bg-red-50 border-red-200 text-red-700'
-          }`}
-        >
-          <div className="flex items-center gap-2.5 text-xs font-semibold">
-            {toastMessage.type === 'success' ? (
-              <CheckCircle2 className="h-4 w-4 text-[#129b70]" />
-            ) : (
-              <AlertCircle className="h-4 w-4 text-red-600" />
-            )}
-            <span>{toastMessage.text}</span>
-          </div>
-          <button
-            onClick={() => setToastMessage(null)}
-            className="text-xs opacity-70 hover:opacity-100 cursor-pointer"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
 
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -268,6 +249,7 @@ export const SuperAdminStaffUsersView: React.FC = () => {
         onResetPassword={(staff) => setResetPasswordStaff(staff)}
         onClinicalAuth={(staff) => setClinicalAuthStaff(staff)}
         onSalaryProfile={(staff) => setSalaryProfileStaff(staff)}
+        onPortalAccess={(staff) => setPortalAccessStaff(staff)}
         onOpenStatusModal={(staff, targetStatus) =>
           setStatusTarget({ staff, status: targetStatus })
         }
@@ -285,8 +267,27 @@ export const SuperAdminStaffUsersView: React.FC = () => {
           onSave={handleSaveStaff}
           editingStaff={editingStaff}
           departments={departments}
+          services={services}
+          shifts={shifts}
         />
       )}
+
+      {/* MODAL 1b: Portal Access — separate workflow from Staff Master (staff.md §5) */}
+      <PortalAccessModal
+        isOpen={Boolean(portalAccessStaff)}
+        onClose={() => setPortalAccessStaff(null)}
+        staff={portalAccessStaff}
+        onGranted={() => {
+          showToast(`Portal access granted for ${portalAccessStaff?.fullName}.`);
+          setPortalAccessStaff(null);
+          refreshData();
+        }}
+        onRevoked={() => {
+          showToast(`Portal access revoked for ${portalAccessStaff?.fullName}.`);
+          setPortalAccessStaff(null);
+          refreshData();
+        }}
+      />
 
       {/* MODAL 2: View Staff Detail Drawer */}
       {viewingStaff && (

@@ -17,6 +17,7 @@ import {
   Printer,
 } from 'lucide-react';
 import { formatPKR, formatDateTimeDDMMYYYY } from '../../../utils/formatters';
+import { formatDateISO, getHospitalCurrentDate } from '../../../utils/dateConstants';
 import { frontdeskApiService } from '../../../services/frontdeskApiService';
 import { useRouter } from '../../../context/RouterContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -46,9 +47,30 @@ interface BalanceSheetData {
     totalCollections: number;
     totalRefunds: number;
     unsettledCount: number;
+    pettyCash: number;
+    cashCollections: number;
+    cashExpenses: number;
+    cashRefunds: number;
+    settledAmount: number;
+    remainingAmount: number;
+    settlementCount: number;
+    physicalCashCounted: number;
+    variance: number;
   };
+  period: { mode: 'shift' | 'period'; label: string };
   transactions: BalanceSheetTransaction[];
 }
+
+/** reporting.md §2 #8 — Shift (live, settle-able custody) / Day / Custom period. */
+type SheetPeriod = 'shift' | 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
+const PERIOD_OPTIONS: { value: SheetPeriod; label: string }[] = [
+  { value: 'shift', label: 'Current Shift' },
+  { value: 'today', label: 'Today' },
+  { value: 'yesterday', label: 'Yesterday' },
+  { value: 'this_week', label: 'This Week' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'custom', label: 'Custom' },
+];
 
 const CATEGORY_LABEL: Record<string, string> = {
   COLLECTION: 'Collection',
@@ -79,15 +101,32 @@ export const MyBalanceSheetView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const todayISO = formatDateISO(getHospitalCurrentDate());
+  const [period, setPeriod] = useState<SheetPeriod>('shift');
+  const [fromDate, setFromDate] = useState(todayISO);
+  const [toDate, setToDate] = useState(todayISO);
 
   const load = async (silent = false) => {
     if (silent) setIsRefreshing(true);
     else setIsLoading(true);
     setLoadError(null);
     try {
-      const raw = await frontdeskApiService.getCashBalance();
+      const raw = await frontdeskApiService.getCashBalance(
+        period === 'shift' ? undefined : { preset: period, ...(period === 'custom' ? { fromDate, toDate } : {}) },
+      );
+      const n = (v: unknown) => Number(v ?? 0);
       setData({
+        period: raw.period ?? { mode: 'shift', label: 'Current Shift (unsettled)' },
         summary: {
+          pettyCash: n(raw.summary?.pettyCash),
+          cashCollections: n(raw.summary?.cashCollections),
+          cashExpenses: n(raw.summary?.cashExpenses),
+          cashRefunds: n(raw.summary?.cashRefunds),
+          settledAmount: n(raw.summary?.settledAmount),
+          remainingAmount: n(raw.summary?.remainingAmount),
+          settlementCount: n(raw.summary?.settlementCount),
+          physicalCashCounted: n(raw.summary?.physicalCashCounted),
+          variance: n(raw.summary?.variance),
           expectedPhysicalCash: Number(raw.summary?.expectedPhysicalCash ?? 0),
           carriedForwardAmount: Number(raw.summary?.carriedForwardAmount ?? 0),
           physicalCashIn: Number(raw.summary?.physicalCashIn ?? 0),
@@ -117,10 +156,15 @@ export const MyBalanceSheetView: React.FC = () => {
     }
   };
 
+  // Initial load shows the full-page spinner; changing the period afterwards
+  // refreshes in place so the filter bar stays on screen.
+  const [hasLoaded, setHasLoaded] = useState(false);
   useEffect(() => {
-    load();
+    if (period === 'custom' && (!fromDate || !toDate)) return;
+    load(hasLoaded);
+    setHasLoaded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [period, fromDate, toDate]);
 
   if (isLoading) {
     return (
@@ -147,6 +191,7 @@ export const MyBalanceSheetView: React.FC = () => {
 
   const { summary, transactions } = data;
   const hasUnsettled = summary.unsettledCount > 0;
+  const isShift = data.period.mode === 'shift';
 
   const inTransactions = transactions.filter((t) => t.direction === 'IN');
   const outTransactions = transactions.filter((t) => t.direction === 'OUT');
@@ -158,7 +203,7 @@ export const MyBalanceSheetView: React.FC = () => {
     columns: PRINT_COLUMNS,
     rows: transactions,
     currentUser,
-    periodLabel: 'Live Shift Custody',
+    periodLabel: data.period.label,
     filters: [
       `Expected Physical Cash: ${formatPKR(summary.expectedPhysicalCash)}`,
       `Total Collections: ${formatPKR(summary.totalCollections)}`,
@@ -171,7 +216,8 @@ export const MyBalanceSheetView: React.FC = () => {
       {/* Header & Export Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Balance Sheet</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">My Balance Sheet</h1>
+          <p className="text-xs text-slate-500 mt-0.5">{data.period.label}</p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -192,7 +238,7 @@ export const MyBalanceSheetView: React.FC = () => {
             <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span>{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
           </button>
-          {hasUnsettled ? (
+          {!isShift ? null : hasUnsettled ? (
             <button
               type="button"
               onClick={() => navigate('/front-desk/my_account_settlement')}
@@ -208,6 +254,49 @@ export const MyBalanceSheetView: React.FC = () => {
             </span>
           )}
         </div>
+      </div>
+
+      {/* Period filter — Shift / Day / Custom (reporting.md §2 #8) */}
+      <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">Period:</span>
+        {PERIOD_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setPeriod(opt.value)}
+            disabled={isRefreshing}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-60 ${
+              period === opt.value ? 'bg-[#08775A] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+        {period === 'custom' && (
+          <div className="flex items-center gap-2 ml-2">
+            <input
+              type="date"
+              lang="en-GB"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              aria-label="From date"
+              className="h-8 px-2.5 rounded-lg border border-slate-200 text-xs text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#08775A]"
+            />
+            <span className="text-xs text-slate-400">to</span>
+            <input
+              type="date"
+              lang="en-GB"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              aria-label="To date"
+              className="h-8 px-2.5 rounded-lg border border-slate-200 text-xs text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#08775A]"
+            />
+          </div>
+        )}
+        {isRefreshing && <Loader2 className="h-4 w-4 animate-spin text-slate-400 ml-2" />}
+        {!isShift && (
+          <span className="ml-auto text-[11px] text-slate-500">Historical view — settle from “Current Shift”.</span>
+        )}
       </div>
 
       {/* Dual Side-by-Side Tables (Payments vs Expenses / Refunds) */}
@@ -351,38 +440,38 @@ export const MyBalanceSheetView: React.FC = () => {
           Balance Summary
         </div>
         <div className="divide-y divide-slate-200 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="py-2 px-4 text-slate-600 font-medium">Total Collections:</span>
-            <span className="py-2 px-4 bg-[#dcfce7] text-emerald-900 font-bold font-mono min-w-44 text-right border-l border-slate-200">
-              {formatPKR(summary.totalCollections)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="py-2 px-4 text-slate-600 font-medium">Total Refunds / Expenses:</span>
-            <span className="py-2 px-4 bg-[#fee2e2] text-rose-900 font-bold font-mono min-w-44 text-right border-l border-slate-200">
-              {formatPKR(summary.totalRefunds)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="py-2 px-4 text-slate-600 font-medium">Non-Cash (Card / Bank / Online):</span>
-            <span className="py-2 px-4 bg-blue-50 text-blue-900 font-bold font-mono min-w-44 text-right border-l border-slate-200">
-              {formatPKR(summary.nonPhysicalTotal)}
-            </span>
-          </div>
-          {summary.carriedForwardAmount > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="py-2 px-4 text-slate-600 font-medium">Previous Balance (Carried Forward):</span>
-              <span className="py-2 px-4 bg-amber-50 text-amber-900 font-bold font-mono min-w-44 text-right border-l border-slate-200">
-                {formatPKR(summary.carriedForwardAmount)}
+          {[
+            // reporting.md §2 #8 line items. Card/Bank/Online is shown for
+            // reference only — it is never part of Expected (physical) Cash.
+            { label: 'Opening / Petty Cash:', value: summary.pettyCash, tone: 'bg-slate-50 text-slate-900' },
+            ...(isShift && summary.carriedForwardAmount > 0
+              ? [{ label: 'Previous Balance (Carried Forward):', value: summary.carriedForwardAmount, tone: 'bg-amber-50 text-amber-900' }]
+              : []),
+            { label: '(+) Cash Collections:', value: summary.cashCollections, tone: 'bg-[#dcfce7] text-emerald-900' },
+            { label: '(−) Cash Expenses:', value: summary.cashExpenses, tone: 'bg-[#fee2e2] text-rose-900' },
+            { label: '(−) Cash Refunds:', value: summary.cashRefunds, tone: 'bg-[#fee2e2] text-rose-900' },
+            { label: 'Non-Cash (Card / Bank / Online) — not physical cash:', value: summary.nonPhysicalTotal, tone: 'bg-blue-50 text-blue-900' },
+            { label: 'Expected Cash (Physical):', value: summary.expectedPhysicalCash, tone: 'bg-[#bbf7d0] text-emerald-950', strong: true },
+            ...(!isShift
+              ? [
+                  { label: `Physical Cash Counted (${summary.settlementCount} settlement${summary.settlementCount === 1 ? '' : 's'}):`, value: summary.physicalCashCounted, tone: 'bg-slate-50 text-slate-900' },
+                  {
+                    label: 'Variance:',
+                    value: summary.variance,
+                    tone: summary.variance < 0 ? 'bg-rose-50 text-rose-900' : summary.variance > 0 ? 'bg-amber-50 text-amber-900' : 'bg-slate-50 text-slate-900',
+                  },
+                  { label: 'Settled:', value: summary.settledAmount, tone: 'bg-emerald-50 text-emerald-900' },
+                ]
+              : []),
+            { label: 'Remaining (Unsettled) Cash:', value: summary.remainingAmount, tone: 'bg-amber-50 text-amber-900', strong: true },
+          ].map((line) => (
+            <div key={line.label} className={`flex items-center justify-between ${line.strong ? 'bg-slate-50/50' : ''}`}>
+              <span className={`py-2 px-4 ${line.strong ? 'text-slate-900 font-bold' : 'text-slate-600 font-medium'}`}>{line.label}</span>
+              <span className={`py-2 px-4 font-bold font-mono min-w-44 text-right border-l border-slate-200 ${line.tone} ${line.strong ? 'text-sm font-black' : ''}`}>
+                {formatPKR(line.value)}
               </span>
             </div>
-          )}
-          <div className="flex items-center justify-between bg-slate-50/50">
-            <span className="py-2.5 px-4 text-slate-900 font-bold">Cash in Hand (Physical):</span>
-            <span className="py-2.5 px-4 bg-[#bbf7d0] text-emerald-950 font-black font-mono text-sm min-w-44 text-right border-l border-slate-200">
-              {formatPKR(summary.expectedPhysicalCash)}
-            </span>
-          </div>
+          ))}
         </div>
       </div>
     </div>

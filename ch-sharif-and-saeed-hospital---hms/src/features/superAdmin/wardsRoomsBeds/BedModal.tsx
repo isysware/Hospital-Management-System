@@ -6,6 +6,7 @@ import {
   VALID_BED_TYPES,
   getNextBedNumbers,
 } from '../../../services/wardsRoomsBedsService';
+import { useToast } from '../../../context/ToastContext';
 
 interface BedModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const BedModal: React.FC<BedModalProps> = ({
   rooms,
   beds = [],
 }) => {
+  const toast = useToast();
   const isEditing = !!bed;
   const isOccupied = bed?.occupancyStatus === 'Occupied';
 
@@ -214,6 +216,8 @@ export const BedModal: React.FC<BedModalProps> = ({
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      const firstError = Object.values(newErrors)[0];
+      toast.error(firstError, 'Validation Error');
       return;
     }
 
@@ -402,6 +406,7 @@ export const BedModal: React.FC<BedModalProps> = ({
                   <input
                     id="bed-quantity-input"
                     type="number"
+                    onWheel={(e) => e.currentTarget.blur()}
                     min="1"
                     max="50"
                     value={quantity}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Coins, Plus, Loader2, AlertTriangle, CheckCircle2, AlertCircle, Percent } from 'lucide-react';
+import { Coins, Plus, Loader2, AlertTriangle, CheckCircle2, AlertCircle, Percent, Banknote, ShieldCheck } from 'lucide-react';
 import { formatPKR } from '../../../utils/formatters';
 import {
   CommissionRule,
@@ -7,14 +7,19 @@ import {
   CommissionRuleType,
   CommissionBasis,
   CommissionTaxMethod,
+  CommissionAccrual,
   fetchCommissionRules,
   createCommissionRule,
+  fetchCommissionAccruals,
+  approveCommissionAccrual,
+  payCommissionAccrual,
 } from '../../../services/commissionService';
 import { StaffUserService } from '../../../services/staffUserService';
 import { ServiceRatesService } from '../../../services/serviceRatesService';
 import { getHospitalCurrentDate, formatDateISO } from '../../../utils/dateConstants';
 import { Modal } from '../../../components/common/Modal';
 import { TextInput, NumberInput, Select } from '../../../components/forms/FormControls';
+import { useToast } from '../../../context/ToastContext';
 
 const emptyForm = (): CommissionRuleFormValues => ({
   staffId: '',
@@ -35,6 +40,7 @@ const emptyForm = (): CommissionRuleFormValues => ({
  * for the same doctor/service does not edit history in place.
  */
 export const DoctorCommissionView: React.FC = () => {
+  const toast = useToast();
   const [rules, setRules] = useState<CommissionRule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -44,10 +50,73 @@ export const DoctorCommissionView: React.FC = () => {
   const [formValues, setFormValues] = useState<CommissionRuleFormValues>(emptyForm());
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const [accruals, setAccruals] = useState<CommissionAccrual[]>([]);
+  const [isLoadingAccruals, setIsLoadingAccruals] = useState(true);
+  const [payingAccrual, setPayingAccrual] = useState<CommissionAccrual | null>(null);
+  const [payAmount, setPayAmount] = useState<number | ''>('');
+  const [payMethod, setPayMethod] = useState('BANK');
+  const [payReference, setPayReference] = useState('');
+  const [isSubmittingPay, setIsSubmittingPay] = useState(false);
+
+  const loadAccruals = async () => {
+    setIsLoadingAccruals(true);
+    try {
+      setAccruals(await fetchCommissionAccruals());
+    } catch {
+      // Surfaced silently here — the rules table above is this screen's primary content.
+    } finally {
+      setIsLoadingAccruals(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAccruals();
+  }, []);
+
+  const handleApproveAccrual = async (id: string) => {
+    try {
+      await approveCommissionAccrual(id);
+      toast.success('Commission accrual approved.');
+      await loadAccruals();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error?.message || err?.message || 'Failed to approve.', 'Approve Error');
+    }
+  };
+
+  const openPay = (accrual: CommissionAccrual) => {
+    setPayingAccrual(accrual);
+    setPayAmount(accrual.remaining);
+    setPayMethod('BANK');
+    setPayReference('');
+  };
+
+  const submitPay = async () => {
+    if (!payingAccrual || payAmount === '' || Number(payAmount) <= 0) return;
+    setIsSubmittingPay(true);
+    try {
+      await payCommissionAccrual(payingAccrual.id, { amount: Number(payAmount), method: payMethod, reference: payReference || undefined });
+      toast.success(`Commission payment recorded for ${payingAccrual.doctorName}.`);
+      setPayingAccrual(null);
+      await loadAccruals();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error?.message || err?.message || 'Failed to record payment.', 'Payment Error');
+    } finally {
+      setIsSubmittingPay(false);
+    }
+  };
 
   const doctors = useMemo(() => StaffUserService.getStaffUsers().filter((s) => s.staffCategory === 'Doctor' && s.status === 'ACTIVE'), []);
-  const services = useMemo(() => ServiceRatesService.getServices().filter((s) => s.status === 'Active'), []);
+
+  // staff.md §4/§7 — a commission rate can only be set for a service the
+  // doctor is actually assigned to (Doctor Assignments, Staff Add/Edit).
+  // Department membership alone never creates a commission-eligible service.
+  const selectedDoctor = useMemo(() => doctors.find((d) => d.id === formValues.staffId), [doctors, formValues.staffId]);
+  const doctorAssignedServices = useMemo(() => {
+    if (!selectedDoctor) return [];
+    const allActive = ServiceRatesService.getServices().filter((s) => s.status === 'Active');
+    return allActive.filter((s) => selectedDoctor.assignedServiceIds?.includes(s.id));
+  }, [selectedDoctor]);
 
   const loadRules = async () => {
     setIsLoading(true);
@@ -79,22 +148,28 @@ export const DoctorCommissionView: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formValues.staffId) {
-      setFormError('Select a doctor.');
+      const msg = 'Select a doctor.';
+      setFormError(msg);
+      toast.error(msg, 'Validation Error');
       return;
     }
     if (formValues.rate === '' || Number(formValues.rate) <= 0) {
-      setFormError('Rate must be greater than zero.');
+      const msg = 'Rate must be greater than zero.';
+      setFormError(msg);
+      toast.error(msg, 'Validation Error');
       return;
     }
     setIsSaving(true);
     setFormError(null);
     try {
       await createCommissionRule(formValues);
-      setToast({ message: 'Commission rule saved.', type: 'success' });
+      toast.success('Commission rule saved.');
       setIsFormOpen(false);
       await loadRules();
     } catch (err: any) {
-      setFormError(err?.response?.data?.error?.message || err?.message || 'Failed to save commission rule.');
+      const msg = err?.response?.data?.error?.message || err?.message || 'Failed to save commission rule.';
+      setFormError(msg);
+      toast.error(msg, 'Save Error');
     } finally {
       setIsSaving(false);
     }
@@ -123,22 +198,6 @@ export const DoctorCommissionView: React.FC = () => {
 
   return (
     <div className="space-y-5 animate-in fade-in duration-150">
-      {toast && (
-        <div
-          className={`p-4 rounded-xl border flex items-center justify-between shadow-xs ${
-            toast.type === 'success' ? 'bg-[#effaf5] border-[#c2e7db] text-[#08775A]' : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}
-        >
-          <div className="flex items-center gap-2.5 text-xs font-semibold">
-            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            <span>{toast.message}</span>
-          </div>
-          <button onClick={() => setToast(null)} className="text-xs font-bold opacity-70 hover:opacity-100">
-            Dismiss
-          </button>
-        </div>
-      )}
-
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
@@ -228,6 +287,105 @@ export const DoctorCommissionView: React.FC = () => {
         </div>
       </div>
 
+      {/* Commission Accruals & Payments (staff.md §14/§20) — created automatically at billing time
+          from the rules above; never a manual entry. Approve locks it, Pay records a real CommissionPayout. */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
+          <Banknote className="h-4 w-4 text-[#08775A]" />
+          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Commission Accruals &amp; Payments</h3>
+        </div>
+        {isLoadingAccruals ? (
+          <div className="flex items-center justify-center py-10 text-slate-500 gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+        ) : accruals.length === 0 ? (
+          <div className="py-10 text-center text-slate-500 text-xs">No commission has accrued yet — it's created automatically when a billed service line matches a rule above.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                  <th className="py-2.5 px-4">Doctor</th>
+                  <th className="py-2.5 px-4">Service</th>
+                  <th className="py-2.5 px-4">Accrued</th>
+                  <th className="py-2.5 px-4">Status</th>
+                  <th className="py-2.5 px-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {accruals.map((a) => (
+                  <tr key={a.id} className="hover:bg-slate-50/80">
+                    <td className="py-2.5 px-4 font-bold text-slate-900">{a.doctorName}</td>
+                    <td className="py-2.5 px-4">{a.serviceName || '—'}</td>
+                    <td className="py-2.5 px-4 font-mono">
+                      {formatPKR(a.commissionAmount)}
+                      {a.paidTotal > 0 && <div className="text-[10px] text-slate-400 font-normal">Paid: {formatPKR(a.paidTotal)}</div>}
+                      {a.reversedTotal > 0 && <div className="text-[10px] text-red-500 font-normal">Reversed: {formatPKR(a.reversedTotal)}</div>}
+                    </td>
+                    <td className="py-2.5 px-4">
+                      <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
+                        a.status === 'PAID' ? 'bg-[#e7f6f1] text-[#0e7d5a] border-[#c2e7db]'
+                        : a.status === 'PARTIALLY_PAID' ? 'bg-purple-50 text-purple-700 border-purple-200'
+                        : a.status === 'APPROVED' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}>
+                        {a.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-right">
+                      {a.status === 'ACCRUED' && (
+                        <button type="button" onClick={() => handleApproveAccrual(a.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-[#149E75] hover:bg-[#08775A] rounded-md cursor-pointer">
+                          <ShieldCheck className="h-3 w-3" /> Approve
+                        </button>
+                      )}
+                      {(a.status === 'APPROVED' || a.status === 'PARTIALLY_PAID') && a.remaining > 0 && (
+                        <button type="button" onClick={() => openPay(a)} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-[#149E75] hover:bg-[#08775A] rounded-md cursor-pointer">
+                          <Banknote className="h-3 w-3" /> Pay
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {payingAccrual && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200">
+              <h3 className="font-bold text-slate-900 text-sm">Record Commission Payment</h3>
+              <p className="text-[11px] text-slate-500">{payingAccrual.doctorName} · {payingAccrual.serviceName || '—'}</p>
+            </div>
+            <div className="p-5 space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Amount (PKR) — remaining {formatPKR(payingAccrual.remaining)}</label>
+                <input type="number" onWheel={(e) => e.currentTarget.blur()} min={0} value={payAmount} onChange={(e) => setPayAmount(e.target.value === '' ? '' : Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono bg-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Method</label>
+                <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white">
+                  <option value="CASH">Cash</option>
+                  <option value="CARD">Card</option>
+                  <option value="BANK">Bank Transfer</option>
+                  <option value="ONLINE">Online</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Reference (optional)</label>
+                <input type="text" value={payReference} onChange={(e) => setPayReference(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white" />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                <button type="button" onClick={() => setPayingAccrual(null)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer">Cancel</button>
+                <button type="button" disabled={isSubmittingPay} onClick={submitPay} className="px-3.5 py-1.5 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg cursor-pointer disabled:opacity-50">
+                  {isSubmittingPay ? 'Saving…' : 'Record Payment'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Modal isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} title="Add Doctor Commission Rule" maxWidth="lg">
         <form onSubmit={handleSave} className="space-y-4">
           {formError && (
@@ -238,11 +396,19 @@ export const DoctorCommissionView: React.FC = () => {
             required
             options={doctors.map((d) => ({ label: `${d.fullName} (${d.designation})`, value: d.id }))}
             value={formValues.staffId}
-            onChange={(e) => setFormValues({ ...formValues, staffId: e.target.value })}
+            onChange={(e) => setFormValues({ ...formValues, staffId: e.target.value, serviceRateId: '' })}
           />
           <Select
             label="Service (optional — leave blank for this doctor's default rule)"
-            options={services.map((s) => ({ label: s.name, value: s.id }))}
+            hint={
+              !formValues.staffId
+                ? 'Select a doctor first.'
+                : doctorAssignedServices.length === 0
+                ? 'This doctor has no Assigned Services yet — set them from Staff Users → Edit before scoping a rule to a specific service.'
+                : "Only this doctor's Assigned Services are shown."
+            }
+            disabled={!formValues.staffId}
+            options={doctorAssignedServices.map((s) => ({ label: s.name, value: s.id }))}
             value={formValues.serviceRateId}
             onChange={(e) => setFormValues({ ...formValues, serviceRateId: e.target.value })}
           />

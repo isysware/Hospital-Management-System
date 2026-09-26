@@ -26,6 +26,7 @@ import {
   getProfileFieldValue,
 } from '../../../services/hospitalProfileService';
 import { formatDisplayDate } from '../../../utils/dateConstants';
+import { useToast } from '../../../context/ToastContext';
 
 interface WardsRoomsBedsExportModalProps {
   isOpen: boolean;
@@ -46,10 +47,10 @@ export const WardsRoomsBedsExportModal: React.FC<WardsRoomsBedsExportModalProps>
   beds,
   currentUser,
 }) => {
+  const toast = useToast();
   const [exportTarget, setExportTarget] = useState<'current' | 'wards' | 'rooms' | 'beds'>('current');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingExcel, setDownloadingExcel] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -81,11 +82,10 @@ export const WardsRoomsBedsExportModal: React.FC<WardsRoomsBedsExportModalProps>
       } else {
         await downloadBedsPDF(beds, currentUser);
       }
-      setToastMessage('PDF report generated and downloaded successfully.');
-      setTimeout(() => setToastMessage(null), 4000);
+      toast.success('PDF report generated and downloaded successfully.', 'Export Complete');
     } catch (err) {
       console.error(err);
-      setToastMessage('Failed to generate PDF. Please try again.');
+      toast.error('Failed to generate PDF. Please try again.', 'Export Failed');
     } finally {
       setDownloadingPdf(false);
     }
@@ -101,11 +101,10 @@ export const WardsRoomsBedsExportModal: React.FC<WardsRoomsBedsExportModalProps>
       } else {
         await downloadBedsExcel(beds, currentUser);
       }
-      setToastMessage('Excel workbook (.xlsx) downloaded successfully.');
-      setTimeout(() => setToastMessage(null), 4000);
+      toast.success('Excel workbook (.xlsx) downloaded successfully.', 'Export Complete');
     } catch (err) {
       console.error(err);
-      setToastMessage('Failed to export Excel. Please try again.');
+      toast.error('Failed to export Excel. Please try again.', 'Export Failed');
     } finally {
       setDownloadingExcel(false);
     }
@@ -140,13 +139,6 @@ export const WardsRoomsBedsExportModal: React.FC<WardsRoomsBedsExportModalProps>
 
         {/* Content */}
         <div className="p-6 space-y-5">
-          {toastMessage && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>{toastMessage}</span>
-            </div>
-          )}
-
           {/* Target Selector */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-2">

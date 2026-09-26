@@ -1,138 +1,119 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { ToastMessage } from '../types';
-import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
-import { cn } from '../utils/formatters';
+/**
+ * ToastContext — thin wrapper around react-toastify.
+ *
+ * All existing `useToast()` call-sites (success / error / warning / info)
+ * continue to work unchanged.  The ToastProvider now simply mounts the
+ * react-toastify <ToastContainer> so callers don't have to import it.
+ */
+import React, { createContext, useContext, useCallback } from 'react';
+import { toast, ToastContainer, Id } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ToastContextType {
-  toasts: ToastMessage[];
-  showToast: (toast: Omit<ToastMessage, 'id'>) => void;
-  removeToast: (id: string) => void;
-  success: (message: string, title?: string) => void;
-  error: (message: string, title?: string) => void;
-  warning: (message: string, title?: string) => void;
-  info: (message: string, title?: string) => void;
+  /** Low-level: mirrors the old API so legacy callers still compile */
+  showToast: (opts: { title?: string; message: string; type: 'success' | 'error' | 'warning' | 'info'; duration?: number }) => Id;
+  removeToast: (id: Id) => void;
+  success: (message: string, title?: string) => Id;
+  error:   (message: string, title?: string) => Id;
+  warning: (message: string, title?: string) => Id;
+  info:    (message: string, title?: string) => Id;
 }
+
+// ─── Context ──────────────────────────────────────────────────────────────────
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
-export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+// ─── Helper: build the toast body ────────────────────────────────────────────
 
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+// ─── Helper: build the toast body ────────────────────────────────────────────
+
+const GENERIC_TITLES = new Set([
+  'success',
+  'validation / error',
+  'validation error',
+  'validation / auth error',
+  'validation / registry error',
+  'attention',
+  'information',
+  'error',
+]);
+
+function ToastBody({ title, message }: { title?: string; message: string }) {
+  const isGeneric = !title || GENERIC_TITLES.has(title.trim().toLowerCase());
+  if (isGeneric) {
+    return <span className="text-[13.5px] font-medium leading-snug text-white">{message}</span>;
+  }
+  return (
+    <div className="flex flex-col gap-0.5 text-white">
+      <span className="text-[13px] font-bold leading-tight">{title}</span>
+      <span className="text-[12.5px] font-normal leading-snug opacity-95">{message}</span>
+    </div>
+  );
+}
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
+
+export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const showToast = useCallback(
-    ({ title, message, type, duration = 4500 }: Omit<ToastMessage, 'id'>) => {
-      const id = `toast_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-      const newToast: ToastMessage = { id, title, message, type, duration };
-
-      setToasts((prev) => [newToast, ...prev].slice(0, 5));
-
-      if (duration > 0) {
-        setTimeout(() => {
-          removeToast(id);
-        }, duration);
-      }
+    ({ title, message, type, duration = 4000 }: { title?: string; message: string; type: 'success' | 'error' | 'warning' | 'info'; duration?: number }): Id => {
+      return toast[type](<ToastBody title={title} message={message} />, {
+        autoClose: duration,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
     },
-    [removeToast]
+    []
   );
 
-  const success = useCallback((message: string, title = 'Success') => {
-    showToast({ type: 'success', title, message });
-  }, [showToast]);
+  const removeToast = useCallback((id: Id) => toast.dismiss(id), []);
 
-  const error = useCallback((message: string, title = 'Error') => {
-    showToast({ type: 'error', title, message });
-  }, [showToast]);
-
-  const warning = useCallback((message: string, title = 'Attention') => {
-    showToast({ type: 'warning', title, message });
-  }, [showToast]);
-
-  const info = useCallback((message: string, title = 'Information') => {
-    showToast({ type: 'info', title, message });
-  }, [showToast]);
+  const success = useCallback(
+    (message: string, title?: string): Id => showToast({ type: 'success', title, message }),
+    [showToast]
+  );
+  const error = useCallback(
+    (message: string, title?: string): Id => showToast({ type: 'error', title, message }),
+    [showToast]
+  );
+  const warning = useCallback(
+    (message: string, title?: string): Id => showToast({ type: 'warning', title, message }),
+    [showToast]
+  );
+  const info = useCallback(
+    (message: string, title?: string): Id => showToast({ type: 'info', title, message }),
+    [showToast]
+  );
 
   return (
-    <ToastContext.Provider
-      value={{ toasts, showToast, removeToast, success, error, warning, info }}
-    >
+    <ToastContext.Provider value={{ showToast, removeToast, success, error, warning, info }}>
       {children}
-      {/* Toast floating container */}
-      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-md w-full pointer-events-none px-4 sm:px-0">
-        {toasts.map((toast) => {
-          const typeConfigs = {
-            success: {
-              border: 'border-emerald-300',
-              bg: 'bg-emerald-50',
-              icon: <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />,
-              titleColor: 'text-emerald-900',
-              textColor: 'text-emerald-800',
-            },
-            error: {
-              border: 'border-rose-300',
-              bg: 'bg-rose-50',
-              icon: <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />,
-              titleColor: 'text-rose-900',
-              textColor: 'text-rose-800',
-            },
-            warning: {
-              border: 'border-amber-300',
-              bg: 'bg-amber-50',
-              icon: <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />,
-              titleColor: 'text-amber-900',
-              textColor: 'text-amber-800',
-            },
-            info: {
-              border: 'border-blue-300',
-              bg: 'bg-blue-50',
-              icon: <Info className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />,
-              titleColor: 'text-blue-900',
-              textColor: 'text-blue-800',
-            },
-          };
 
-          const config = typeConfigs[toast.type];
-
-          return (
-            <div
-              key={toast.id}
-              className={cn(
-                'pointer-events-auto flex items-start gap-3 p-3.5 rounded-lg border shadow-lg bg-white transition-all duration-200 animate-in slide-in-from-right-4',
-                config.border
-              )}
-            >
-              {config.icon}
-              <div className="flex-1 min-w-0 pr-1">
-                {toast.title && (
-                  <p className={cn('text-sm font-semibold leading-none mb-1', config.titleColor)}>
-                    {toast.title}
-                  </p>
-                )}
-                <p className={cn('text-xs leading-relaxed', config.textColor)}>
-                  {toast.message}
-                </p>
-              </div>
-              <button
-                onClick={() => removeToast(toast.id)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-md transition-colors shrink-0"
-                aria-label="Dismiss toast"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          );
-        })}
-      </div>
+      {/* ── Global Toast Container (Solid pill card matching screenshot) ──────────────── */}
+      <ToastContainer
+        position="top-right"
+        autoClose={4000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="colored"
+        limit={4}
+      />
     </ToastContext.Provider>
   );
 };
 
-export const useToast = () => {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error('useToast must be used within a ToastProvider');
-  }
-  return context;
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+export const useToast = (): ToastContextType => {
+  const ctx = useContext(ToastContext);
+  if (!ctx) throw new Error('useToast must be used within a ToastProvider');
+  return ctx;
 };

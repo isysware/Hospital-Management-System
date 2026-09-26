@@ -17,6 +17,7 @@ import {
 } from '../../../types/adminUser';
 import { AdminUserService, fetchAdminUsers } from '../../../services/adminUserService';
 import { useAuth } from '../../../context/AuthContext';
+import { useToast } from '../../../context/ToastContext';
 import { AdminUsersKPIBar } from './AdminUsersKPIBar';
 import { AdminUsersFilterBar } from './AdminUsersFilterBar';
 import { AdminUsersTable } from './AdminUsersTable';
@@ -58,17 +59,10 @@ export const SuperAdminAdminUsersView: React.FC = () => {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isDossierModalOpen, setIsDossierModalOpen] = useState(false);
 
-  // Toast Notification State
-  const [toast, setToast] = useState<{
-    type: 'success' | 'error';
-    message: string;
-  } | null>(null);
+  const toastService = useToast();
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => {
-      setToast((prev) => (prev?.message === message ? null : prev));
-    }, 4500);
+    type === 'success' ? toastService.success(message) : toastService.error(message);
   };
 
   const refreshUsers = async () => {
@@ -234,32 +228,6 @@ export const SuperAdminAdminUsersView: React.FC = () => {
 
   return (
     <div id="superadmin-admin-users-view" className="space-y-4">
-      {/* Toast Alert */}
-      {toast && (
-        <div
-          id="admin-toast-banner"
-          className={`fixed bottom-5 right-5 z-50 p-4 rounded-xl shadow-lg border flex items-center gap-3 text-xs max-w-md animate-in fade-in slide-in-from-bottom-3 ${
-            toast.type === 'success'
-              ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-              : 'bg-rose-50 text-rose-900 border-rose-200'
-          }`}
-        >
-          {toast.type === 'success' ? (
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-          ) : (
-            <AlertCircle className="h-5 w-5 text-rose-600 shrink-0" />
-          )}
-          <span className="flex-1 font-medium">{toast.message}</span>
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            className="text-slate-400 hover:text-slate-600 p-0.5 rounded"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
         <div>

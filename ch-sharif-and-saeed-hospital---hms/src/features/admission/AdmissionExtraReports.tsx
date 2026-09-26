@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { LayoutDashboard, ClipboardList, Users, Bed, ArrowLeftRight, Clock, Boxes, AlertCircle, ShieldCheck, Eye, Loader2 } from 'lucide-react';
 import { GenericReportView } from '../../components/reports/GenericReportView';
 import { Modal } from '../../components/common/Modal';
@@ -22,7 +22,10 @@ import {
   ServiceConsumptionRow,
   InpatientOutstandingRow,
   DischargeClearanceRow,
+  fetchAdmissionFilterOptions,
+  AdmissionFilterOptions,
 } from '../../services/admissionReportsService';
+import { useReportFilters, useFilterOptions, FilterSelect, opts } from '../../components/reports/reportFilters';
 
 /** Reporting Guide v7.5 §5.1 — daily operational snapshot of inpatient activity. */
 export const AdmissionDailySummaryView: React.FC = () => (
@@ -40,71 +43,49 @@ export const AdmissionDailySummaryView: React.FC = () => (
   />
 );
 
-/** Reporting Guide v7.5 §5.2 — master admission register, date-filterable. Each row can drill into its Running Hospital Bill (§5.7). */
-export const AdmissionRegisterReportView: React.FC = () => {
-  const [billTarget, setBillTarget] = useState<{ id: string; number: string } | null>(null);
+// ── Shared Admission filter-row sources (reporting.md §3) ────────────────
+const EMPTY_ADMISSION_OPTIONS: AdmissionFilterOptions = { departments: [], doctors: [], wards: [] };
+export const useAdmissionOptions = () => useFilterOptions(fetchAdmissionFilterOptions, EMPTY_ADMISSION_OPTIONS);
+
+export const ADMISSION_STATUS_OPTS = opts(
+  ['PLANNED', 'Planned'],
+  ['CONFIRMED', 'Confirmed'],
+  ['ACTIVE', 'Active'],
+  ['DISCHARGE_PENDING', 'Discharge Pending'],
+  ['DISCHARGED', 'Discharged'],
+  ['CANCELLED', 'Cancelled'],
+);
+
+/** Read-only drill-down: one admission's running Hospital bill (Pharmacy bill is a separate stream). */
+export const RunningBillModal: React.FC<{ target: { id: string; number: string } | null; onClose: () => void }> = ({ target, onClose }) => {
   const [bill, setBill] = useState<Awaited<ReturnType<typeof fetchRunningHospitalBill>> | null>(null);
   const [isBillLoading, setIsBillLoading] = useState(false);
 
-  const openBill = async (id: string, number: string) => {
-    setBillTarget({ id, number });
+  useEffect(() => {
+    if (!target) return;
+    let alive = true;
     setIsBillLoading(true);
-    try {
-      setBill(await fetchRunningHospitalBill(id));
-    } catch {
-      setBill(null);
-    } finally {
-      setIsBillLoading(false);
-    }
-  };
+    setBill(null);
+    fetchRunningHospitalBill(target.id)
+      .then((b) => {
+        if (alive) setBill(b);
+      })
+      .catch(() => {
+        if (alive) setBill(null);
+      })
+      .finally(() => {
+        if (alive) setIsBillLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [target]);
 
   return (
-    <>
-      <GenericReportView<AdmissionRegisterRow>
-        title="Admission Register"
-        subtitle="Master transactional report of admissions and discharge status."
-        icon={ClipboardList}
-        filenamePrefix="Admission_Register"
-        fetchReport={fetchAdmissionRegister}
-        rowKey={(r, i) => `${r.admissionNumber}-${i}`}
-        columns={[
-          { header: 'Admission #', cell: (r) => r.admissionNumber },
-          { header: 'Patient', cell: (r) => r.patient },
-          { header: 'Payer', cell: (r) => r.payer },
-          { header: 'Doctor', cell: (r) => r.doctor || '—' },
-          { header: 'Department', cell: (r) => r.department },
-          { header: 'Ward', cell: (r) => r.ward || '—' },
-          { header: 'Bed', cell: (r) => r.bed || '—' },
-          { header: 'Admitted', cell: (r) => r.admittedAt || '—' },
-          { header: 'Discharged', cell: (r) => r.dischargedAt || '—' },
-          { header: 'Status', cell: (r) => r.status },
-          { header: 'Created By', cell: (r) => r.createdBy || '—' },
-          { header: 'Running Bill', cell: () => 'View' },
-        ]}
-        renderCell={(col, row) =>
-          col.header === 'Running Bill' ? (
-            <button
-              type="button"
-              onClick={() => openBill(row.id, row.admissionNumber)}
-              className="inline-flex items-center gap-1 px-3 py-1 bg-[#08775A] hover:bg-[#065f46] text-white rounded text-xs font-medium shadow-2xs transition-colors"
-              title="View running Hospital bill"
-            >
-              <Eye className="h-3.5 w-3.5" />
-              <span>View</span>
-            </button>
-          ) : (
-            col.cell(row)
-          )
-        }
-      />
-
       <Modal
-        isOpen={!!billTarget}
-        onClose={() => {
-          setBillTarget(null);
-          setBill(null);
-        }}
-        title={billTarget ? `Running Hospital Bill — ${billTarget.number}` : ''}
+        isOpen={!!target}
+        onClose={onClose}
+        title={target ? `Running Hospital Bill — ${target.number}` : ''}
         subtitle="Hospital-side charges only (Room/Bed, services, procedures, diagnostics) — Pharmacy Bill is a separate stream."
         maxWidth="2xl"
       >
@@ -171,6 +152,67 @@ export const AdmissionRegisterReportView: React.FC = () => {
           <div className="text-center py-6 text-xs text-rose-600">Failed to load running bill.</div>
         )}
       </Modal>
+  );
+};
+
+/** reporting.md §3 #2 — master admission register. Each row drills into its Running Hospital Bill. */
+export const AdmissionRegisterReportView: React.FC = () => {
+  const options = useAdmissionOptions();
+  const { filters, bind, reset } = useReportFilters({ departmentId: '', doctorStaffId: '', wardId: '', payerType: '', status: '' });
+  const [billTarget, setBillTarget] = useState<{ id: string; number: string } | null>(null);
+  const openBill = (id: string, number: string) => setBillTarget({ id, number });
+
+  return (
+    <>
+      <GenericReportView<AdmissionRegisterRow>
+        title="Admission Register"
+        subtitle="Every admission with payer, department, doctor, ward/bed, admit and discharge times."
+        icon={ClipboardList}
+        filenamePrefix="Admission_Register"
+        fetchReport={(range) => fetchAdmissionRegister(range, filters)}
+        onResetExtraFilters={reset}
+        extraFilters={
+          <>
+            <FilterSelect label="Department" options={options.departments} {...bind('departmentId')} />
+            <FilterSelect label="Doctor" options={options.doctors} {...bind('doctorStaffId')} />
+            <FilterSelect label="Ward" options={options.wards} {...bind('wardId')} />
+            <FilterSelect label="Panel / Self-Pay" options={opts(['SELF_PAY', 'Self-Pay'], ['PANEL', 'Panel'])} {...bind('payerType')} />
+            <FilterSelect label="Admission Status" options={ADMISSION_STATUS_OPTS} {...bind('status')} />
+          </>
+        }
+        rowKey={(r, i) => `${r.admissionNumber}-${i}`}
+        columns={[
+          { header: 'Admission #', cell: (r) => r.admissionNumber },
+          { header: 'Patient', cell: (r) => r.patient },
+          { header: 'Payer', cell: (r) => r.payer },
+          { header: 'Doctor', cell: (r) => r.doctor || '—' },
+          { header: 'Department', cell: (r) => r.department },
+          { header: 'Ward', cell: (r) => r.ward || '—' },
+          { header: 'Bed', cell: (r) => r.bed || '—' },
+          { header: 'Admitted', cell: (r) => r.admittedAt || '—' },
+          { header: 'Discharged', cell: (r) => r.dischargedAt || '—' },
+          { header: 'Status', cell: (r) => r.status },
+          { header: 'Created By', cell: (r) => r.createdBy || '—' },
+          { header: 'Action', cell: () => 'View' },
+        ]}
+        renderCell={(col, row) =>
+          col.header === 'Action' ? (
+            <button
+              type="button"
+              onClick={() => openBill(row.id, row.admissionNumber)}
+              className="inline-flex items-center gap-1 px-3 py-1 bg-[#08775A] hover:bg-[#065f46] text-white rounded text-xs font-medium shadow-2xs transition-colors"
+              title="View running Hospital bill"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>View</span>
+            </button>
+          ) : (
+            col.cell(row)
+          )
+        }
+      />
+
+      <RunningBillModal target={billTarget} onClose={() => setBillTarget(null)} />
     </>
   );
 };
@@ -303,25 +345,44 @@ export const InpatientOutstandingReportView: React.FC = () => (
   />
 );
 
-/** Reporting Guide v7.5 §5.13 — final discharge readiness queue (Clinical + Hospital + Pharmacy). */
-export const DischargeClearanceReportView: React.FC = () => (
-  <GenericReportView<DischargeClearanceRow>
-    title="Discharge Clearance Report"
-    subtitle="Operational queue and audit report for final discharge readiness."
-    icon={ShieldCheck}
-    filenamePrefix="Discharge_Clearance_Report"
-    fetchReport={fetchDischargeClearance}
-    rowKey={(r, i) => `${r.admissionNumber}-${i}`}
-    columns={[
-      { header: 'Admission #', cell: (r) => r.admissionNumber },
-      { header: 'Patient', cell: (r) => r.patient },
-      { header: 'Doctor', cell: (r) => r.doctor || '—' },
-      { header: 'Clinical Ready', cell: (r) => (r.clinicalReady ? 'Yes' : 'No') },
-      { header: 'Hospital Clearance', cell: (r) => r.hospitalClearance },
-      { header: 'Hospital Due', align: 'right', cell: (r) => formatPKR(r.hospitalDue), excelValue: (r) => r.hospitalDue },
-      { header: 'Pharmacy Clearance', cell: (r) => r.pharmacyClearance },
-      { header: 'Discharge Ready', cell: (r) => (r.dischargeReady ? 'Yes' : 'No') },
-      { header: 'Discharge Date', cell: (r) => r.dischargeDate || '—' },
-    ]}
-  />
-);
+const CLEARANCE_OPTS = opts(['PENDING', 'Pending'], ['CLEARED', 'Cleared'], ['NOT_APPLICABLE', 'Not Applicable']);
+const BALANCE_LABEL: Record<DischargeClearanceRow['balanceStatus'], string> = { SETTLED: 'Settled', CREDIT: 'Credit', OUTSTANDING: 'Outstanding' };
+
+/** reporting.md §3 #7 — discharge readiness. Hospital and Pharmacy clearance always shown as two separate states. */
+export const DischargeClearanceReportView: React.FC = () => {
+  const options = useAdmissionOptions();
+  const { filters, bind, reset } = useReportFilters({ departmentId: '', doctorStaffId: '', clinicalStatus: '', hospitalClearance: '', pharmacyClearance: '' });
+  return (
+    <GenericReportView<DischargeClearanceRow>
+      title="Discharge Clearance Report"
+      subtitle="Clinical, Hospital and Pharmacy clearance for discharge — Hospital and Pharmacy bills stay separate."
+      icon={ShieldCheck}
+      filenamePrefix="Discharge_Clearance_Report"
+      fetchReport={(range) => fetchDischargeClearance(range, filters)}
+      onResetExtraFilters={reset}
+      extraFilters={
+        <>
+          <FilterSelect label="Department" options={options.departments} {...bind('departmentId')} />
+          <FilterSelect label="Doctor" options={options.doctors} {...bind('doctorStaffId')} />
+          <FilterSelect label="Clinical Status" options={opts(['READY', 'Clinically Ready'], ['NOT_READY', 'Not Ready'])} {...bind('clinicalStatus')} />
+          <FilterSelect label="Hospital Clearance" options={CLEARANCE_OPTS} {...bind('hospitalClearance')} />
+          <FilterSelect label="Pharmacy Clearance" options={CLEARANCE_OPTS} {...bind('pharmacyClearance')} />
+        </>
+      }
+      rowKey={(r, i) => `${r.admissionNumber}-${i}`}
+      columns={[
+        { header: 'Admission #', cell: (r) => r.admissionNumber },
+        { header: 'Patient', cell: (r) => r.patient },
+        { header: 'Department', cell: (r) => r.department },
+        { header: 'Doctor', cell: (r) => r.doctor || '—' },
+        { header: 'Clinical Ready', cell: (r) => (r.clinicalReady ? 'Yes' : 'No') },
+        { header: 'Hospital Clearance', cell: (r) => r.hospitalClearance },
+        { header: 'Pharmacy Clearance', cell: (r) => r.pharmacyClearance },
+        { header: 'Hospital Due', align: 'right', cell: (r) => formatPKR(r.hospitalDue), excelValue: (r) => r.hospitalDue },
+        { header: 'Balance', cell: (r) => BALANCE_LABEL[r.balanceStatus] },
+        { header: 'Discharge Date', cell: (r) => r.dischargeDate || '—' },
+        { header: 'Completed By', cell: (r) => r.completedBy || '—' },
+      ]}
+    />
+  );
+};

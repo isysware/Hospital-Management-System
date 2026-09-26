@@ -11,7 +11,34 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('../../ch-sharif-and-saeed-hospital---hms/src/services/apiClient', () => ({ default: { get: mocks.get } }));
 vi.mock('../../ch-sharif-and-saeed-hospital---hms/src/services/departmentService', () => ({ DepartmentService: {} }));
-vi.mock('@/db/client', () => ({ prisma: {} }));
+vi.mock('@/db/client', () => ({
+  prisma: {
+    // staffService.create writes the Staff row (plus any wizard sections)
+    // inside a transaction, then re-reads it through the repository.
+    $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
+      cb({
+        staff: {
+          create: vi.fn(async ({ data }: { data: unknown }) => {
+            const saved = await mocks.create(data);
+            mocks.findById.mockResolvedValueOnce(saved);
+            return { id: 'new-staff-id' };
+          }),
+        },
+      }),
+    ),
+    staff: {
+      // No existing staff shares a CNIC in these fixtures.
+      findUnique: vi.fn(async () => null),
+    },
+    serviceRate: {
+      // Echoes back every requested id as an active, non-deleted service —
+      // staff.service.ts's assertServicesActive() consumes this.
+      findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in.map((serviceId) => ({ id: serviceId, isActive: true, isDeleted: false })),
+      ),
+    },
+  },
+}));
 vi.mock('@/shared/actorLabel', () => ({ resolveActorLabel: vi.fn().mockResolvedValue('Test Admin') }));
 vi.mock('../src/modules/identity/staff.repository', () => ({ staffRepository: mocks }));
 import { fetchStaffUsers } from '../../ch-sharif-and-saeed-hospital---hms/src/services/staffUserService';
@@ -68,7 +95,8 @@ describe('doctor eligibility independent of department', () => {
 
 describe('Staff eligibility persistence and compatibility', () => {
   const body = {
-    fullName: 'Test Doctor', category: 'Doctor', departmentId: id,
+    fullName: 'Test Doctor', fatherGuardianName: 'Test Father', cnic: '35201-1234567-1', dateOfBirth: new Date('1985-01-01'),
+    category: 'Doctor', departmentIds: [id], serviceIds: [id],
     designation: 'Consultant', phone: '03001234567', joiningDate: new Date(),
   };
 

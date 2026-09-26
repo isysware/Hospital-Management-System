@@ -272,13 +272,28 @@ enum SettlementStatus {
   REVERSED
 }
 
+/// Payable-equivalent-day semantics (staff.md §11): PRESENT=1.0, HALF_DAY=0.5,
+/// ABSENT/UNPAID_LEAVE=0.0, PAID_LEAVE=1.0 if approved. Late/early-out are
+/// modifiers on a PRESENT day (`lateMinutes`/`earlyExitMinutes` below), not
+/// separate statuses. MISSING_PUNCH is device-integration-only (a punch
+/// anomaly awaiting correction) — never settable from manual marking.
 enum AttendanceStatus {
   PRESENT
+  HALF_DAY
   ABSENT
-  LATE
-  EARLY_EXIT
+  PAID_LEAVE
+  UNPAID_LEAVE
   MISSING_PUNCH
-  LEAVE
+}
+
+/// How this row was created — kept distinct from day one so tomorrow's
+/// biometric device integration (`BiometricRawPunch`) slots in without a
+/// redesign: a device-derived row just carries `source = DEVICE` and links
+/// its originating raw punches, same table, same downstream payroll read.
+enum AttendanceSource {
+  MANUAL
+  DEVICE
+  IMPORTED
 }
 
 enum SalaryStatus {
@@ -318,15 +333,28 @@ model Staff {
   employeeId         String                @unique @map("employee_id") // system-generated (§16 Q-01)
   fullName           String                @map("full_name")
   fatherGuardianName String?               @map("father_guardian_name")
-  cnic               String?
-  category           String // Doctor/Nurse/Technician/... — lookup table candidate, kept as string for phase 1
-  departmentId       String                @map("department_id")
-  department         Department            @relation(fields: [departmentId], references: [id])
-  designation        String
+  cnic               String?               @unique
+  dateOfBirth        DateTime?             @map("date_of_birth") @db.Date
+  category           String // Doctor/RMO/Nurse/Technician/... — lookup table candidate, kept as string for phase 1
+  // Nullable — only Doctor-category staff are required to have a department
+  // at creation (enforced in staff.service.ts, not the schema); every other
+  // category may be created without one. The authoritative multi-department
+  // source is the `staffDepartments` junction below; this FK mirrors its
+  // primary row for convenience list/report queries that skip the join.
+  departmentId       String?               @map("department_id")
+  department         Department?           @relation(fields: [departmentId], references: [id])
+  // Nullable — not collected on the short Add Staff form; settable later
+  // from Staff 360.
+  designation        String?
   phone              String
   alternatePhone     String?               @map("alternate_phone")
   email              String?
   joiningDate        DateTime              @map("joining_date") @db.Date
+  // Optional real Shift Master assignment (staff.md §8 wizard step 5) —
+  // settable at Add time or later; still the only real "scheduled working
+  // days" signal until a full per-staff weekly schedule exists.
+  assignedShiftId    String?               @map("assigned_shift_id")
+  assignedShift      Shift?                @relation(fields: [assignedShiftId], references: [id])
   employmentStatus   StaffEmploymentStatus @default(ACTIVE) @map("employment_status")
   notes              String?
   isActive           Boolean               @default(true) @map("is_active")
@@ -371,6 +399,13 @@ model Staff {
 
   // v7.2 Multi-department assignment for Doctors — junction table
   staffDepartments StaffDepartment[]
+  // Doctor ↔ Service assignment — junction table (§4 staff.md). Pure "this
+  // doctor performs this service" fact, deliberately separate from
+  // `DoctorCommissionRule` (the rate/eligibility for that service).
+  staffServices    StaffService[]
+  // Staff Add Wizard steps 6 and 9 (Staff Portal Access Salary Commission.pdf §2, §4, §8).
+  weeklySchedule   StaffWeeklySchedule[]
+  bankAccounts     StaffBankAccount[]
 
   createdAt DateTime @default(now()) @map("created_at")
   createdBy String?  @map("created_by")
@@ -397,6 +432,26 @@ model StaffDepartment {
   @@index([staffId])
   @@index([departmentId])
   @@map("staff_departments")
+}
+
+/// Doctor ↔ Service assignment (staff.md §4) — "this doctor performs this
+/// service," no rate attached. Deactivate (isActive = false) rather than
+/// delete when a doctor's assignments change, so commission history on
+/// `DoctorCommissionRule` referencing the same serviceRateId stays intact.
+model StaffService {
+  id            String      @id @default(uuid())
+  staffId       String      @map("staff_id")
+  staff         Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  serviceRateId String      @map("service_rate_id")
+  serviceRate   ServiceRate @relation(fields: [serviceRateId], references: [id], onDelete: Restrict)
+  isActive      Boolean     @default(true) @map("is_active")
+  assignedAt    DateTime    @default(now()) @map("assigned_at")
+  assignedBy    String?     @map("assigned_by")
+
+  @@unique([staffId, serviceRateId])
+  @@index([staffId])
+  @@index([serviceRateId])
+  @@map("staff_services")
 }
 
 /// Effective-dated department/designation/shift assignment history (§4.1,
@@ -468,6 +523,11 @@ model StaffSalaryProfile {
   salaryTaxMethod        String?         @map("salary_tax_method") // PERCENTAGE | FIXED
   salaryTaxValue         Decimal?        @map("salary_tax_value") @db.Decimal(14, 2)
   salaryTaxEffectiveFrom DateTime?       @map("salary_tax_effective_from") @db.Date
+  // PDF §10/§11 — recurring amounts. For Monthly types they are per month
+  // (prorated for partial periods); for Daily types they apply per payroll run.
+  fixedAllowance         Decimal         @default(0) @map("fixed_allowance") @db.Decimal(14, 2)
+  fixedDeduction         Decimal         @default(0) @map("fixed_deduction") @db.Decimal(14, 2)
+  paymentMethod          String?         @map("payment_method") // CASH | BANK | ONLINE
   effectiveFrom          DateTime        @map("effective_from") @db.Date
   effectiveTo            DateTime?       @map("effective_to") @db.Date // NULL = current
 
@@ -557,8 +617,11 @@ model PortalUser {
   fulfilledPharmacyClearances PharmacyClearance[]       @relation("PharmacyClearanceFulfilledBy")
   importedRawPunches          BiometricRawPunch[]       @relation("RawPunchImportedBy")
   approvedAttendance          AttendanceRecord[]        @relation("AttendanceApprovedBy")
+  markedAttendance            AttendanceRecord[]        @relation("AttendanceMarkedBy")
   correctedAttendance         AttendanceCorrectionLog[] @relation("AttendanceCorrectionChangedBy")
   approvedSalarySlips         SalarySlip[]              @relation("SalarySlipApprovedBy")
+  generatedPayrollRuns        PayrollRun[]              @relation("PayrollRunGeneratedBy")
+  approvedPayrollRuns         PayrollRun[]              @relation("PayrollRunApprovedBy")
   createdCommissionRules      DoctorCommissionRule[]    @relation("CommissionRuleCreatedBy")
   approvedCommissionAccruals  DoctorCommissionAccrual[] @relation("CommissionAccrualApprovedBy")
   paidCommissionPayouts       CommissionPayout[]        @relation("CommissionPayoutPaidBy")
@@ -701,6 +764,7 @@ model Department {
   StaffEmploymentHistory StaffEmploymentHistory[]
   providerSettlements    ProviderSettlement[]
   hospitalInvoices       HospitalInvoice[]
+  payrollRuns            PayrollRun[]
 
   @@map("departments")
 }
@@ -840,10 +904,19 @@ model ServiceRate {
   serviceStream             ServiceStream @default(HOSPITAL) @map("service_stream")
   statusChangedAt           DateTime?     @map("status_changed_at")
   statusChangedBy           String?       @map("status_changed_by")
+  // True only for the handful of internal find-or-create rows the billing
+  // engine posts accommodation charges against (e.g. Ward/Room Accommodation
+  // — see admission.service.ts's getOrCreateRoomChargeServiceRate /
+  // getOrCreateWardPriceServiceRate). Never human-selectable: excluded from
+  // the Services & Rates list, the Doctor "Assigned Services" picker, and
+  // every other service picker. Their own standardRate is never billed —
+  // the admitted room/ward's own configured rate is used instead.
+  isSystemGenerated         Boolean       @default(false) @map("is_system_generated")
 
   invoiceLines       InvoiceLineItem[]
   panelDiscountRules PanelDiscountRule[]
   commissionRules    DoctorCommissionRule[]
+  staffServices      StaffService[]
 
   createdAt     DateTime      @default(now()) @map("created_at")
   createdById   String?       @map("created_by")
@@ -983,6 +1056,8 @@ model Shift {
   updatedAt     DateTime    @updatedAt @map("updated_at")
   updatedById   String?     @map("updated_by")
   updatedByUser PortalUser? @relation("ShiftUpdatedBy", fields: [updatedById], references: [id])
+
+  assignedStaff Staff[]
 
   @@map("shifts")
 }
@@ -2053,10 +2128,14 @@ model AttendanceRecord {
   earlyExitMinutes Int              @default(0) @map("early_exit_minutes")
   workedMinutes    Int              @default(0) @map("worked_minutes")
   status           AttendanceStatus @default(ABSENT)
+  source           AttendanceSource @default(MANUAL)
+  notes            String?
   isApproved       Boolean          @default(false) @map("is_approved")
   approvedById     String?          @map("approved_by")
   approvedBy       PortalUser?      @relation("AttendanceApprovedBy", fields: [approvedById], references: [id])
   approvedAt       DateTime?        @map("approved_at")
+  markedById       String?          @map("marked_by")
+  markedByUser     PortalUser?      @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
 
   corrections AttendanceCorrectionLog[]
 
@@ -2064,6 +2143,7 @@ model AttendanceRecord {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([staffId, attendanceDate])
+  @@index([attendanceDate])
   @@map("attendance_records")
 }
 
@@ -2084,6 +2164,36 @@ model AttendanceCorrectionLog {
   @@map("attendance_correction_logs")
 }
 
+/// Payroll Run (staff.md §19/§21) — one Daily/Monthly/Custom batch generation.
+/// Groups the `SalarySlip` rows it produced; approving the run locks every
+/// line at once. Never edited in place once generated — a re-run for the
+/// same period/staff is a new run, an already-approved line is corrected
+/// via a fresh `SalarySlip` adjustment (see §7 follow-up), not overwritten.
+model PayrollRun {
+  id             String           @id @default(uuid())
+  periodType     String           @map("period_type") // DAILY / MONTHLY / CUSTOM
+  periodStart    DateTime         @map("period_start") @db.Date
+  periodEnd      DateTime         @map("period_end") @db.Date
+  departmentId   String?          @map("department_id")
+  department     Department?      @relation(fields: [departmentId], references: [id])
+  category       String?
+  status         SalaryStatus     @default(GENERATED)
+  staffCount     Int              @default(0) @map("staff_count")
+  totalAmount    Decimal          @default(0) @db.Decimal(14, 2) @map("total_amount")
+  skippedStaff   Json             @default("[]") @map("skipped_staff") // [{staffId, fullName, reason}] — no eligible attendance/profile, never silently dropped
+
+  lines SalarySlip[]
+
+  generatedById   String      @map("generated_by")
+  generatedByUser PortalUser  @relation("PayrollRunGeneratedBy", fields: [generatedById], references: [id])
+  generatedAt     DateTime    @default(now()) @map("generated_at")
+  approvedById    String?     @map("approved_by")
+  approvedByUser  PortalUser? @relation("PayrollRunApprovedBy", fields: [approvedById], references: [id])
+  approvedAt      DateTime?   @map("approved_at")
+
+  @@map("payroll_runs")
+}
+
 /// = §6.6 `salary_batches` (+ `salary_batch_lines` folded into
 /// `componentBreakdown` JSON, + `salary_payments` as its own relation),
 /// renamed `SalarySlip` for this phase.
@@ -2091,6 +2201,8 @@ model SalarySlip {
   id                   String       @id @default(uuid())
   staffId              String       @map("staff_id")
   staff                Staff        @relation("SalarySlipStaff", fields: [staffId], references: [id])
+  payrollRunId         String?      @map("payroll_run_id")
+  payrollRun           PayrollRun?  @relation(fields: [payrollRunId], references: [id])
   periodType           String       @map("period_type") // PER_DAY / MONTHLY / CUSTOM
   periodStart          DateTime     @map("period_start") @db.Date
   periodEnd            DateTime     @map("period_end") @db.Date
@@ -2253,3 +2365,49 @@ model HospitalNotification {
   @@map("hospital_notifications")
 }
 
+
+/// Staff Add Wizard step 6 — day-wise timing (Staff Portal Access Salary Commission.pdf §8).
+/// One row per weekday; `useShiftDefault` rows take their times from the assigned Shift.
+/// `isWorking = false` is a weekly OFF day and is excluded from scheduled payable days.
+model StaffWeeklySchedule {
+  id              String   @id @default(uuid())
+  staffId         String   @map("staff_id")
+  staff           Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  dayOfWeek       String   @map("day_of_week") // Monday..Sunday
+  isWorking       Boolean  @default(true) @map("is_working")
+  useShiftDefault Boolean  @default(true) @map("use_shift_default")
+  startTime       String?  @map("start_time") // HH:mm, only when overriding the shift
+  endTime         String?  @map("end_time")
+  breakMinutes    Int      @default(0) @map("break_minutes")
+  effectiveFrom   DateTime @map("effective_from") @db.Date
+  createdAt       DateTime @default(now()) @map("created_at")
+  createdBy       String?  @map("created_by")
+
+  @@unique([staffId, dayOfWeek])
+  @@map("staff_weekly_schedules")
+}
+
+/// Staff Add Wizard step 9 — payment account (PDF §4). Effective-dated: saving a
+/// new account closes the previous current one instead of overwriting it.
+model StaffBankAccount {
+  id                     String    @id @default(uuid())
+  staffId                String    @map("staff_id")
+  staff                  Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  paymentMethod          String    @map("payment_method") // CASH | BANK | ONLINE
+  bankName               String?   @map("bank_name")
+  branchName             String?   @map("branch_name")
+  accountTitle           String?   @map("account_title")
+  accountNumber          String?   @map("account_number")
+  iban                   String?
+  walletAccount          String?   @map("wallet_account")
+  preferredForSalary     Boolean   @default(true) @map("preferred_for_salary")
+  preferredForCommission Boolean   @default(true) @map("preferred_for_commission")
+  isActive               Boolean   @default(true) @map("is_active")
+  effectiveFrom          DateTime  @map("effective_from") @db.Date
+  effectiveTo            DateTime? @map("effective_to") @db.Date
+  createdAt              DateTime  @default(now()) @map("created_at")
+  createdBy              String?   @map("created_by")
+
+  @@index([staffId, effectiveFrom])
+  @@map("staff_bank_accounts")
+}

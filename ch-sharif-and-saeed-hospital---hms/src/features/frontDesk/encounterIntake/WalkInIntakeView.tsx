@@ -49,6 +49,7 @@ import { HospitalService } from '../../../types/serviceRates';
 import { TextInput, Select, Textarea, CNICInput, MultiSelect, ServiceChecklist, NumberInput } from '../../../components/forms/FormControls';
 import { formatPKR } from '../../../utils/formatters';
 import { focusNextField, focusNextFieldOnEnter } from '../../../utils/formNavigation';
+import { useToast } from '../../../context/ToastContext';
 
 export function departmentSupportsEncounter(dept: Department, type: EncounterType | ''): boolean {
   if (!type) return true;
@@ -102,6 +103,7 @@ export function resolveDoctorDepartmentForEncounter(
 
 export const WalkInIntakeView: React.FC = () => {
   const { currentPath } = useRouter();
+  const toast = useToast();
   const formContainerRef = useRef<HTMLDivElement>(null);
   const submitButtonRef = useRef<HTMLButtonElement>(null);
   const doctorDropdownOpenRef = useRef(false);
@@ -302,11 +304,21 @@ export const WalkInIntakeView: React.FC = () => {
     }
   }, [encounterType, selectedDoctorObj, departments, departmentId]);
 
-  // Core encounter services use the same department scope as the selected fee.
-  const encounterServices = useMemo(
-    () => servicesForSource(services, departmentId || HOSPITAL_SERVICE_SOURCE),
-    [services, departmentId]
-  );
+  // Core encounter services use the same department scope as the selected fee,
+  // PLUS whatever real services the selected doctor is actually assigned to
+  // (staff.md §4/§7) — a doctor's Assigned Services always count, even when a
+  // service is hospital-wide (no department) or scoped to a different
+  // department than the doctor's primary one. No hardcoded fallback list.
+  const encounterServices = useMemo(() => {
+    const departmentScoped = servicesForSource(services, departmentId || HOSPITAL_SERVICE_SOURCE);
+    const assignedIds = selectedDoctorObj?.assignedServiceIds;
+    if (!assignedIds || assignedIds.length === 0) return departmentScoped;
+    const merged = new Map(departmentScoped.map((s) => [s.id, s]));
+    services
+      .filter((s) => s.status === 'Active' && assignedIds.includes(s.id))
+      .forEach((s) => merged.set(s.id, s));
+    return Array.from(merged.values());
+  }, [services, departmentId, selectedDoctorObj]);
   const opdCoreService = useMemo(() => {
     return (
       encounterServices.find((s) => s.encounterType === 'OPD' && s.isDefaultEncounterService) ||
@@ -460,52 +472,57 @@ export const WalkInIntakeView: React.FC = () => {
 
   const handleCreateEncounter = async () => {
     setFormError(null);
+    // Helper: show inline banner + toast together
+    const showValidationError = (msg: string) => {
+      setFormError(msg);
+      toast.error(msg, 'Validation Error');
+    };
 
     // 0. Encounter Service Selection
     if (!encounterType) {
-      setFormError('Please select an Encounter Service (e.g. OPD Consultation, Observation Care, or Emergency Triage).');
+      showValidationError('Please select an Encounter Service (e.g. OPD Consultation, Observation Care, or Emergency Triage).');
       return;
     }
 
     // 1. Patient Info Validation
     if (!fullName.trim()) {
-      setFormError('Patient Full Name is required.');
+      showValidationError('Patient Full Name is required.');
       return;
     }
     if (!fatherGuardianName.trim()) {
-      setFormError('Father / Guardian Name is required.');
+      showValidationError('Father / Guardian Name is required.');
       return;
     }
     if (!primaryPhone.trim()) {
-      setFormError('Contact Phone is required.');
+      showValidationError('Contact Phone is required.');
       return;
     }
     if (!isValidPhone(primaryPhone)) {
-      setFormError('Please enter a valid Pakistani mobile number (at least 10 digits, e.g. 0300-1234567).');
+      showValidationError('Please enter a valid Pakistani mobile number (at least 10 digits, e.g. 0300-1234567).');
       return;
     }
     const ageNum = Number(age);
     if (!age.trim() || isNaN(ageNum) || ageNum < 0 || ageNum > 130) {
-      setFormError('Please enter a valid age in years (0 - 130).');
+      showValidationError('Please enter a valid age in years (0 - 130).');
       return;
     }
 
     // 2. Panel Details Validation
     if (payerType === 'Corporate / Panel') {
       if (!selectedExistingPatient) {
-        setFormError('Front Desk cannot register new panel patients. Please search and select an existing verified panel patient from the registry above, or contact Super Admin / Admin to register them.');
+        showValidationError('Front Desk cannot register new panel patients. Please search and select an existing verified panel patient from the registry above, or contact Super Admin / Admin to register them.');
         return;
       }
       if (!panelId) {
-        setFormError('Please select a Corporate Panel.');
+        showValidationError('Please select a Corporate Panel.');
         return;
       }
       if (corporatePanels.find(p => p.id === panelId)?.memberIdRequired && !panelMemberId.trim()) {
-        setFormError('Panel Member ID / Card Number is required for Corporate / Panel billing.');
+        showValidationError('Panel Member ID / Card Number is required for Corporate / Panel billing.');
         return;
       }
       if (corporatePanels.find(p => p.id === panelId)?.authorizationRequired && !authorizationNumber.trim()) {
-        setFormError('Authorization / Guarantee Number is required by this company before billing.');
+        showValidationError('Authorization / Guarantee Number is required by this company before billing.');
         return;
       }
     }
@@ -538,26 +555,26 @@ export const WalkInIntakeView: React.FC = () => {
       }
 
       if (!effectiveDeptId) {
-        setFormError('Clinical Department could not be determined. Please ensure hospital departments exist.');
+        showValidationError('Clinical Department could not be determined. Please ensure hospital departments exist.');
         return;
       }
     }
 
     // 4. Default Encounter Service Validation
     if (isSelectedCoreServiceInactive) {
-      setFormError(`The ${selectedCoreService?.name || encounterType} service is currently deactivated in Services & Rates. Please activate it in setup to proceed.`);
+      showValidationError(`The ${selectedCoreService?.name || encounterType} service is currently deactivated in Services & Rates. Please activate it in setup to proceed.`);
       return;
     }
 
     if (encounterType === 'OPD' && !defaultEncounterService) {
-      setFormError(servicesForSource(services, departmentId || HOSPITAL_SERVICE_SOURCE).length === 0
+      showValidationError(servicesForSource(services, departmentId || HOSPITAL_SERVICE_SOURCE).length === 0
         ? NO_ACTIVE_DEPARTMENT_SERVICES
         : 'No default OPD Consultation service is configured. Please ask Admin to configure Services & Rates.');
       return;
     }
 
     if (!defaultEncounterService && selectedServiceIds.length === 0) {
-      setFormError(`No default rate configured for ${encounterType} and no services selected. Please add at least one service above or configure Services & Rates.`);
+      showValidationError(`No default rate configured for ${encounterType} and no services selected. Please add at least one service above or configure Services & Rates.`);
       return;
     }
 
@@ -638,8 +655,14 @@ export const WalkInIntakeView: React.FC = () => {
       }
 
       setCreatedInvoiceId(targetInvoiceId);
+      toast.success(
+        `Encounter created successfully. Invoice has been opened.`,
+        'Encounter Created'
+      );
     } catch (err: any) {
-      setFormError(err?.response?.data?.error?.message || err?.message || 'Failed to create encounter & invoice.');
+      const errMsg = err?.response?.data?.error?.message || err?.message || 'Failed to create encounter & invoice.';
+      setFormError(errMsg);
+      toast.error(errMsg, 'Encounter Failed');
     } finally {
       setIsSaving(false);
     }

@@ -18,6 +18,7 @@ import {
 import { VALID_DEPARTMENT_TYPES } from '../../../services/departmentService';
 import { getActiveOutsourcedProviders } from '../../../services/outsourcedProviderService';
 import { FloorService } from '../../../services/floorService';
+import { useToast } from '../../../context/ToastContext';
 
 interface AddEditDepartmentModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export const AddEditDepartmentModal: React.FC<AddEditDepartmentModalProps> = ({
   headOptions,
   floors,
 }) => {
+  const toast = useToast();
   const isEditMode = !!departmentToEdit;
 
   const [availableFloors, setAvailableFloors] = useState<HospitalFloor[]>(floors || []);
@@ -171,7 +173,12 @@ export const AddEditDepartmentModal: React.FC<AddEditDepartmentModalProps> = ({
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const errKeys = Object.keys(newErrors);
+    if (errKeys.length > 0) {
+      toast.error(newErrors[errKeys[0]], 'Validation Error');
+      return false;
+    }
+    return true;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -521,6 +528,7 @@ export const AddEditDepartmentModal: React.FC<AddEditDepartmentModalProps> = ({
                 <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">PKR</span>
                 <input
                   type="number"
+                  onWheel={(e) => e.currentTarget.blur()}
                   min="0"
                   step="any"
                   value={formData.fixedPrice ?? ''}

@@ -13,6 +13,7 @@ import type {
   PanelPayerReportQuery,
   ReceiptExceptionLogQuery,
   CashierPerformanceQuery,
+  FinancialExceptionsQuery,
 } from './frontdeskReports.schemas';
 
 export const frontdeskReportsController = {
@@ -53,5 +54,11 @@ export const frontdeskReportsController = {
   },
   cashierPerformance: async (req: Request, res: Response) => {
     res.json({ data: await svc.getCashierPerformanceReport(req.query as unknown as CashierPerformanceQuery) });
+  },
+  financialExceptions: async (req: Request, res: Response) => {
+    res.json({ data: await svc.getFinancialExceptions(req.query as unknown as FinancialExceptionsQuery) });
+  },
+  filterOptions: async (_req: Request, res: Response) => {
+    res.json({ data: await svc.getFilterOptions() });
   },
 };

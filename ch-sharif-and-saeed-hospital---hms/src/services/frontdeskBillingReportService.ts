@@ -58,6 +58,8 @@ export async function fetchFrontDeskBillingReport(params: {
   preset: DatePreset;
   fromDate?: string;
   toDate?: string;
+  cashierId?: string;
+  departmentId?: string;
 }): Promise<FrontDeskBillingReport> {
   const res = await apiClient.get<{ data: Record<string, any> }>('/reports/frontdesk-billing', { params });
   return normalize(res.data.data);

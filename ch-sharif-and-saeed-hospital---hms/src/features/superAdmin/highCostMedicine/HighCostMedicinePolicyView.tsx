@@ -9,6 +9,7 @@ import {
   updateHighCostMedicinePolicy,
 } from '../../../services/highCostMedicinePolicyService';
 import { NumberInput, Select, Toggle } from '../../../components/forms/FormControls';
+import { useToast } from '../../../context/ToastContext';
 
 /**
  * v7.2 High-Cost Medicine Authorization Policy (HMS_V7.2_NEW_REQUIREMENTS.md
@@ -20,11 +21,11 @@ import { NumberInput, Select, Toggle } from '../../../components/forms/FormContr
  * see HMS_V7.2_NEW_REQUIREMENTS.md §3.4).
  */
 export const HighCostMedicinePolicyView: React.FC = () => {
+  const toast = useToast();
   const [policy, setPolicy] = useState<HighCostMedicinePolicy | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const load = async () => {
     setIsLoading(true);
@@ -56,9 +57,9 @@ export const HighCostMedicinePolicyView: React.FC = () => {
         panelPreauthRequired: policy.panelPreauthRequired,
       });
       setPolicy(updated);
-      setToast({ message: 'High-Cost Medicine policy saved.', type: 'success' });
+      toast.success('High-Cost Medicine policy saved.');
     } catch (err: any) {
-      setToast({ message: err?.response?.data?.error?.message || 'Failed to save policy.', type: 'error' });
+      toast.error(err?.response?.data?.error?.message || 'Failed to save policy.');
     } finally {
       setIsSaving(false);
     }
@@ -87,22 +88,6 @@ export const HighCostMedicinePolicyView: React.FC = () => {
 
   return (
     <div className="space-y-5 animate-in fade-in duration-150 max-w-3xl">
-      {toast && (
-        <div
-          className={`p-4 rounded-xl border flex items-center justify-between shadow-xs ${
-            toast.type === 'success' ? 'bg-[#effaf5] border-[#c2e7db] text-[#08775A]' : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}
-        >
-          <div className="flex items-center gap-2.5 text-xs font-semibold">
-            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            <span>{toast.message}</span>
-          </div>
-          <button onClick={() => setToast(null)} className="text-xs font-bold opacity-70 hover:opacity-100">
-            Dismiss
-          </button>
-        </div>
-      )}
-
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
         <div className="flex items-center gap-2.5">
           <div className="h-9 w-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">

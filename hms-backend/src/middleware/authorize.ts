@@ -25,6 +25,8 @@ const policy: Policy = {
   SUPER_ADMIN: {
     identity: new Set(fullAccess),
     setup: new Set(fullAccess),
+    attendance: new Set(fullAccess),
+    payroll: new Set(fullAccess),
     frontdesk: new Set(fullAccess),
     commission: new Set(fullAccess),
     cash: new Set(fullAccess),
@@ -37,6 +39,8 @@ const policy: Policy = {
   ADMIN: {
     identity: new Set(fullAccess),
     setup: new Set(fullAccess),
+    attendance: new Set(fullAccess),
+    payroll: new Set(fullAccess),
     frontdesk: new Set(fullAccess),
     commission: new Set(fullAccess),
     cash: new Set(fullAccess),

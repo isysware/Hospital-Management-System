@@ -42,6 +42,8 @@ import { SuperAdminWardsRoomsBedsView } from './wardsRoomsBeds/SuperAdminWardsRo
 import { SuperAdminAdminUsersView } from './adminUsers/SuperAdminAdminUsersView';
 import { SuperAdminStaffUsersView } from './staffUsers/SuperAdminStaffUsersView';
 import { ShiftManagementView } from './shifts/ShiftManagementView';
+import { SuperAdminAttendanceView } from './attendance/SuperAdminAttendanceView';
+import { SuperAdminPayrollView } from './payroll/SuperAdminPayrollView';
 import { SuperAdminReportsView } from './SuperAdminReportsView';
 import { PatientRegistryView } from './patientRegistry/PatientRegistryView';
 import { SuperAdminCorporatePanelsView } from './corporatePanels/SuperAdminCorporatePanelsView';
@@ -62,8 +64,7 @@ import {
   InvoiceRegisterView,
   CollectionReportViewPage,
   OutstandingInvoicesView,
-  DiscountReportViewPage,
-  RefundVoidReportViewPage,
+  FinancialExceptionsReportView,
   DepartmentRevenueReportView,
   AdmissionPaymentCollectionsView,
   PanelPayerReportView,
@@ -264,6 +265,16 @@ export const SuperAdminModuleView: React.FC<SuperAdminModuleViewProps> = ({
     return <ShiftManagementView />;
   }
 
+  // 1f3. Check if this is the Attendance Page
+  if (activeModuleId === 'attendance') {
+    return <SuperAdminAttendanceView />;
+  }
+
+  // 1f4. Check if this is the Salary Payroll Page
+  if (activeModuleId === 'salary_payroll') {
+    return <SuperAdminPayrollView />;
+  }
+
   // 1g. Check if this is Patient Registry Page
   if (
     activeModuleId === 'patient_registry' ||
@@ -433,8 +444,8 @@ export const SuperAdminModuleView: React.FC<SuperAdminModuleViewProps> = ({
   if (activeModuleId === 'fd_invoice_register') return <InvoiceRegisterView />;
   if (activeModuleId === 'fd_collection_report' || activeModuleId === 'collection_reports') return <CollectionReportViewPage />;
   if (activeModuleId === 'fd_outstanding_invoices') return <OutstandingInvoicesView />;
-  if (activeModuleId === 'fd_discount_report') return <DiscountReportViewPage />;
-  if (activeModuleId === 'fd_refund_void_report') return <RefundVoidReportViewPage />;
+  if (activeModuleId === 'fd_discount_report') return <FinancialExceptionsReportView />;
+  if (activeModuleId === 'fd_refund_void_report') return <FinancialExceptionsReportView />;
   if (activeModuleId === 'fd_department_revenue') return <DepartmentRevenueReportView />;
   if (activeModuleId === 'fd_admission_payment_collections') return <AdmissionPaymentCollectionsView />;
   if (activeModuleId === 'fd_panel_payer' || activeModuleId === 'patient_panel_reports') return <PanelPayerReportView />;

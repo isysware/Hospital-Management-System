@@ -196,9 +196,21 @@ export const TextInput: React.FC<TextInputProps> = (props) => {
     icon,
     rightElement,
     disabled,
+    onWheel,
     ...restProps
   } = props;
   const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+  // Chrome/Edge silently change a focused <input type="number">'s value by
+  // ±1 per mouse-wheel tick while the page scrolls underneath it — an easy,
+  // invisible way for a money field to drift off the figure someone typed.
+  // Blur on wheel so scrolling the page never edits the value.
+  const handleWheel =
+    props.type === 'number'
+      ? (e: React.WheelEvent<HTMLInputElement>) => {
+          onWheel?.(e);
+          e.currentTarget.blur();
+        }
+      : onWheel;
   return (
     <div className={cn('w-full flex flex-col gap-1', className)}>
       {label && (
@@ -215,6 +227,7 @@ export const TextInput: React.FC<TextInputProps> = (props) => {
         <input
           id={inputId}
           disabled={disabled}
+          onWheel={handleWheel}
           className={cn(
             'w-full rounded-lg border bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 transition-colors',
             'focus:outline-hidden focus:ring-2 focus:ring-[#129b70]/20 focus:border-[#129b70]',

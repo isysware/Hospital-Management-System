@@ -4,12 +4,25 @@ import type { ListStaffQuery } from './staff.schemas';
 
 const staffWithPortalInclude = {
   department: { select: { id: true, name: true, code: true } },
+  assignedShift: { select: { id: true, name: true, code: true, startTime: true, endTime: true, defaultWeeklyOffDays: true } },
   staffDepartments: {
     select: {
       id: true,
       departmentId: true,
       isPrimary: true,
       department: { select: { id: true, name: true, code: true } },
+    },
+  },
+  staffServices: {
+    where: { isActive: true },
+    select: {
+      id: true,
+      serviceRateId: true,
+      // encounterType (OPD/OBSERVATION/EMERGENCY/NONE) drives this doctor's
+      // real OPD/Observation/Emergency eligibility — staff.md §4/§7: a
+      // doctor's consulting-list eligibility comes from the services they
+      // were actually assigned, not a separate manual checkbox.
+      serviceRate: { select: { id: true, name: true, code: true, encounterType: true } },
     },
   },
   portalUser: {
@@ -91,12 +104,21 @@ export const staffRepository = {
       where: { id },
       include: {
         department: true,
+        assignedShift: { select: { id: true, name: true, code: true, startTime: true, endTime: true, defaultWeeklyOffDays: true } },
         staffDepartments: {
           select: {
             id: true,
             departmentId: true,
             isPrimary: true,
             department: { select: { id: true, name: true, code: true } },
+          },
+        },
+        staffServices: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            serviceRateId: true,
+            serviceRate: { select: { id: true, name: true, code: true, encounterType: true } },
           },
         },
         portalUser: {
@@ -128,6 +150,8 @@ export const staffRepository = {
           orderBy: { effectiveFrom: 'desc' },
           include: { serviceRate: { select: { id: true, code: true, name: true } } },
         },
+        weeklySchedule: true,
+        bankAccounts: { orderBy: { effectiveFrom: 'desc' }, take: 5 },
       },
     });
   },

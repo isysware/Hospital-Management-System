@@ -1,5 +1,6 @@
 import { PanelCoverageRulesModal } from './PanelCoverageRulesModal';
 import React, { useState, useEffect, useMemo } from 'react';
+import { useToast } from '../../../context/ToastContext';
 import {
   Building2,
   Plus,
@@ -82,10 +83,9 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<CorporatePanel | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const toastService = useToast();
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 4000);
+    type === 'success' ? toastService.success(message) : toastService.error(message);
   };
 
   const loadPanels = async () => {
@@ -168,10 +168,17 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formValues.organizationName.trim()) {
-      setFormError('Organization / Panel name is required.');
+      const msg = 'Organization / Panel name is required.';
+      setFormError(msg);
+      toastService.error(msg, 'Validation Error');
       return;
     }
-    if (!formValues.category) { setFormError('Select a configured panel category.'); return; }
+    if (!formValues.category) {
+      const msg = 'Select a configured panel category.';
+      setFormError(msg);
+      toastService.error(msg, 'Validation Error');
+      return;
+    }
     setIsSaving(true);
     setFormError(null);
     try {
@@ -185,7 +192,9 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
       setIsFormOpen(false);
       await loadPanels();
     } catch (err: any) {
-      setFormError(err?.message || 'Failed to save corporate panel.');
+      const msg = err?.message || 'Failed to save corporate panel.';
+      setFormError(msg);
+      toastService.error(msg, 'Save Error');
     } finally {
       setIsSaving(false);
     }
@@ -248,22 +257,6 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
 
   return (
     <div className="space-y-5 animate-in fade-in duration-150">
-      {toast && (
-        <div
-          className={`p-4 rounded-xl border flex items-center justify-between shadow-xs ${
-            toast.type === 'success' ? 'bg-[#effaf5] border-[#c2e7db] text-[#08775A]' : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}
-        >
-          <div className="flex items-center gap-2.5 text-xs font-semibold">
-            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            <span>{toast.message}</span>
-          </div>
-          <button onClick={() => setToast(null)} className="text-xs font-bold opacity-70 hover:opacity-100">
-            Dismiss
-          </button>
-        </div>
-      )}
-
       {/* Header */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

@@ -8,6 +8,7 @@ import * as s from './commission.schemas';
 const router = Router();
 const view = authorize('commission', 'view');
 const create = authorize('commission', 'create');
+const approve = authorize('commission', 'approve');
 
 router.get(
   '/rules',
@@ -28,6 +29,20 @@ router.get(
   view,
   validate({ query: s.listAccrualsQuerySchema }),
   asyncHandler(c.listAccruals),
+);
+
+router.post(
+  '/accruals/:id/approve',
+  approve,
+  validate({ params: s.accrualIdParamsSchema }),
+  asyncHandler(c.approveAccrual),
+);
+
+router.post(
+  '/accruals/:id/pay',
+  create,
+  validate({ params: s.accrualIdParamsSchema, body: s.payAccrualBodySchema }),
+  asyncHandler(c.payAccrual),
 );
 
 export default router;

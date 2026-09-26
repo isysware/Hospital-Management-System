@@ -5,6 +5,7 @@ import type {
   CreateCommissionRuleBody,
   ListCommissionRulesQuery,
   ListAccrualsQuery,
+  PayAccrualBody,
 } from './commission.schemas';
 
 function actorId(req: Request): string {
@@ -33,5 +34,15 @@ export const commissionController = {
       req.query as unknown as ListAccrualsQuery,
     );
     res.json({ data: accruals });
+  },
+
+  approveAccrual: async (req: Request, res: Response) => {
+    const accrual = await commissionService.approveAccrual(req.params.id as string, actorId(req));
+    res.json({ data: accrual });
+  },
+
+  payAccrual: async (req: Request, res: Response) => {
+    const accrual = await commissionService.payAccrual(req.params.id as string, req.body as PayAccrualBody, actorId(req));
+    res.status(201).json({ data: accrual });
   },
 };

@@ -149,6 +149,12 @@ export const clinicalDischargeSchema = z.object({
 
 export type ClinicalDischargeBody = z.infer<typeof clinicalDischargeSchema>;
 
+/** Discharge popup step 1 — check the doctor credential and show who it belongs to. */
+export const verifyDischargeDoctorSchema = z.object({
+  doctorUsername: z.string().min(1, 'Doctor username is required'),
+  doctorPassword: z.string().min(1, 'Doctor password is required'),
+});
+
 // v7.2 §2.6 — High-Cost Medicine Authorization.
 export const pharmacyClearanceIdParamsSchema = z.object({
   id: z.string().uuid(),

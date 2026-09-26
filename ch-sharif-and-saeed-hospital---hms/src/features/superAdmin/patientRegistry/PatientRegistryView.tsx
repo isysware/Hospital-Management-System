@@ -44,6 +44,7 @@ import { PatientStatusModal } from './PatientStatusModal';
 import { PatientImportModal } from './PatientImportModal';
 import { PatientExportModal } from './PatientExportModal';
 import { PatientDossierModal } from './PatientDossierModal';
+import { useToast } from '../../../context/ToastContext';
 
 interface PatientRegistryViewProps {
   currentUser: User | null;
@@ -62,6 +63,7 @@ export const PatientRegistryView: React.FC<PatientRegistryViewProps> = ({
   currentUser,
   initialDateFilter = 'ALL',
 }) => {
+  const toast = useToast();
   // Master patient records
   const [patients, setPatients] = useState<Patient[]>([]);
 
@@ -103,12 +105,6 @@ export const PatientRegistryView: React.FC<PatientRegistryViewProps> = ({
   const [dossierPatient, setDossierPatient] = useState<Patient | null>(null);
   const [isDossierModalOpen, setIsDossierModalOpen] = useState(false);
 
-  // Toast Notification
-  const [toastMessage, setToastMessage] = useState<{
-    text: string;
-    type: 'success' | 'error' | 'info';
-  } | null>(null);
-
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -131,10 +127,13 @@ export const PatientRegistryView: React.FC<PatientRegistryViewProps> = ({
   }, []);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
-    setToastMessage({ text, type });
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 4500);
+    if (type === 'error') {
+      toast.error(text, 'Validation / Registry Error');
+    } else if (type === 'info') {
+      toast.info(text, 'Patient Registry');
+    } else {
+      toast.success(text, 'Patient Registry');
+    }
   };
 
   // Filtered dataset
@@ -282,34 +281,6 @@ export const PatientRegistryView: React.FC<PatientRegistryViewProps> = ({
 
   return (
     <div className="space-y-5">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-60 animate-in fade-in slide-in-from-top-4 duration-200">
-          <div
-            className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium ${
-              toastMessage.type === 'success'
-                ? 'bg-emerald-900 text-emerald-100 border-emerald-700'
-                : toastMessage.type === 'error'
-                ? 'bg-rose-900 text-rose-100 border-rose-700'
-                : 'bg-slate-900 text-slate-100 border-slate-700'
-            }`}
-          >
-            {toastMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            )}
-            <span>{toastMessage.text}</span>
-            <button
-              onClick={() => setToastMessage(null)}
-              className="ml-2 text-xs opacity-70 hover:opacity-100"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Header & Primary Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

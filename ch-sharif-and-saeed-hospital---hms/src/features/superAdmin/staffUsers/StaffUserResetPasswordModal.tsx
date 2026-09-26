@@ -13,6 +13,7 @@ import {
 import { StaffUser } from '../../../types/staffUser';
 import { StaffUserService } from '../../../services/staffUserService';
 import { useAuth } from '../../../context/AuthContext';
+import { useToast } from '../../../context/ToastContext';
 
 interface StaffUserResetPasswordModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export const StaffUserResetPasswordModal: React.FC<StaffUserResetPasswordModalPr
   staff,
   onSuccess,
 }) => {
+  const toast = useToast();
   const { currentUser } = useAuth();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -57,17 +59,21 @@ export const StaffUserResetPasswordModal: React.FC<StaffUserResetPasswordModalPr
 
     if (!newPassword) {
       setError('Please enter a new password.');
+      toast.error('Please enter a new password.', 'Validation Error');
       return;
     }
 
     const check = StaffUserService.isValidPassword(newPassword);
     if (!check.valid) {
-      setError(check.message || 'Password does not meet requirements.');
+      const msg = check.message || 'Password does not meet requirements.';
+      setError(msg);
+      toast.error(msg, 'Validation Error');
       return;
     }
 
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match.');
+      toast.error('Passwords do not match.', 'Validation Error');
       return;
     }
 
@@ -78,7 +84,9 @@ export const StaffUserResetPasswordModal: React.FC<StaffUserResetPasswordModalPr
       currentUser
     );
     if (!res.success) {
-      setError(res.error || 'Failed to reset password.');
+      const msg = res.error || 'Failed to reset password.';
+      setError(msg);
+      toast.error(msg, 'Reset Failed');
       return;
     }
 

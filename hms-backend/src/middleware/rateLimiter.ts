@@ -24,3 +24,17 @@ export const authRateLimiter = rateLimit({
     error: { code: 'RATE_LIMITED', message: 'Too many login attempts, please try again later.' },
   },
 });
+
+/**
+ * Same limits as login, but its own counter — wrong doctor discharge passwords
+ * must not lock the Admission user out of their own portal login.
+ */
+export const clinicalAuthRateLimiter = rateLimit({
+  windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
+  limit: env.AUTH_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: { code: 'RATE_LIMITED', message: 'Too many doctor credential attempts, please try again later.' },
+  },
+});

@@ -52,9 +52,9 @@ function toSettlementRecord(raw: Record<string, any>): SettlementRecord {
 }
 
 
-export async function fetchMySettlements(): Promise<SettlementRecord[]> {
+export async function fetchMySettlements(filters?: { preset?: string; fromDate?: string; toDate?: string; status?: string }): Promise<SettlementRecord[]> {
   try {
-    const res = await apiClient.get<{ data: Record<string, any>[] }>('/cash/settlements');
+    const res = await apiClient.get<{ data: Record<string, any>[] }>('/cash/settlements', { params: filters });
     return res.data.data.map(toSettlementRecord);
   } catch (err) {
     throw new Error(toErrorMessage(err));

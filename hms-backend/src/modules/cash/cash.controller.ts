@@ -7,6 +7,8 @@ import type { SubmitSettlementBody } from './settlement.schemas';
 import type {
   ListBalanceSheetsQuery,
   ListSettlementsQuery,
+  MyBalanceSheetQuery,
+  MySettlementsQuery,
   FinanceKpisQuery,
   ReviewSettlementBody,
   ReverseSettlementBody,
@@ -19,7 +21,7 @@ function actorId(req: Request): string {
 
 export const cashController = {
   getMyBalanceSheet: async (req: Request, res: Response) => {
-    const sheet = await cashService.getCashierBalanceSheet(actorId(req));
+    const sheet = await cashService.getCashierBalanceSheet(actorId(req), req.query as unknown as MyBalanceSheetQuery);
     res.json({ data: sheet });
   },
 
@@ -34,7 +36,7 @@ export const cashController = {
   },
 
   listMySettlements: async (req: Request, res: Response) => {
-    const settlements = await settlementService.listMySettlements(actorId(req));
+    const settlements = await settlementService.listMySettlements(actorId(req), req.query as unknown as MySettlementsQuery);
     res.json({ data: settlements });
   },
 

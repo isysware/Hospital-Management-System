@@ -576,6 +576,10 @@ export const setupService = {
     const rows = await prisma.serviceRate.findMany({
       where: {
         isDeleted: false,
+        // Internal accommodation-billing rows (Ward/Room charges) are never
+        // human-selectable — they don't belong in Services & Rates, the
+        // Doctor "Assigned Services" picker, or any other service picker.
+        isSystemGenerated: false,
         ...(activeOnly ? { isActive: true } : {}),
       },
       include: this.serviceRateInclude,

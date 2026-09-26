@@ -4,6 +4,7 @@ import { prisma } from '@/db/client';
 import { NotFoundError, ValidationError } from '@/shared/errors/AppError';
 import { resolvePanelCoverage } from '@/shared/panelCoverage';
 import { assertMembershipEligible } from '@/shared/panelMembership';
+import { patientPaymentStatus } from '@/shared/invoicePaymentStatus';
 import type {
   BookAppointmentBody,
   ListAppointmentsQuery,
@@ -293,11 +294,7 @@ export const appointmentsService = {
 
       if (targetInvoice) {
         const newPaidTotal = targetInvoice.paidTotal.plus(amountDecimal);
-        const newStatus = newPaidTotal.greaterThanOrEqualTo(targetInvoice.total)
-          ? 'PAID'
-          : newPaidTotal.greaterThan(0)
-            ? 'PARTIALLY_PAID'
-            : 'UNPAID';
+        const newStatus = patientPaymentStatus(targetInvoice, newPaidTotal);
 
         await tx.hospitalInvoice.update({
           where: { id: targetInvoice.id },
@@ -372,11 +369,10 @@ export const appointmentsService = {
         );
 
         const newPaidTotal = totalAdvance;
-        const newStatus = newPaidTotal.greaterThanOrEqualTo(lineNet)
-          ? 'PAID'
-          : newPaidTotal.greaterThan(0)
-            ? 'PARTIALLY_PAID'
-            : 'UNPAID';
+        const newStatus = patientPaymentStatus(
+          { panelPatientId: appointment.panelPatientId, total: lineNet, patientShare, panelReceivable },
+          newPaidTotal,
+        );
 
         invoice = await tx.hospitalInvoice.create({
           data: {

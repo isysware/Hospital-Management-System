@@ -86,3 +86,60 @@ export async function createCommissionRule(values: CommissionRuleFormValues): Pr
   });
   return toCommissionRule(res.data.data);
 }
+
+// ── Commission Accruals & Payments (staff.md §14/§20) — the automatic,
+// transaction-linked earning behind each rule above, plus the Approve/Pay
+// workflow that turns an accrual into an actual `CommissionPayout`.
+export type AccrualStatus = 'ACCRUED' | 'GENERATED' | 'APPROVED' | 'PARTIALLY_PAID' | 'PAID';
+
+export interface CommissionAccrual {
+  id: string;
+  staffId: string;
+  doctorName: string;
+  doctorEmployeeId: string;
+  invoiceLineItemId: string;
+  serviceName: string | null;
+  commissionAmount: number;
+  status: AccrualStatus;
+  paidTotal: number;
+  reversedTotal: number;
+  remaining: number;
+  periodStart: string;
+  createdAt: string;
+}
+
+function toAccrual(raw: Record<string, any>): CommissionAccrual {
+  const paidTotal = (raw.payouts || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+  const reversedTotal = (raw.reversals || []).reduce((sum: number, r: any) => sum + Number(r.reversalAmount), 0);
+  const commissionAmount = Number(raw.commissionAmount ?? 0);
+  return {
+    id: raw.id,
+    staffId: raw.staffId,
+    doctorName: raw.doctor?.fullName || '',
+    doctorEmployeeId: raw.doctor?.employeeId || raw.doctor?.designation || '',
+    invoiceLineItemId: raw.invoiceLineItemId,
+    serviceName: raw.invoiceLineItem?.serviceRate?.name || null,
+    commissionAmount,
+    status: raw.status,
+    paidTotal,
+    reversedTotal,
+    remaining: commissionAmount - reversedTotal - paidTotal,
+    periodStart: formatDate(raw.periodStart),
+    createdAt: formatDate(raw.createdAt),
+  };
+}
+
+export async function fetchCommissionAccruals(filters?: { staffId?: string; status?: AccrualStatus }): Promise<CommissionAccrual[]> {
+  const res = await apiClient.get<{ data: Record<string, any>[] }>('/commission/accruals', { params: filters });
+  return res.data.data.map(toAccrual);
+}
+
+export async function approveCommissionAccrual(id: string): Promise<CommissionAccrual> {
+  const res = await apiClient.post<{ data: Record<string, any> }>(`/commission/accruals/${id}/approve`, {});
+  return toAccrual(res.data.data);
+}
+
+export async function payCommissionAccrual(id: string, body: { amount: number; method: string; reference?: string }): Promise<CommissionAccrual> {
+  const res = await apiClient.post<{ data: Record<string, any> }>(`/commission/accruals/${id}/pay`, body);
+  return toAccrual(res.data.data);
+}

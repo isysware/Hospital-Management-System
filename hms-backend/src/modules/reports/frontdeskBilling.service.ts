@@ -1,7 +1,7 @@
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '@/db/client';
 import { resolveDateRange } from './dashboard.service';
-import type { GetSuperAdminDashboardQuery } from './dashboard.schemas';
+import type { BillingSummaryQuery } from './frontdeskReports.schemas';
 
 /**
  * Front Desk / Billing Reports (HMS_V7.2_NEW_REQUIREMENTS.md §3.3) — real
@@ -12,21 +12,31 @@ import type { GetSuperAdminDashboardQuery } from './dashboard.schemas';
  * billing ledger, it doesn't introduce a new one.
  */
 export const frontdeskBillingReportService = {
-  async getReport(query: GetSuperAdminDashboardQuery) {
+  async getReport(query: BillingSummaryQuery) {
     const { start, end, label } = resolveDateRange(query);
     const dateFilter = { gte: start, lte: end };
+    // Cashier = who collected/refunded (ledger owner) and who created the invoice.
+    // Department = the invoice's department, reached through the receipt for ledger rows.
+    const ledgerFilter = {
+      ...(query.cashierId ? { portalUserId: query.cashierId } : {}),
+      ...(query.departmentId ? { paymentReceipt: { hospitalInvoice: { departmentId: query.departmentId } } } : {}),
+    };
 
     const [collections, refunds, invoices] = await Promise.all([
       prisma.userCashBalance.findMany({
-        where: { moduleScope: 'BILLING', category: 'COLLECTION', direction: 'IN', occurredAt: dateFilter },
+        where: { moduleScope: 'BILLING', category: 'COLLECTION', direction: 'IN', occurredAt: dateFilter, ...ledgerFilter },
         select: { amount: true, isPhysicalCash: true, paymentReceipt: { select: { method: true } } },
       }),
       prisma.userCashBalance.findMany({
-        where: { moduleScope: 'BILLING', category: 'REFUND', direction: 'OUT', occurredAt: dateFilter },
+        where: { moduleScope: 'BILLING', category: 'REFUND', direction: 'OUT', occurredAt: dateFilter, ...ledgerFilter },
         select: { amount: true },
       }),
       prisma.hospitalInvoice.findMany({
-        where: { createdAt: dateFilter },
+        where: {
+          createdAt: dateFilter,
+          ...(query.cashierId ? { createdById: query.cashierId } : {}),
+          ...(query.departmentId ? { departmentId: query.departmentId } : {}),
+        },
         select: { status: true, subtotal: true, discountTotal: true, total: true, paidTotal: true },
       }),
     ]);

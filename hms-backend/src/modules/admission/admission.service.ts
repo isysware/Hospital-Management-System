@@ -6,6 +6,7 @@ import { notificationsService } from '../notifications/notifications.service';
 import { AuthenticationError, ConflictError, NotFoundError, ValidationError } from '@/shared/errors/AppError';
 import { resolvePanelCoverage } from '@/shared/panelCoverage';
 import { assertMembershipEligible } from '@/shared/panelMembership';
+import { patientPaymentStatus, patientResponsibility } from '@/shared/invoicePaymentStatus';
 import { assertCaseAuthorization, caseAuthorizationIneligibilityReasons } from '@/shared/panelAuthorization';
 import type {
   CreatePlannedAdmissionBody,
@@ -61,11 +62,10 @@ async function recalcInvoiceTotals(
 
   const newStatus = newTotal.equals(0)
     ? 'PAID'
-    : invoice.paidTotal.greaterThanOrEqualTo(newTotal) && newTotal.greaterThan(0)
-      ? 'PAID'
-      : invoice.paidTotal.greaterThan(0)
-        ? 'PARTIALLY_PAID'
-        : 'UNPAID';
+    : patientPaymentStatus(
+        { panelPatientId: invoice.panelPatientId, total: newTotal, patientShare: newPatientShare, panelReceivable: newPanelReceivable },
+        invoice.paidTotal,
+      );
 
   await tx.hospitalInvoice.update({
     where: { id: invoice.id },
@@ -106,6 +106,7 @@ async function getOrCreateRoomChargeServiceRate(tx: Prisma.TransactionClient, fa
         billingUnit: 'PER_DAY',
         discountAllowed: false,
         isActive: true,
+        isSystemGenerated: true,
         createdById: actorId,
       },
     });
@@ -202,6 +203,7 @@ async function postWardFixedChargeIfApplicable(
         billingUnit: 'PER_ADMISSION',
         discountAllowed: false,
         isActive: true,
+        isSystemGenerated: true,
         createdById: actorId,
       },
     });
@@ -285,7 +287,44 @@ async function postInitialRoomChargeIfApplicable(tx: Prisma.TransactionClient, a
   await recalcInvoiceTotals(tx, invoice, [...invoice.lines, line]);
 }
 
+/**
+ * v7.2 §2.4 — resolves the doctor from their own discharge credential.
+ * `db/client.ts`'s global `omit` hides `clinicalAuthPasswordHash` from every
+ * Staff query by design; this is the one legitimate server-side read that
+ * needs it, so it is un-omitted for this query only. Same generic error for
+ * unknown user / wrong password / inactive credential.
+ */
+async function findDoctorByDischargeCredential(db: Prisma.TransactionClient | typeof prisma, username: string, password: string) {
+  const doctor = await db.staff.findUnique({
+    where: { clinicalAuthUsername: username.trim() },
+    include: { department: true },
+    omit: { clinicalAuthPasswordHash: false },
+  });
+  if (!doctor || !doctor.isActive || !doctor.clinicalAuthActive || !doctor.clinicalAuthPasswordHash) {
+    throw new AuthenticationError('Invalid doctor credentials');
+  }
+  const passwordOk = await bcrypt.compare(password, doctor.clinicalAuthPasswordHash);
+  if (!passwordOk) throw new AuthenticationError('Invalid doctor credentials');
+  return doctor;
+}
+
 export const admissionService = {
+  /**
+   * Discharge popup step 1 — confirms the credential and returns only who the
+   * doctor is, so the Admission user sees the authorizing doctor's name before
+   * the Discharge Summary is written. Nothing is changed.
+   */
+  async verifyDischargeDoctor(username: string, password: string) {
+    const doctor = await findDoctorByDischargeCredential(prisma, username, password);
+    return {
+      staffId: doctor.id,
+      employeeId: doctor.employeeId,
+      fullName: doctor.fullName,
+      designation: doctor.designation,
+      department: doctor.department?.name ?? null,
+    };
+  },
+
   /**
    * Create Planned Inpatient Admission (§4.7 Sub-flow A, D16 p.10)
    * Note: Tentative bed preference is recorded, but bed becomes OCCUPIED
@@ -482,10 +521,11 @@ export const admissionService = {
     try {
       const patientName = result.admission.panelPatient?.fullName || result.admission.selfPayEncounter?.fullName || 'Patient';
       const bedInfo = result.admission.bed?.bedNumber ? ` (Bed: ${result.admission.bed.bedNumber})` : '';
+      const isPlanned = result.admission.status === 'PLANNED';
       await notificationsService.createNotification({
-        title: `New Admission Request: ${patientName}`,
-        message: `Admission #${result.admission.admissionNumber} created at Front Desk${bedInfo}. Pending admission review & clinical onboarding.`,
-        type: 'ADMISSION_REQUEST',
+        title: isPlanned ? `New Planned Admission: ${patientName}` : `New Patient Admitted: ${patientName}`,
+        message: `Patient ${patientName} (${result.admission.admissionNumber}) ${isPlanned ? 'scheduled as Planned Admission' : 'admitted'}${bedInfo}.`,
+        type: 'success',
         module: 'ADMISSION',
         targetPortal: 'admission',
         actionUrl: '/admission/planned_admissions',
@@ -629,7 +669,7 @@ export const admissionService = {
     const admission = await prisma.admissionRecord.findUnique({ where: { id: admissionId } });
     if (!admission) throw new NotFoundError('Admission record not found');
 
-    return prisma.admissionPaymentRequest.create({
+    const createdRequest = await prisma.admissionPaymentRequest.create({
       data: {
         admissionRecordId: admission.id,
         requestType: body.requestType,
@@ -642,6 +682,38 @@ export const admissionService = {
         admissionRecord: { select: { id: true, admissionNumber: true } },
       },
     });
+
+    try {
+      const [actor, fullAdmission] = await Promise.all([
+        prisma.portalUser.findUnique({
+          where: { id: actorId },
+          select: { id: true, username: true, staff: { select: { fullName: true } } },
+        }),
+        prisma.admissionRecord.findUnique({
+          where: { id: admissionId },
+          include: { panelPatient: true, selfPayEncounter: true },
+        }),
+      ]);
+      const actorDisplayName = actor?.staff?.fullName || actor?.username || 'Staff';
+      const patientName = fullAdmission?.panelPatient?.fullName || fullAdmission?.selfPayEncounter?.fullName || 'Patient';
+      const mrNumber = fullAdmission?.panelPatient?.mrNumber ? ` [MR: ${fullAdmission.panelPatient.mrNumber}]` : '';
+      const amountStr = Number(body.requestedAmount).toLocaleString('en-PK', { maximumFractionDigits: 0 });
+
+      await notificationsService.createNotification({
+        title: `Payment Requested: ${patientName}`,
+        message: `Payment request of Rs. ${amountStr} raised for ${patientName}${mrNumber} (${admission.admissionNumber}) by ${actorDisplayName} (User ID: ${actor?.username || actorId}).`,
+        type: 'urgent',
+        module: 'BILLING',
+        targetPortal: 'front-desk',
+        actionUrl: '/billing/inpatient',
+        referenceId: admission.id,
+        createdById: actorId,
+      });
+    } catch (notifErr) {
+      console.error('Failed to notify payment request:', notifErr);
+    }
+
+    return createdRequest;
   },
 
   /**
@@ -851,6 +923,7 @@ export const admissionService = {
         include: {
           hospitalInvoices: { where: { sourceType: 'ADMISSION' }, include: { lines: true } },
           panelPatient: { include: { corporatePanel: { include: { discountRules: true } } } },
+          selfPayEncounter: true,
         },
       });
 
@@ -948,6 +1021,32 @@ export const admissionService = {
       // Recalculate this department invoice's totals (never another
       // department's — each stays independently owned per §2.2).
       await recalcInvoiceTotals(tx, invoice, [...invoice.lines, createdLine]);
+
+      // Notify Front Desk that bill has increased
+      try {
+        const actor = await tx.portalUser.findUnique({
+          where: { id: actorId },
+          select: { id: true, username: true, staff: { select: { fullName: true } } },
+        });
+        const actorDisplayName = actor?.staff?.fullName || actor?.username || 'Staff';
+        const patientName = admission.panelPatient?.fullName || admission.selfPayEncounter?.fullName || 'Patient';
+        const mrNumber = admission.panelPatient?.mrNumber ? ` [MR: ${admission.panelPatient.mrNumber}]` : '';
+        const amountStr = Number(lineNet).toLocaleString('en-PK', { maximumFractionDigits: 0 });
+        const serviceName = serviceRate.name || 'Clinical Service';
+
+        await notificationsService.createNotification({
+          title: `Admission Bill Updated: ${patientName}`,
+          message: `Bill updated: Rs. ${amountStr} added for ${serviceName} on ${patientName}${mrNumber} (${admission.admissionNumber}) by ${actorDisplayName} (User ID: ${actor?.username || actorId}).`,
+          type: 'info',
+          module: 'BILLING',
+          targetPortal: 'front-desk',
+          actionUrl: '/billing/inpatient',
+          referenceId: admission.id,
+          createdById: actorId,
+        });
+      } catch (notifErr) {
+        console.error('Failed to notify bill update:', notifErr);
+      }
 
       return createdLine;
     });
@@ -1306,7 +1405,11 @@ export const admissionService = {
     }
 
     // 1. Evaluate billing balance across this admission
-    const totalCharges = admission.hospitalInvoices.reduce((sum: Decimal, inv: any) => sum.plus(inv.total), new Decimal(0));
+    // Only the PATIENT's responsibility gates billing clearance — an open panel
+    // receivable is the company's debt, realized later through remittances,
+    // and never blocks the patient's exit (panel.md §5.3: patient exit is not
+    // company settlement).
+    const totalCharges = admission.hospitalInvoices.reduce((sum: Decimal, inv: any) => sum.plus(patientResponsibility(inv)), new Decimal(0));
     const invoiceIds = admission.hospitalInvoices.map((inv: any) => inv.id);
     const receipts = await tx.paymentReceipt.aggregate({
       where: {
@@ -1413,21 +1516,7 @@ export const admissionService = {
         throw new ValidationError('Clinical discharge is only permitted for an ACTIVE admission');
       }
 
-      // `db/client.ts`'s global `omit` structurally hides
-      // `clinicalAuthPasswordHash` from every Staff query (by design, so it
-      // can never leak through a `doctor: true`/`performedBy: true`
-      // include) — this is the one legitimate server-side read that
-      // actually needs it, so it's explicitly un-omitted for this query only.
-      const doctor = await tx.staff.findUnique({
-        where: { clinicalAuthUsername: body.doctorUsername },
-        include: { department: true },
-        omit: { clinicalAuthPasswordHash: false },
-      });
-      if (!doctor || !doctor.clinicalAuthActive || !doctor.clinicalAuthPasswordHash) {
-        throw new AuthenticationError('Invalid doctor credentials');
-      }
-      const passwordOk = await bcrypt.compare(body.doctorPassword, doctor.clinicalAuthPasswordHash);
-      if (!passwordOk) throw new AuthenticationError('Invalid doctor credentials');
+      const doctor = await findDoctorByDischargeCredential(tx, body.doctorUsername, body.doctorPassword);
 
       const summary = await tx.dischargeSummary.create({
         data: {
@@ -1442,7 +1531,7 @@ export const admissionService = {
           additionalNotes: body.dischargeSummary.additionalNotes,
           doctorStaffId: doctor.id,
           doctorNameSnapshot: doctor.fullName,
-          doctorDepartmentSnapshot: doctor.department.name,
+          doctorDepartmentSnapshot: doctor.department?.name ?? 'Unassigned',
           initiatedById: actorId,
         },
       });

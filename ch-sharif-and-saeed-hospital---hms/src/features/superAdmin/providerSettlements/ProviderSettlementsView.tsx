@@ -12,6 +12,7 @@ import { fetchDepartments } from '../../../services/departmentService';
 import { Department } from '../../../types/department';
 import { Modal } from '../../../components/common/Modal';
 import { TextInput, NumberInput, Select, Textarea } from '../../../components/forms/FormControls';
+import { useToast } from '../../../context/ToastContext';
 
 const EMPTY_FORM: ProviderSettlementFormValues = {
   outsourcedProviderId: '',
@@ -38,6 +39,7 @@ const EMPTY_FORM: ProviderSettlementFormValues = {
  * exceed what remains eligible — never trusted from the client.
  */
 export const ProviderSettlementsView: React.FC = () => {
+  const toast = useToast();
   const [settlements, setSettlements] = useState<ProviderSettlement[]>([]);
   const [providers, setProviders] = useState<OutsourcedProvider[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -50,7 +52,6 @@ export const ProviderSettlementsView: React.FC = () => {
   const [formValues, setFormValues] = useState<ProviderSettlementFormValues>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const loadAll = async () => {
     setIsLoading(true);
@@ -94,26 +95,34 @@ export const ProviderSettlementsView: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formValues.outsourcedProviderId) {
-      setFormError('Select an outsourced provider.');
+      const msg = 'Select an outsourced provider.';
+      setFormError(msg);
+      toast.error(msg, 'Validation Error');
       return;
     }
     if (formValues.eligibleRealizedAmount <= 0) {
-      setFormError('Eligible realized amount must be greater than zero.');
+      const msg = 'Eligible realized amount must be greater than zero.';
+      setFormError(msg);
+      toast.error(msg, 'Validation Error');
       return;
     }
     if (formValues.settlementAmount <= 0) {
-      setFormError('Settlement amount must be greater than zero.');
+      const msg = 'Settlement amount must be greater than zero.';
+      setFormError(msg);
+      toast.error(msg, 'Validation Error');
       return;
     }
     setIsSaving(true);
     setFormError(null);
     try {
       await createProviderSettlement(formValues);
-      setToast({ message: 'Provider settlement recorded and voucher generated.', type: 'success' });
+      toast.success('Provider settlement recorded and voucher generated.');
       setIsFormOpen(false);
       await loadAll();
     } catch (err: any) {
-      setFormError(err?.response?.data?.error?.message || err?.message || 'Failed to record settlement.');
+      const msg = err?.response?.data?.error?.message || err?.message || 'Failed to record settlement.';
+      setFormError(msg);
+      toast.error(msg, 'Settlement Failed');
     } finally {
       setIsSaving(false);
     }
@@ -142,22 +151,6 @@ export const ProviderSettlementsView: React.FC = () => {
 
   return (
     <div className="space-y-5 animate-in fade-in duration-150">
-      {toast && (
-        <div
-          className={`p-4 rounded-xl border flex items-center justify-between shadow-xs ${
-            toast.type === 'success' ? 'bg-[#effaf5] border-[#c2e7db] text-[#08775A]' : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}
-        >
-          <div className="flex items-center gap-2.5 text-xs font-semibold">
-            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            <span>{toast.message}</span>
-          </div>
-          <button onClick={() => setToast(null)} className="text-xs font-bold opacity-70 hover:opacity-100">
-            Dismiss
-          </button>
-        </div>
-      )}
-
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
@@ -297,16 +290,20 @@ export const ProviderSettlementsView: React.FC = () => {
               required
               min={0}
               step={100}
-              value={formValues.eligibleRealizedAmount}
-              onChange={(e) => setFormValues({ ...formValues, eligibleRealizedAmount: Number(e.target.value) || 0 })}
+              placeholder="0"
+              value={formValues.eligibleRealizedAmount === 0 ? '' : formValues.eligibleRealizedAmount}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => setFormValues({ ...formValues, eligibleRealizedAmount: e.target.value === '' ? 0 : Number(e.target.value) || 0 })}
             />
             <NumberInput
               label="Settlement Amount (PKR)"
               required
               min={0}
               step={100}
-              value={formValues.settlementAmount}
-              onChange={(e) => setFormValues({ ...formValues, settlementAmount: Number(e.target.value) || 0 })}
+              placeholder="0"
+              value={formValues.settlementAmount === 0 ? '' : formValues.settlementAmount}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => setFormValues({ ...formValues, settlementAmount: e.target.value === '' ? 0 : Number(e.target.value) || 0 })}
             />
           </div>
           <div className="text-[11px] text-slate-500">

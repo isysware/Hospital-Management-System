@@ -9,8 +9,7 @@ import {
   InvoiceRegisterView,
   CollectionReportViewPage,
   OutstandingInvoicesView,
-  DiscountReportViewPage,
-  RefundVoidReportViewPage,
+  FinancialExceptionsReportView,
   DepartmentRevenueReportView,
   AdmissionPaymentCollectionsView,
   PanelPayerReportView,
@@ -139,9 +138,9 @@ export const FrontDeskModuleView: React.FC<FrontDeskModuleViewProps> = ({ module
     case 'fd_outstanding_invoices':
       return <OutstandingInvoicesView />;
     case 'fd_discount_report':
-      return <DiscountReportViewPage />;
+      return <FinancialExceptionsReportView />;
     case 'fd_refund_void_report':
-      return <RefundVoidReportViewPage />;
+      return <FinancialExceptionsReportView />;
     case 'fd_department_revenue':
       return <DepartmentRevenueReportView />;
     case 'fd_admission_payment_collections':

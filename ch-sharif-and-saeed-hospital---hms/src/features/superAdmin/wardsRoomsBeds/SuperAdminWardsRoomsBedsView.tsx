@@ -12,6 +12,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import { useToast } from '../../../context/ToastContext';
 import {
   Ward,
   Room,
@@ -92,15 +93,12 @@ export const SuperAdminWardsRoomsBedsView: React.FC<
     item: any;
   } | null>(null);
 
-  // Toast
-  const [toast, setToast] = useState<{
-    type: 'success' | 'warning' | 'error';
-    message: string;
-  } | null>(null);
+  const toastService = useToast();
 
   const showToast = (type: 'success' | 'warning' | 'error', message: string) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 4500);
+    if (type === 'success') toastService.success(message);
+    else if (type === 'warning') toastService.warning(message);
+    else toastService.error(message);
   };
 
   const [isLoading, setIsLoading] = useState(true);
@@ -449,32 +447,6 @@ export const SuperAdminWardsRoomsBedsView: React.FC<
   return (
     <div id="super-admin-wards-rooms-beds-view" className="p-6 max-w-7xl mx-auto">
       {/* Toast */}
-      {toast && (
-        <div
-          id="wrb-toast-banner"
-          className={`mb-4 p-4 rounded-xl border flex items-center justify-between shadow-xs transition-all ${
-            toast.type === 'success'
-              ? 'bg-[#effaf5] border-[#c2e7db] text-[#08775A]'
-              : toast.type === 'warning'
-              ? 'bg-amber-50 border-amber-200 text-amber-800'
-              : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}
-        >
-          <div className="flex items-center gap-2.5 text-xs font-semibold">
-            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 shrink-0" />}
-            {toast.type === 'warning' && <AlertTriangle className="w-4 h-4 shrink-0" />}
-            {toast.type === 'error' && <AlertCircle className="w-4 h-4 shrink-0" />}
-            <span>{toast.message}</span>
-          </div>
-          <button
-            onClick={() => setToast(null)}
-            className="text-xs font-bold opacity-70 hover:opacity-100"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>

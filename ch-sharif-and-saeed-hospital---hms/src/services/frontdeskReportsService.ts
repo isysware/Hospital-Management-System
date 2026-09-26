@@ -12,8 +12,11 @@ import type { ReportDatePreset, ReportResult } from '../components/reports/Gener
 
 type RangeParams = { preset: ReportDatePreset; fromDate?: string; toDate?: string };
 
-function params(range: RangeParams, extra?: Record<string, string | undefined>) {
-  return { preset: range.preset, ...(range.preset === 'custom' && range.fromDate ? { fromDate: range.fromDate } : {}), ...(range.preset === 'custom' && range.toDate ? { toDate: range.toDate } : {}), ...extra };
+/** Filter-row values keyed by backend query param — an empty string means "All" and is dropped. */
+export type ReportFilters = Record<string, string | undefined>;
+
+function params(range: RangeParams, extra?: ReportFilters) {
+  return { preset: range.preset, ...(range.preset === 'custom' && range.fromDate ? { fromDate: range.fromDate } : {}), ...(range.preset === 'custom' && range.toDate ? { toDate: range.toDate } : {}), ...Object.fromEntries(Object.entries(extra ?? {}).filter(([, v]) => v)) };
 }
 
 async function get<T>(url: string, query: Record<string, any>): Promise<T> {
@@ -38,8 +41,8 @@ export interface EncounterRow {
   createdBy: string | null;
 }
 
-export async function fetchEncounterRegister(range: RangeParams): Promise<ReportResult<EncounterRow>> {
-  const d = await get<any>('/reports/frontdesk/encounters', params(range));
+export async function fetchEncounterRegister(range: RangeParams, filters?: ReportFilters): Promise<ReportResult<EncounterRow>> {
+  const d = await get<any>('/reports/frontdesk/encounters', params(range, filters));
   return {
     periodLabel: d.period.label,
     kpis: [{ label: 'Total Visits', value: String(d.totalVisits) }],
@@ -63,8 +66,8 @@ export interface InvoiceRow {
   status: string;
 }
 
-export async function fetchInvoiceRegister(range: RangeParams): Promise<ReportResult<InvoiceRow>> {
-  const d = await get<any>('/reports/frontdesk/invoices', params(range));
+export async function fetchInvoiceRegister(range: RangeParams, filters?: ReportFilters): Promise<ReportResult<InvoiceRow>> {
+  const d = await get<any>('/reports/frontdesk/invoices', params(range, filters));
   return {
     periodLabel: d.period.label,
     kpis: [
@@ -85,9 +88,10 @@ export interface CollectionRow {
   method: string;
   occurredAt: string;
   collectedBy: string;
+  status: 'ACTIVE' | 'REVERSED';
 }
 
-export async function fetchCollectionReport(range: RangeParams, filters?: { collectedById?: string; method?: string }): Promise<ReportResult<CollectionRow>> {
+export async function fetchCollectionReport(range: RangeParams, filters?: ReportFilters): Promise<ReportResult<CollectionRow>> {
   const d = await get<any>('/reports/frontdesk/collections', params(range, filters));
   return {
     periodLabel: d.period.label,
@@ -108,19 +112,21 @@ export interface OutstandingRow {
   net: number;
   paid: number;
   outstanding: number;
+  lastPaymentAt: string | null;
+  payer: string;
   createdBy: string | null;
   status: string;
 }
 
-export async function fetchOutstandingInvoices(range: RangeParams): Promise<ReportResult<OutstandingRow>> {
-  const d = await get<any>('/reports/frontdesk/outstanding', params(range));
+export async function fetchOutstandingInvoices(range: RangeParams, filters?: ReportFilters): Promise<ReportResult<OutstandingRow>> {
+  const d = await get<any>('/reports/frontdesk/outstanding', params(range, filters));
   return {
     periodLabel: d.period.label,
     kpis: [
       { label: 'Outstanding Amount', value: formatPKR(d.summary.totalOutstanding), accent: 'warning' },
       { label: 'Invoice Count', value: String(d.summary.invoiceCount) },
     ],
-    rows: d.rows.map((r: any) => ({ ...r, net: Number(r.net), paid: Number(r.paid), outstanding: Number(r.outstanding) })),
+    rows: d.rows.map((r: any) => ({ ...r, net: Number(r.net), paid: Number(r.paid), outstanding: Number(r.outstanding), lastPaymentAt: r.lastPaymentAt ? formatDateTimeDDMMYYYY(r.lastPaymentAt) : null })),
   };
 }
 
@@ -195,16 +201,18 @@ export async function fetchDepartmentRevenue(range: RangeParams): Promise<Report
 export interface AdmissionPaymentCollectionRow {
   admissionNumber: string;
   patient: string;
+  department: string | null;
   requestedAmount: number;
   receiptNo: string | null;
   collectedAmount: number;
+  remainingDue: number;
   method: string | null;
   collectedBy: string | null;
   status: string;
 }
 
-export async function fetchAdmissionPaymentCollections(range: RangeParams): Promise<ReportResult<AdmissionPaymentCollectionRow>> {
-  const d = await get<any>('/reports/frontdesk/admission-payment-collections', params(range));
+export async function fetchAdmissionPaymentCollections(range: RangeParams, filters?: ReportFilters): Promise<ReportResult<AdmissionPaymentCollectionRow>> {
+  const d = await get<any>('/reports/frontdesk/admission-payment-collections', params(range, filters));
   return {
     periodLabel: d.period.label,
     kpis: [
@@ -213,7 +221,7 @@ export async function fetchAdmissionPaymentCollections(range: RangeParams): Prom
       { label: 'Remaining Hospital Due', value: formatPKR(d.summary.remainingHospitalDue), accent: 'warning' },
       { label: 'Receipt Count', value: String(d.summary.receiptCount) },
     ],
-    rows: d.rows.map((r: any) => ({ ...r, requestedAmount: Number(r.requestedAmount), collectedAmount: Number(r.collectedAmount) })),
+    rows: d.rows.map((r: any) => ({ ...r, requestedAmount: Number(r.requestedAmount), collectedAmount: Number(r.collectedAmount), remainingDue: Number(r.remainingDue) })),
   };
 }
 
@@ -297,3 +305,49 @@ export async function fetchCashierPerformance(range: RangeParams): Promise<Repor
   };
 }
 
+
+export interface FinancialExceptionRow {
+  type: 'DISCOUNT' | 'REFUND' | 'VOID';
+  reference: string;
+  invoiceNumber: string | null;
+  invoiceId: string | null;
+  patient: string | null;
+  amount: number;
+  reason: string | null;
+  performedBy: string;
+  occurredAt: string;
+}
+
+/** reporting.md §2 #7 — one combined Discounts / Refunds / Voids report; `type` filter narrows it. */
+export async function fetchFinancialExceptions(range: RangeParams, filters?: ReportFilters): Promise<ReportResult<FinancialExceptionRow>> {
+  const d = await get<any>('/reports/frontdesk/exceptions', params(range, filters));
+  return {
+    periodLabel: d.period.label,
+    rows: d.rows.map((r: any) => ({ ...r, amount: Number(r.amount), occurredAt: formatDateTimeDDMMYYYY(r.occurredAt) })),
+  };
+}
+
+export interface FilterOption {
+  value: string;
+  label: string;
+}
+
+export interface FrontDeskFilterOptions {
+  departments: FilterOption[];
+  doctors: FilterOption[];
+  cashiers: FilterOption[];
+  panels: FilterOption[];
+}
+
+let filterOptionsPromise: Promise<FrontDeskFilterOptions> | null = null;
+
+/** Dropdown sources for every Front Desk report filter row — fetched once per session and shared. */
+export function fetchFrontDeskFilterOptions(): Promise<FrontDeskFilterOptions> {
+  if (!filterOptionsPromise) {
+    filterOptionsPromise = get<FrontDeskFilterOptions>('/reports/frontdesk/filter-options', {}).catch((err) => {
+      filterOptionsPromise = null; // let the next report retry
+      throw err;
+    });
+  }
+  return filterOptionsPromise;
+}

@@ -5,6 +5,7 @@ import {
   WardsRoomsBedsService,
   VALID_ROOM_TYPES,
 } from '../../../services/wardsRoomsBedsService';
+import { useToast } from '../../../context/ToastContext';
 
 interface RoomModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export const RoomModal: React.FC<RoomModalProps> = ({
   wards,
   beds = [],
 }) => {
+  const toast = useToast();
   const isEditing = !!room;
 
   const [formValues, setFormValues] = useState<RoomFormValues>({
@@ -120,6 +122,8 @@ export const RoomModal: React.FC<RoomModalProps> = ({
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      const firstError = Object.values(newErrors)[0];
+      toast.error(firstError, 'Validation Error');
       return;
     }
 
@@ -291,6 +295,7 @@ export const RoomModal: React.FC<RoomModalProps> = ({
               <input
                 id="room-form-capacity"
                 type="number"
+                onWheel={(e) => e.currentTarget.blur()}
                 min="1"
                 max="50"
                 value={formValues.capacity}
@@ -319,15 +324,19 @@ export const RoomModal: React.FC<RoomModalProps> = ({
                 <input
                   id="room-form-rate"
                   type="number"
+                  onWheel={(e) => e.currentTarget.blur()}
                   min="0"
                   step="any"
-                  value={formValues.dailyRoomRate}
-                  onChange={(e) =>
+                  placeholder="0"
+                  value={formValues.dailyRoomRate === 0 ? '' : formValues.dailyRoomRate}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    const raw = e.target.value;
                     setFormValues((prev) => ({
                       ...prev,
-                      dailyRoomRate: parseFloat(e.target.value) || 0,
-                    }))
-                  }
+                      dailyRoomRate: raw === '' ? 0 : (parseFloat(raw) || 0),
+                    }));
+                  }}
                   className="w-full pl-11 pr-3 py-2 text-xs font-bold text-slate-900 rounded-lg border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A]"
                 />
               </div>

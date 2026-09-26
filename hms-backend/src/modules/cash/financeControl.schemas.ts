@@ -13,6 +13,27 @@ export const listBalanceSheetsQuerySchema = dateRangeSchema.extend({
 });
 export type ListBalanceSheetsQuery = z.infer<typeof listBalanceSheetsQuerySchema>;
 
+/**
+ * reporting.md §2 #8 — My Balance Sheet period: `shift` (default) is the live
+ * unsettled custody the cashier settles; any other preset is a historical
+ * view over every ledger entry in that range, settled or not.
+ */
+export const myBalanceSheetQuerySchema = z.object({
+  preset: z.enum(['shift', 'today', 'yesterday', 'this_week', 'this_month', 'custom']).default('shift'),
+  fromDate: z.string().optional(),
+  toDate: z.string().optional(),
+});
+export type MyBalanceSheetQuery = z.infer<typeof myBalanceSheetQuerySchema>;
+
+/** reporting.md §2 #9 — My Account Settlement history: From/To + Settlement Status. `all` (default) = full history. */
+export const mySettlementsQuerySchema = z.object({
+  preset: z.enum(['all', 'today', 'yesterday', 'this_week', 'this_month', 'custom']).default('all'),
+  fromDate: z.string().optional(),
+  toDate: z.string().optional(),
+  status: z.enum(['PREPARED', 'SUBMITTED', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'RETURNED', 'REJECTED', 'REVERSED']).optional(),
+});
+export type MySettlementsQuery = z.infer<typeof mySettlementsQuerySchema>;
+
 export const listSettlementsQuerySchema = dateRangeSchema.extend({
   portalUserId: z.string().uuid().optional(),
   status: z.enum(['PREPARED', 'SUBMITTED', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'RETURNED', 'REJECTED', 'REVERSED']).optional(),

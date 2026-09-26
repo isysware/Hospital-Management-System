@@ -55,8 +55,12 @@ export interface ContractResolution {
 export interface PanelStatementInvoiceRow {
   hospitalInvoiceId: string;
   invoiceNumber: string;
+  createdAt: string; // ISO
+  sourceType: string; // WALK_IN | APPOINTMENT | ADMISSION
+  encounterType: string | null;
   patientName: string;
   patientMrNumber: string;
+  panelMemberId: string | null;
   departmentName: string;
   total: number;
   patientShare: number;
@@ -133,8 +137,12 @@ function toStatement(raw: Record<string, any>): PanelStatement {
     invoices: (raw.invoices || []).map((inv: any) => ({
       hospitalInvoiceId: inv.hospitalInvoiceId,
       invoiceNumber: inv.invoiceNumber,
+      createdAt: inv.createdAt,
+      sourceType: inv.sourceType,
+      encounterType: inv.encounterType ?? null,
       patientName: inv.panelPatient?.fullName || '',
       patientMrNumber: inv.panelPatient?.mrNumber || '',
+      panelMemberId: inv.panelPatient?.panelMemberId || null,
       departmentName: inv.department?.name || 'Unassigned',
       total: toNumber(inv.total),
       patientShare: toNumber(inv.patientShare),

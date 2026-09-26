@@ -6,6 +6,8 @@ vi.mock('@/db/client', () => {
   const mockTx: any = {};
   const mockPrisma: any = {
     $transaction: vi.fn(async (cb: any) => cb(mockTx)),
+    // recordRemittance row-locks the company (SELECT ... FOR UPDATE).
+    $queryRaw: vi.fn().mockResolvedValue([]),
     corporatePanel: {
       findUnique: vi.fn(),
     },
@@ -219,6 +221,41 @@ describe('Phase 8: Panel Billing (Verification, Contract Resolution, Interim Sta
   });
 
   describe('Panel Remittance', () => {
+    it('locks the company row, and rejects the same invoice listed twice in one allocation', async () => {
+      (prisma.corporatePanel.findUnique as any).mockResolvedValue({ id: 'panel-1' });
+      (prisma.hospitalInvoice.findMany as any).mockResolvedValue([
+        { id: 'inv-a', invoiceNumber: 'INV-A', panelReceivable: new Decimal(1000) },
+      ]);
+
+      // 600 + 600 are each within the 1,000 outstanding but together over-realize it.
+      await expect(
+        panelBillingService.recordRemittance(
+          'panel-1',
+          { amount: 1200, method: 'BANK_TRANSFER', allocations: [{ hospitalInvoiceId: 'inv-a', amount: 600 }, { hospitalInvoiceId: 'inv-a', amount: 600 }] } as any,
+          actorId,
+        ),
+      ).rejects.toThrow(/only once/);
+      expect((prisma as any).$queryRaw).toHaveBeenCalled();
+      expect(prisma.panelRemittance.create).not.toHaveBeenCalled();
+    });
+
+    it('auto-allocation never puts more on an invoice than it owes, even when paisas round', async () => {
+      (prisma.corporatePanel.findUnique as any).mockResolvedValue({ id: 'panel-1' });
+      (prisma.hospitalInvoice.findMany as any).mockResolvedValue([
+        { id: 'inv-a', invoiceNumber: 'INV-A', panelReceivable: new Decimal('0.03') },
+        { id: 'inv-b', invoiceNumber: 'INV-B', panelReceivable: new Decimal('0.03') },
+        { id: 'inv-c', invoiceNumber: 'INV-C', panelReceivable: new Decimal('0.03') },
+      ]);
+      (prisma.panelRemittance.create as any).mockImplementation((args: any) => ({ id: 'rem-r', ...args.data }));
+
+      await panelBillingService.recordRemittance('panel-1', { amount: 0.08, method: 'CASH' } as any, actorId);
+
+      const allocations = (prisma.panelRemittance.create as any).mock.calls[0][0].data.allocations.create as { allocatedAmount: Decimal }[];
+      const sum = allocations.reduce((acc, a) => acc.plus(a.allocatedAmount), new Decimal(0));
+      expect(sum).toEqual(new Decimal('0.08'));
+      for (const a of allocations) expect(a.allocatedAmount.lessThanOrEqualTo(new Decimal('0.03'))).toBe(true);
+    });
+
     it('auto-allocates one remittance proportionally across outstanding panel receivables', async () => {
       (prisma.corporatePanel.findUnique as any).mockResolvedValue({ id: 'panel-1' });
       (prisma.panelPatient.findMany as any).mockResolvedValue([{ id: 'pp-1' }, { id: 'pp-2' }]);

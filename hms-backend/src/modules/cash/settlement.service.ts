@@ -2,6 +2,8 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '@/db/client';
 import { ValidationError } from '@/shared/errors/AppError';
 import type { SubmitSettlementBody } from './settlement.schemas';
+import type { MySettlementsQuery } from './financeControl.schemas';
+import { resolveDateRange } from '@/modules/reports/dashboard.service';
 
 /**
  * My Account Settlement (HMS_V7.2_NEW_REQUIREMENTS.md §3.3; Balance Sheet &
@@ -107,11 +109,20 @@ export const settlementService = {
     });
   },
 
-  async listMySettlements(portalUserId: string) {
+  /** reporting.md §2 #9 — own settlement history, filterable by From/To (settlement creation) and Settlement Status. */
+  async listMySettlements(portalUserId: string, query?: MySettlementsQuery) {
+    const range =
+      query && query.preset !== 'all'
+        ? resolveDateRange({ preset: query.preset as Exclude<MySettlementsQuery['preset'], 'all'>, fromDate: query.fromDate, toDate: query.toDate })
+        : null;
     return prisma.accountSettlement.findMany({
-      where: { portalUserId },
+      where: {
+        portalUserId,
+        ...(range ? { createdAt: { gte: range.start, lte: range.end } } : {}),
+        ...(query?.status ? { status: query.status } : {}),
+      },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: range || query?.status ? 500 : 50,
     });
   },
 };

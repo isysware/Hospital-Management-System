@@ -133,6 +133,11 @@ export const admissionController = {
     res.json({ data: summary });
   },
 
+  verifyDischargeDoctor: async (req: Request, res: Response) => {
+    const doctor = await admissionService.verifyDischargeDoctor(req.body.doctorUsername, req.body.doctorPassword);
+    res.json({ data: doctor });
+  },
+
   clinicalDischarge: async (req: Request, res: Response) => {
     const result = await admissionService.clinicalDischarge(
       req.params.id as string,

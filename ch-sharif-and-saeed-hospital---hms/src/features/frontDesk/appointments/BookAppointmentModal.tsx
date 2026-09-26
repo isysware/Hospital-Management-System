@@ -218,7 +218,13 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
   const [advanceMethod, setAdvanceMethod] = useState<AppointmentPaymentMethod>('CASH');
   const [advanceReference, setAdvanceReference] = useState('');
 
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormErrorState] = useState<string | null>(null);
+  const setFormError = (msg: string | null) => {
+    setFormErrorState(msg);
+    if (msg) {
+      toast.error(msg, 'Validation Error');
+    }
+  };
   const [isSaving, setIsSaving] = useState(false);
 
   // Helper: extract doctor's assigned departments
@@ -271,7 +277,18 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
     setServiceRateId('');
   };
 
-  const departmentServices = useMemo(() => servicesForSource(activeServices, departmentId || HOSPITAL_SERVICE_SOURCE), [activeServices, departmentId]);
+  // Department-scoped services PLUS whatever real services the selected
+  // doctor is actually assigned to (staff.md §4/§7) — closes the gap where a
+  // hospital-wide (no-department) or differently-scoped service a doctor was
+  // explicitly assigned never surfaces once their own department is set.
+  const departmentServices = useMemo(() => {
+    const scoped = servicesForSource(activeServices, departmentId || HOSPITAL_SERVICE_SOURCE);
+    const assignedIds = activeDoctors.find((d) => d.id === doctorStaffId)?.assignedServiceIds;
+    if (!assignedIds || assignedIds.length === 0) return scoped;
+    const merged = new Map(scoped.map((s) => [s.id, s]));
+    activeServices.filter((s) => assignedIds.includes(s.id)).forEach((s) => merged.set(s.id, s));
+    return Array.from(merged.values());
+  }, [activeServices, departmentId, activeDoctors, doctorStaffId]);
   useEffect(() => {
     setServiceRateId((id) => {
       if (departmentServices.some((service) => service.id === id && service.encounterType === encounterType)) return id;

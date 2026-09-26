@@ -608,6 +608,24 @@ export async function clinicalDischarge(
   }
 }
 
+export interface DischargeDoctor {
+  staffId: string;
+  employeeId: string;
+  fullName: string;
+  designation: string | null;
+  department: string | null;
+}
+
+/** Discharge popup step 1 — checks the doctor's discharge credential and returns who it belongs to. Changes nothing. */
+export async function verifyDischargeDoctor(doctorUsername: string, doctorPassword: string): Promise<DischargeDoctor> {
+  try {
+    const res = await apiClient.post<{ data: DischargeDoctor }>('/admissions/clinical-auth/verify', { doctorUsername, doctorPassword });
+    return res.data.data;
+  } catch (err) {
+    throw new Error(toErrorMessage(err));
+  }
+}
+
 // ── Super Admin "Close Day" — recurring room/bed accommodation billing ────
 export interface HospitalDayCloseRecord {
   id: string;

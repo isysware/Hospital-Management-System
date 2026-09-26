@@ -14,6 +14,7 @@ import type {
   PanelPayerReportQuery,
   ReceiptExceptionLogQuery,
   CashierPerformanceQuery,
+  FinancialExceptionsQuery,
 } from './frontdeskReports.schemas';
 
 /**
@@ -138,7 +139,7 @@ export const frontdeskReportsService = {
     const { start, end, label } = resolveDateRange(query);
     const where: Prisma.PaymentReceiptWhereInput = {
       collectedAt: { gte: start, lte: end },
-      isReversed: false,
+      isReversed: query.receiptStatus === 'REVERSED',
       ...(query.collectedById ? { collectedById: query.collectedById } : {}),
       ...(query.method ? { method: query.method } : {}),
       ...(query.source === 'ADMISSION' ? { admissionRecordId: { not: null } } : {}),
@@ -174,6 +175,7 @@ export const frontdeskReportsService = {
         method: r.method,
         occurredAt: r.collectedAt,
         collectedBy: r.collectedBy.displayName || r.collectedBy.username,
+        status: r.isReversed ? 'REVERSED' : 'ACTIVE',
       })),
     };
   },
@@ -183,7 +185,7 @@ export const frontdeskReportsService = {
     const { start, end, label } = resolveDateRange(query);
     const where: Prisma.HospitalInvoiceWhereInput = {
       createdAt: { gte: start, lte: end },
-      status: { in: ['UNPAID', 'PARTIALLY_PAID'] },
+      status: query.status ? query.status : { in: ['UNPAID', 'PARTIALLY_PAID'] },
       ...(query.departmentId ? { departmentId: query.departmentId } : {}),
       ...(query.payerType === 'PANEL' ? { corporatePanelId: { not: null } } : {}),
       ...(query.payerType === 'SELF_PAY' ? { corporatePanelId: null } : {}),
@@ -191,7 +193,12 @@ export const frontdeskReportsService = {
 
     const rows = await prisma.hospitalInvoice.findMany({
       where,
-      include: { ...patientNameSelect, department: { select: { id: true, name: true } }, createdByUser: { select: userSummarySelect } },
+      include: {
+        ...patientNameSelect,
+        department: { select: { id: true, name: true } },
+        createdByUser: { select: userSummarySelect },
+        paymentReceipts: { where: { isReversed: false }, select: { collectedAt: true }, orderBy: { collectedAt: 'desc' }, take: 1 },
+      },
       orderBy: { createdAt: 'desc' },
       take: 500,
     });
@@ -209,6 +216,8 @@ export const frontdeskReportsService = {
         net: r.total,
         paid: r.paidTotal,
         outstanding: r.total.minus(r.paidTotal),
+        lastPaymentAt: r.paymentReceipts[0]?.collectedAt ?? null,
+        payer: r.corporatePanelId ? 'Panel' : 'Self-Pay',
         createdBy: r.createdByUser?.displayName || r.createdByUser?.username || null,
         status: r.status,
       })),
@@ -355,9 +364,18 @@ export const frontdeskReportsService = {
       where: {
         requestedAt: { gte: start, lte: end },
         ...(query.admissionRecordId ? { admissionRecordId: query.admissionRecordId } : {}),
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.admissionNumber || query.departmentId
+          ? {
+              admissionRecord: {
+                ...(query.admissionNumber ? { admissionNumber: { contains: query.admissionNumber, mode: 'insensitive' as const } } : {}),
+                ...(query.departmentId ? { departmentId: query.departmentId } : {}),
+              },
+            }
+          : {}),
       },
       include: {
-        admissionRecord: { select: { admissionNumber: true, ...patientNameSelect } },
+        admissionRecord: { select: { admissionNumber: true, department: { select: { name: true } }, ...patientNameSelect } },
         requestedBy: { select: userSummarySelect },
         paymentReceipts: {
           where: { isReversed: false, ...(query.collectedById ? { collectedById: query.collectedById } : {}), ...(query.method ? { method: query.method } : {}) },
@@ -378,42 +396,43 @@ export const frontdeskReportsService = {
     type CollectionRow = {
       admissionNumber: string;
       patient: string;
+      department: string | null;
       requestedAmount: Decimal;
       receiptNo: string | null;
       collectedAmount: Decimal;
+      remainingDue: Decimal;
       method: string | null;
       collectedBy: string | null;
       status: string;
     };
 
+    // A Method/Collected By filter is a question about receipts, so requests
+    // with no matching receipt drop out instead of showing as empty rows.
+    const receiptFilterActive = Boolean(query.method || query.collectedById);
+
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
       summary: { requestedAmount: requested, collectedAmount: collected, remainingHospitalDue: requested.minus(collected), receiptCount: rows.reduce((s, r) => s + r.paymentReceipts.length, 0) },
-      rows: rows.flatMap((r): CollectionRow[] =>
-        r.paymentReceipts.length === 0
-          ? [
-              {
-                admissionNumber: r.admissionRecord.admissionNumber,
-                patient: patientDisplayName(r.admissionRecord),
-                requestedAmount: r.requestedAmount,
-                receiptNo: null,
-                collectedAmount: new Decimal(0),
-                method: null,
-                collectedBy: null,
-                status: r.status,
-              },
-            ]
-          : r.paymentReceipts.map((p) => ({
-              admissionNumber: r.admissionRecord.admissionNumber,
-              patient: patientDisplayName(r.admissionRecord),
-              requestedAmount: r.requestedAmount,
-              receiptNo: p.receiptNumber,
-              collectedAmount: p.amount,
-              method: p.method,
-              collectedBy: p.collectedBy.displayName || p.collectedBy.username,
-              status: r.status,
-            })),
-      ),
+      rows: rows.flatMap((r): CollectionRow[] => {
+        const base = {
+          admissionNumber: r.admissionRecord.admissionNumber,
+          patient: patientDisplayName(r.admissionRecord),
+          department: r.admissionRecord.department?.name ?? null,
+          requestedAmount: r.requestedAmount,
+          remainingDue: Decimal.max(r.requestedAmount.minus(r.paymentReceipts.reduce((s, p) => s.plus(p.amount), new Decimal(0))), 0),
+          status: r.status,
+        };
+        if (r.paymentReceipts.length === 0) {
+          return receiptFilterActive ? [] : [{ ...base, receiptNo: null, collectedAmount: new Decimal(0), method: null, collectedBy: null }];
+        }
+        return r.paymentReceipts.map((p) => ({
+          ...base,
+          receiptNo: p.receiptNumber,
+          collectedAmount: p.amount,
+          method: p.method,
+          collectedBy: p.collectedBy.displayName || p.collectedBy.username,
+        }));
+      }),
     };
   },
 
@@ -552,6 +571,112 @@ export const frontdeskReportsService = {
       rows: Array.from(byCashier.values())
         .map((b) => ({ ...b, averageTransaction: b.receiptCount === 0 ? new Decimal(0) : b.totalCollected.div(b.receiptCount) }))
         .sort((a, b) => b.totalCollected.comparedTo(a.totalCollected)),
+    };
+  },
+
+  /**
+   * reporting.md §2 #7 — ONE combined exception report (Discounts / Refunds /
+   * Voids) with a Type filter, replacing the separate Discount and
+   * Refund/Void menu items. Reuses the two existing queries so figures stay
+   * identical to what those reports showed. There is no discount-approval
+   * record in the schema, so "Performed By" is the invoice creator for
+   * discounts and the cashier for refunds/voids.
+   */
+  async getFinancialExceptions(query: FinancialExceptionsQuery) {
+    const { start, end, label } = resolveDateRange(query);
+    const wantDiscount = !query.type || query.type === 'DISCOUNT';
+    const wantRefundOrVoid = !query.type || query.type === 'REFUND' || query.type === 'VOID';
+
+    const discountLines = wantDiscount
+      ? await prisma.invoiceLineItem.findMany({
+          where: {
+            discountAmount: { gt: 0 },
+            createdAt: { gte: start, lte: end },
+            ...(query.performedById ? { hospitalInvoice: { createdById: query.performedById } } : {}),
+          },
+          include: {
+            serviceRate: { select: { name: true } },
+            hospitalInvoice: {
+              select: { id: true, invoiceNumber: true, ...patientNameSelect, corporatePanel: { select: { organizationName: true } }, createdByUser: { select: userSummarySelect } },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 500,
+        })
+      : [];
+
+    const refundVoid = wantRefundOrVoid
+      ? await this.getRefundVoidReport({
+          preset: query.preset,
+          fromDate: query.fromDate,
+          toDate: query.toDate,
+          portalUserId: query.performedById,
+          type: query.type === 'REFUND' || query.type === 'VOID' ? query.type : undefined,
+        })
+      : null;
+
+    type ExceptionRow = {
+      type: 'DISCOUNT' | 'REFUND' | 'VOID';
+      reference: string;
+      invoiceNumber: string | null;
+      invoiceId: string | null;
+      patient: string | null;
+      amount: Decimal;
+      reason: string | null;
+      performedBy: string;
+      occurredAt: Date;
+    };
+
+    const rows: ExceptionRow[] = [
+      ...discountLines.map((l) => ({
+        type: 'DISCOUNT' as const,
+        reference: l.serviceRate.name,
+        invoiceNumber: l.hospitalInvoice.invoiceNumber,
+        invoiceId: l.hospitalInvoice.id,
+        patient: l.hospitalInvoice.corporatePanel?.organizationName || patientDisplayName(l.hospitalInvoice),
+        amount: l.discountAmount,
+        reason: l.discountReason,
+        performedBy: l.hospitalInvoice.createdByUser?.displayName || l.hospitalInvoice.createdByUser?.username || '—',
+        occurredAt: l.createdAt,
+      })),
+      ...(refundVoid?.rows ?? []).map((r) => ({
+        type: r.type,
+        reference: r.reference,
+        invoiceNumber: r.originalInvoice,
+        invoiceId: r.invoiceId,
+        patient: null,
+        amount: r.amount,
+        reason: null,
+        performedBy: r.performedBy,
+        occurredAt: r.occurredAt,
+      })),
+    ].sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+
+    const sumOf = (t: ExceptionRow['type']) => rows.filter((r) => r.type === t).reduce((s, r) => s.plus(r.amount), new Decimal(0));
+    return {
+      period: { label, start: start.toISOString(), end: end.toISOString() },
+      summary: { discountAmount: sumOf('DISCOUNT'), refundAmount: sumOf('REFUND'), voidAmount: sumOf('VOID'), count: rows.length },
+      rows,
+    };
+  },
+
+  /** Dropdown sources for every Front Desk report filter row — one call, readable under the same `reports:view` permission as the reports themselves. */
+  async getFilterOptions() {
+    const [departments, doctors, cashiers, panels] = await Promise.all([
+      prisma.department.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+      prisma.staff.findMany({ where: { isActive: true, category: { equals: 'Doctor', mode: 'insensitive' } }, select: { id: true, fullName: true }, orderBy: { fullName: 'asc' } }),
+      prisma.portalUser.findMany({
+        where: { role: { in: ['FRONT_DESK_BILLING', 'ADMIN', 'SUPER_ADMIN'] } },
+        select: { id: true, displayName: true, username: true },
+        orderBy: { username: 'asc' },
+      }),
+      prisma.corporatePanel.findMany({ where: { isActive: true }, select: { id: true, organizationName: true }, orderBy: { organizationName: 'asc' } }),
+    ]);
+    return {
+      departments: departments.map((d) => ({ value: d.id, label: d.name })),
+      doctors: doctors.map((d) => ({ value: d.id, label: d.fullName })),
+      cashiers: cashiers.map((u) => ({ value: u.id, label: u.displayName || u.username })),
+      panels: panels.map((p) => ({ value: p.id, label: p.organizationName })),
     };
   },
 };

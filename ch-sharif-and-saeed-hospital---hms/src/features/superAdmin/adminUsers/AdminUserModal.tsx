@@ -13,6 +13,7 @@ import {
 import { AdminUser, AdminUserFormValues, AdminUserRole, AdminUserStatus } from '../../../types/adminUser';
 import { AdminUserService } from '../../../services/adminUserService';
 import { User } from '../../../types';
+import { useToast } from '../../../context/ToastContext';
 
 interface AdminUserModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
   currentUser,
   totalActiveSuperAdmins,
 }) => {
+  const toast = useToast();
   const isActorSuperAdmin = AdminUserService.isActorSuperAdmin(currentUser);
   const isEditing = !!editingUser;
 
@@ -201,8 +203,11 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
     } catch (err: unknown) {
       if (err instanceof Error) {
         setErrorMessage(err.message);
+        toast.error(err.message, 'Validation Error');
       } else {
-        setErrorMessage('An unexpected error occurred.');
+        const msg = 'An unexpected error occurred.';
+        setErrorMessage(msg);
+        toast.error(msg, 'Validation Error');
       }
     }
   };

@@ -185,6 +185,7 @@ export const ManageFloorsModal: React.FC<ManageFloorsModalProps> = ({
                 </label>
                 <input
                   type="number"
+                  onWheel={(e) => e.currentTarget.blur()}
                   value={floorNumber}
                   onChange={(e) => setFloorNumber(parseInt(e.target.value, 10) || 0)}
                   placeholder="0, 1, 2..."

@@ -21,7 +21,11 @@ export const CheckInAdmissionModal: React.FC<CheckInAdmissionModalProps> = ({ ad
   const [showChangeBed, setShowChangeBed] = useState(!admission.bedId);
   const [notes, setNotes] = useState('');
   const [transferReason, setTransferReason] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorState] = useState<string | null>(null);
+  const setError = (msg: string | null) => {
+    setErrorState(msg);
+    if (msg) toast.error(msg, 'Validation Error');
+  };
   const [isSaving, setIsSaving] = useState(false);
 
   // The shared bed cache is primed once, fire-and-forget, at login — re-fetch here so this

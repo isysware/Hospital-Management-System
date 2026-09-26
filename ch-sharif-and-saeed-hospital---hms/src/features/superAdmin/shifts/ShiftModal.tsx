@@ -379,6 +379,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                 </label>
                 <input
                   type="number"
+                  onWheel={(e) => e.currentTarget.blur()}
                   min="0"
                   step="5"
                   value={formData.breakMinutes}
@@ -493,6 +494,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                 </label>
                 <input
                   type="number"
+                  onWheel={(e) => e.currentTarget.blur()}
                   min="0"
                   step="1"
                   value={formData.defaultArrivalGraceMinutes}
@@ -529,6 +531,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                 </label>
                 <input
                   type="number"
+                  onWheel={(e) => e.currentTarget.blur()}
                   min="0"
                   step="1"
                   value={formData.defaultEarlyExitToleranceMinutes}

@@ -7,6 +7,8 @@ import { submitSettlementSchema } from './settlement.schemas';
 import {
   listBalanceSheetsQuerySchema,
   listSettlementsQuerySchema,
+  myBalanceSheetQuerySchema,
+  mySettlementsQuerySchema,
   financeKpisQuerySchema,
   settlementIdParamsSchema,
   reviewSettlementBodySchema,
@@ -19,12 +21,12 @@ const create = authorize('cash', 'create');
 const approve = authorize('cash', 'approve');
 
 // Cashier's own balance sheet (§8.12)
-router.get('/balance-sheet', view, asyncHandler(c.getMyBalanceSheet));
+router.get('/balance-sheet', view, validate({ query: myBalanceSheetQuerySchema }), asyncHandler(c.getMyBalanceSheet));
 router.get('/balance-sheet/:userId', view, asyncHandler(c.getUserBalanceSheet));
 
 // My Account Settlement (§3.3) — closes out every currently-unsettled
 // balance-sheet row into one settlement record.
-router.get('/settlements', view, asyncHandler(c.listMySettlements));
+router.get('/settlements', view, validate({ query: mySettlementsQuerySchema }), asyncHandler(c.listMySettlements));
 router.post('/settlements', create, validate({ body: submitSettlementSchema }), asyncHandler(c.submitMySettlement));
 
 // Finance Control — Admin / Super Admin oversight (Balance Sheet & Account

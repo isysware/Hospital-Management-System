@@ -21,6 +21,7 @@ import { HOSPITAL_INFO, SOFTWARE_PROVIDER } from '../../constants';
 import { PORTAL_CONFIGS } from '../../constants/portalNavigations';
 import { notificationService, NotificationItem } from '../../services/notificationService';
 import { useRouter } from '../../context/RouterContext';
+import { useToast } from '../../context/ToastContext';
 import { PortalKey } from '../../types';
 import { cn } from '../../utils/formatters';
 
@@ -52,6 +53,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenShowcase,
 }) => {
   const { navigate } = useRouter();
+  const toast = useToast();
+  const seenNotificationIdsRef = React.useRef<Set<string>>(new Set());
+  const initialLoadRef = React.useRef(true);
   const [showPortalMenu, setShowPortalMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -59,6 +63,12 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  // Reset seen set when switching portal
+  useEffect(() => {
+    initialLoadRef.current = true;
+    seenNotificationIdsRef.current.clear();
+  }, [activePortal]);
 
   // Dynamic live clock
   const [currentTimeStr, setCurrentTimeStr] = useState<string>(() => {
@@ -77,14 +87,37 @@ export const Header: React.FC<HeaderProps> = ({
     try {
       const data = await notificationService.getNotifications(activePortal);
       setNotifications(data);
+
+      if (initialLoadRef.current) {
+        data.forEach((n) => seenNotificationIdsRef.current.add(n.id));
+        initialLoadRef.current = false;
+      } else {
+        // Trigger real-time toaster for newly arrived unread notifications
+        for (const notif of data) {
+          if (!seenNotificationIdsRef.current.has(notif.id)) {
+            seenNotificationIdsRef.current.add(notif.id);
+            if (!notif.read) {
+              if (notif.type === 'error' || notif.type === 'urgent') {
+                toast.error(notif.message, notif.title);
+              } else if (notif.type === 'warning') {
+                toast.warning(notif.message, notif.title);
+              } else if (notif.type === 'success') {
+                toast.success(notif.message, notif.title);
+              } else {
+                toast.info(notif.message, notif.title);
+              }
+            }
+          }
+        }
+      }
     } catch (err) {
       console.warn('Error fetching notifications:', err);
     }
-  }, [activePortal]);
+  }, [activePortal, toast]);
 
   useEffect(() => {
     loadNotifications();
-    const interval = setInterval(loadNotifications, 10000);
+    const interval = setInterval(loadNotifications, 4000);
     return () => clearInterval(interval);
   }, [loadNotifications]);
 

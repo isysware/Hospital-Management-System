@@ -1,7 +1,7 @@
 import { resolvePanelCoverage } from '@/shared/panelCoverage';
 import { assertMembershipEligible } from '@/shared/panelMembership';
 import { assertCaseAuthorization } from '@/shared/panelAuthorization';
-import { invoicePaymentStatus } from '@/shared/invoicePaymentStatus';
+import { patientPaymentStatus, patientResponsibility } from '@/shared/invoicePaymentStatus';
 import { Decimal } from '@prisma/client/runtime/library';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/db/client';
@@ -258,12 +258,13 @@ export const invoicesService = {
       const newSubtotal = allLines.reduce((acc, l) => acc.plus(l.lineGross), new Decimal(0));
       const newDiscountTotal = allLines.reduce((acc, l) => acc.plus(l.discountAmount), new Decimal(0));
       const newTotal = allLines.reduce((acc, l) => acc.plus(l.lineNet), new Decimal(0));
+      const newPatientShare = allLines.reduce((sum, line) => sum.plus(line.patientShare ?? line.lineNet), new Decimal(0));
+      const newPanelReceivable = allLines.reduce((sum, line) => sum.plus(line.panelReceivable ?? 0), new Decimal(0));
 
-      const newStatus = invoice.paidTotal.greaterThanOrEqualTo(newTotal)
-        ? 'PAID'
-        : invoice.paidTotal.greaterThan(0)
-          ? 'PARTIALLY_PAID'
-          : 'UNPAID';
+      const newStatus = patientPaymentStatus(
+        { panelPatientId: invoice.panelPatientId, total: newTotal, patientShare: newPatientShare, panelReceivable: newPanelReceivable },
+        invoice.paidTotal,
+      );
 
       await tx.hospitalInvoice.update({
         where: { id: invoice.id },
@@ -271,8 +272,8 @@ export const invoicesService = {
           subtotal: newSubtotal,
           discountTotal: newDiscountTotal,
           total: newTotal,
-          patientShare: allLines.reduce((sum, line) => sum.plus(line.patientShare ?? line.lineNet), new Decimal(0)),
-          panelReceivable: allLines.reduce((sum, line) => sum.plus(line.panelReceivable ?? 0), new Decimal(0)),
+          patientShare: newPatientShare,
+          panelReceivable: newPanelReceivable,
           status: newStatus,
           ...(invoice.departmentId ? {} : { departmentId: serviceRate.departmentId }),
         },
@@ -517,11 +518,11 @@ export const invoicesService = {
       });
 
       if (!invoice) throw new NotFoundError('Invoice not found');
-      if (invoice.sourceType !== 'ADMISSION' && invoicePaymentStatus(invoice.total, invoice.paidTotal) === 'PAID') throw new ValidationError('This invoice is already fully paid');
+      if (invoice.sourceType !== 'ADMISSION' && patientPaymentStatus(invoice, invoice.paidTotal) === 'PAID') throw new ValidationError('This invoice is already fully paid');
       if (invoice.status === 'VOID') throw new ValidationError('Cannot pay a void invoice');
 
       const amountDecimal = new Decimal(body.amount);
-      const remainingBalance = (invoice.panelPatientId ? invoice.patientShare : invoice.total).minus(invoice.paidTotal);
+      const remainingBalance = patientResponsibility(invoice).minus(invoice.paidTotal);
 
       if ((invoice.panelPatientId || invoice.sourceType !== 'ADMISSION') && amountDecimal.greaterThan(remainingBalance)) {
         throw new ValidationError(
@@ -557,7 +558,7 @@ export const invoicesService = {
       });
 
       const newPaidTotal = invoice.paidTotal.plus(amountDecimal);
-      const newStatus = newPaidTotal.greaterThanOrEqualTo(invoice.total) ? 'PAID' : 'PARTIALLY_PAID';
+      const newStatus = patientPaymentStatus(invoice, newPaidTotal);
 
       const updatedInvoice = await tx.hospitalInvoice.update({
         where: { id: invoice.id },
@@ -628,7 +629,7 @@ export const invoicesService = {
       });
 
       const newPaidTotal = invoice.paidTotal.minus(refundAmount);
-      const newStatus = invoicePaymentStatus(invoice.total, newPaidTotal);
+      const newStatus = patientPaymentStatus(invoice, newPaidTotal);
 
       const updatedInvoice = await tx.hospitalInvoice.update({
         where: { id: invoice.id },
@@ -677,7 +678,7 @@ export const invoicesService = {
 
     const hospitalProfile = await prisma.hospitalProfile.findFirst();
 
-    const outstanding = Decimal.max(0, (invoice.panelPatientId ? invoice.patientShare : invoice.total).minus(invoice.paidTotal));
+    const outstanding = Decimal.max(0, patientResponsibility(invoice).minus(invoice.paidTotal));
 
     return {
       hospital: {
@@ -693,7 +694,7 @@ export const invoicesService = {
         sourceType: invoice.sourceType,
         encounterType: invoice.encounterType,
         createdAt: invoice.createdAt,
-        status: invoice.status === 'VOID' ? 'VOID' : invoicePaymentStatus(invoice.total, invoice.paidTotal),
+        status: invoice.status === 'VOID' ? 'VOID' : patientPaymentStatus(invoice, invoice.paidTotal),
         subtotal: invoice.subtotal,
         discountTotal: invoice.discountTotal,
         total: invoice.total,
@@ -851,6 +852,6 @@ export const invoicesService = {
       },
     });
     if (!invoice) throw new NotFoundError('Invoice not found');
-    return { ...invoice, status: invoice.status === 'VOID' ? 'VOID' : invoicePaymentStatus(invoice.total, invoice.paidTotal), lines: invoice.lines.filter((l) => invoice.sourceType !== 'ADMISSION' || l.serviceRate.code !== 'ADM-ADVANCE') };
+    return { ...invoice, status: invoice.status === 'VOID' ? 'VOID' : patientPaymentStatus(invoice, invoice.paidTotal), lines: invoice.lines.filter((l) => invoice.sourceType !== 'ADMISSION' || l.serviceRate.code !== 'ADM-ADVANCE') };
   },
 };

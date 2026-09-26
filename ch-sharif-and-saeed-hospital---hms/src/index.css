@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@theme {
+  --font-montserrat: 'Montserrat', system-ui, sans-serif;
+}
+
 :root {
   --font-sans: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --primary: #129b70;
@@ -24,6 +28,17 @@
 
 html, body, input, button, select, textarea {
   font-family: var(--font-sans);
+}
+
+/* Front Desk portal: Montserrat everywhere, including amounts that use
+   `font-mono` (the mono face is too thin to read figures). Class is set on
+   <html> by App.tsx. */
+html.portal-front-desk {
+  --font-sans: 'Montserrat', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+html.portal-front-desk .font-mono {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 body {
@@ -69,4 +84,176 @@ body {
   overflow-x: auto;
   overflow-y: auto;
   max-height: calc(100vh - 280px);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   React-Toastify — HMS Professional Theme
+   Prominent, executive toast alerts with rich contrast and clean typography
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Toast container positioning, width and z-index */
+.Toastify__toast-container {
+  z-index: 999999 !important;
+  width: min(390px, 92vw) !important;
+  padding: 0 !important;
+}
+
+.Toastify__toast-container--top-right {
+  top: 20px !important;
+  right: 20px !important;
+}
+
+/* Base toast card (solid compact pill matching user screenshot) */
+.Toastify__toast {
+  font-family: var(--font-sans) !important;
+  border-radius: 10px !important;
+  padding: 10px 14px !important;
+  min-height: 48px !important;
+  box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.22), 0 4px 10px -2px rgba(0, 0, 0, 0.12) !important;
+  border: none !important;
+  color: #ffffff !important;
+  margin-bottom: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  overflow: hidden !important;
+  cursor: pointer !important;
+}
+
+/* ERROR / VALIDATION (Rich, bold solid red matching screenshot) */
+.Toastify__toast--error {
+  background: #dc2626 !important;
+}
+.Toastify__toast--error .Toastify__toast-icon {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-right: 12px !important;
+  margin-top: 0 !important;
+}
+.Toastify__toast--error .Toastify__toast-icon svg {
+  fill: #dc2626 !important;
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* SUCCESS (Rich solid emerald green) */
+.Toastify__toast--success {
+  background: #16a34a !important;
+}
+.Toastify__toast--success .Toastify__toast-icon {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-right: 12px !important;
+  margin-top: 0 !important;
+}
+.Toastify__toast--success .Toastify__toast-icon svg {
+  fill: #16a34a !important;
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* WARNING (Rich solid amber/orange) */
+.Toastify__toast--warning {
+  background: #ea580c !important;
+}
+.Toastify__toast--warning .Toastify__toast-icon {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-right: 12px !important;
+  margin-top: 0 !important;
+}
+.Toastify__toast--warning .Toastify__toast-icon svg {
+  fill: #ea580c !important;
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* INFO (Rich solid blue) */
+.Toastify__toast--info {
+  background: #2563eb !important;
+}
+.Toastify__toast--info .Toastify__toast-icon {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-right: 12px !important;
+  margin-top: 0 !important;
+}
+.Toastify__toast--info .Toastify__toast-icon svg {
+  fill: #2563eb !important;
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* Body text */
+.Toastify__toast-body {
+  font-size: 13.5px !important;
+  line-height: 1.4 !important;
+  color: #ffffff !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  flex: 1 1 auto !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Close button (crisp white 'x' matching screenshot) */
+.Toastify__close-button {
+  color: #ffffff !important;
+  opacity: 0.85 !important;
+  align-self: center !important;
+  margin-left: 8px !important;
+  margin-top: 0 !important;
+  padding: 2px !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  transition: opacity 0.15s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.Toastify__close-button:hover {
+  opacity: 1 !important;
+  color: #ffffff !important;
+}
+.Toastify__close-button > svg {
+  fill: #ffffff !important;
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* Progress bar (translucent white bottom strip matching screenshot) */
+.Toastify__progress-bar {
+  height: 3.5px !important;
+  background: rgba(255, 255, 255, 0.42) !important;
+  border-radius: 0 0 10px 10px !important;
+  bottom: 0 !important;
+}
+.Toastify__progress-bar--success,
+.Toastify__progress-bar--error,
+.Toastify__progress-bar--warning,
+.Toastify__progress-bar--info {
+  background: rgba(255, 255, 255, 0.42) !important;
 }

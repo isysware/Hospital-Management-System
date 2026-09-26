@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authorize } from '@/middleware/authorize';
 import { validate } from '@/middleware/validate';
 import { asyncHandler } from '@/shared/asyncHandler';
+import { clinicalAuthRateLimiter } from '@/middleware/rateLimiter';
 import { admissionController as c } from './admission.controller';
 import * as s from './admission.schemas';
 
@@ -154,8 +155,17 @@ router.get(
 );
 
 // Doctor Clinical Discharge Authorization (v7.2 §2.4)
+// Step 1: verify the doctor credential (rate-limited like login — it checks a password).
+router.post(
+  '/clinical-auth/verify',
+  clinicalAuthRateLimiter,
+  write,
+  validate({ body: s.verifyDischargeDoctorSchema }),
+  asyncHandler(c.verifyDischargeDoctor),
+);
 router.post(
   '/:id/clinical-discharge',
+  clinicalAuthRateLimiter,
   write,
   validate({ params: s.admissionIdParamsSchema, body: s.clinicalDischargeSchema }),
   asyncHandler(c.clinicalDischarge),

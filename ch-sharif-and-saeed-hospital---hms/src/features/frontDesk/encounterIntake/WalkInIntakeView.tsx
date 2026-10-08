@@ -1,3 +1,6 @@
+import apiClient from '../../../services/apiClient';
+import { ServiceSourcePicker } from '../../../components/forms/ServiceSourcePicker';
+import { selectionFromSource } from '../../../utils/serviceSelection';
 import type { PanelMembershipDetails } from '../../../types/patient';
 import { doctorsForEncounter } from '../../../utils/doctorAvailability';
 import { InvoiceDetailModal } from '../billing/InvoiceDetailModal';
@@ -100,6 +103,17 @@ export function resolveDoctorDepartmentForEncounter(
   // For OPD / Observation, prefer a clinical department (e.g. General Medicine)
   return allDepts.find((d) => d.type === 'Clinical' || (d.code || '').toUpperCase() === 'GMED') || allDepts[0] || null;
 }
+
+/** Maps raw EncounterType enum value to a friendly display label. */
+const getEncounterLabel = (type: EncounterType | '' | null | undefined): string => {
+  switch (type) {
+    case 'OPD': return 'OPD Consultation';
+    case 'OBSERVATION': return 'Observation Care';
+    case 'EMERGENCY': return 'Emergency Triage';
+    case 'CUSTOM': return 'Custom Billing';
+    default: return 'Encounter';
+  }
+};
 
 export const WalkInIntakeView: React.FC = () => {
   const { currentPath } = useRouter();
@@ -310,14 +324,7 @@ export const WalkInIntakeView: React.FC = () => {
   // service is hospital-wide (no department) or scoped to a different
   // department than the doctor's primary one. No hardcoded fallback list.
   const encounterServices = useMemo(() => {
-    const departmentScoped = servicesForSource(services, departmentId || HOSPITAL_SERVICE_SOURCE);
-    const assignedIds = selectedDoctorObj?.assignedServiceIds;
-    if (!assignedIds || assignedIds.length === 0) return departmentScoped;
-    const merged = new Map(departmentScoped.map((s) => [s.id, s]));
-    services
-      .filter((s) => s.status === 'Active' && assignedIds.includes(s.id))
-      .forEach((s) => merged.set(s.id, s));
-    return Array.from(merged.values());
+    return services.filter(s => s.isDefaultEncounterService && !s.departmentId && s.providerType === 'INTERNAL' && s.billingSource === 'HOSPITAL_SERVICE' && s.selectable && s.status === 'Active');
   }, [services, departmentId, selectedDoctorObj]);
   const opdCoreService = useMemo(() => {
     return (
@@ -364,6 +371,7 @@ export const WalkInIntakeView: React.FC = () => {
   // All active billable services in the database that Front Desk can add to the encounter
   // (Observation services, Emergency procedures, Lab tests, Injections, etc.)
   // Excludes only the base encounter service itself so the base fee is not duplicated.
+  const [additionalCatalog, setAdditionalCatalog] = useState<HospitalService[]>([]);
   const additionalBillableServices = useMemo<HospitalService[]>(() => {
     return services.filter(
       (s) =>
@@ -373,8 +381,8 @@ export const WalkInIntakeView: React.FC = () => {
   }, [services, defaultEncounterService]);
 
   const selectedAdditionalServices = useMemo(
-    () => additionalBillableServices.filter((s) => selectedServiceIds.includes(s.id)),
-    [additionalBillableServices, selectedServiceIds]
+    () => [...services, ...additionalCatalog].filter((s, i, rows) => selectedServiceIds.includes(s.id) && rows.findIndex(r => r.id === s.id) === i),
+    [services, additionalCatalog, selectedServiceIds]
   );
 
   const selectedServicesTotal = useMemo(
@@ -385,55 +393,23 @@ export const WalkInIntakeView: React.FC = () => {
   // Additional services cascading selection (Department / Source -> Service)
   const [selectedServiceStream, setSelectedServiceStream] = useState<string>(HOSPITAL_SERVICE_SOURCE);
 
-  const serviceStreamOptions = useMemo(() => serviceSourceOptions(departments), [departments]);
+
 
   const filteredStreamServices = useMemo(
-    () => servicesForSource(additionalBillableServices, selectedServiceStream),
-    [additionalBillableServices, selectedServiceStream]
+    () => servicesForSource(additionalCatalog, selectedServiceStream),
+    [additionalCatalog, selectedServiceStream]
   );
 
   useEffect(() => {
-    setSelectedServiceIds((ids) => retainAvailableServiceIds(ids, additionalBillableServices));
-  }, [additionalBillableServices]);
+    setSelectedServiceIds((ids) => retainAvailableServiceIds(ids, filteredStreamServices));
+  }, [filteredStreamServices]);
 
   const handleRemoveAdditionalService = (idToRemove: string) => {
     setSelectedServiceIds((prev) => prev.filter((id) => id !== idToRemove));
   };
 
   const getServiceStreamBadge = (s: HospitalService) => {
-    const isRad =
-      s.category === 'Radiology' ||
-      (s.departmentName || '').toLowerCase().includes('radiology') ||
-      (s.departmentName || '').toLowerCase().includes('imaging') ||
-      (s.name || '').toLowerCase().includes('x-ray') ||
-      (s.name || '').toLowerCase().includes('ultrasound') ||
-      (s.name || '').toLowerCase().includes('ct scan') ||
-      (s.name || '').toLowerCase().includes('mri');
-    if (isRad) {
-      return (
-        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-          Radiology (Outsourced)
-        </span>
-      );
-    }
-    const isLab =
-      s.serviceStream === 'LAB' ||
-      s.category === 'Laboratory' ||
-      s.category === 'Diagnostic' ||
-      (s.departmentName || '').toLowerCase().includes('lab') ||
-      (s.departmentName || '').toLowerCase().includes('pathology');
-    if (isLab) {
-      return (
-        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-          Laboratory (Outsourced)
-        </span>
-      );
-    }
-    return (
-      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
-        Hospital Services
-      </span>
-    );
+    return <span className="px-1.5 py-0.5 rounded text-xs bg-teal-50 text-teal-700">{s.providerType === 'OUTSOURCED' ? 'Outsourced' : 'Hospital / Internal'}</span>;
   };
 
   // Clear selected add-on services when Encounter Service changes
@@ -566,15 +542,8 @@ export const WalkInIntakeView: React.FC = () => {
       return;
     }
 
-    if (encounterType === 'OPD' && !defaultEncounterService) {
-      showValidationError(servicesForSource(services, departmentId || HOSPITAL_SERVICE_SOURCE).length === 0
-        ? NO_ACTIVE_DEPARTMENT_SERVICES
-        : 'No default OPD Consultation service is configured. Please ask Admin to configure Services & Rates.');
-      return;
-    }
-
-    if (!defaultEncounterService && selectedServiceIds.length === 0) {
-      showValidationError(`No default rate configured for ${encounterType} and no services selected. Please add at least one service above or configure Services & Rates.`);
+    if (selectedDoctorObj?.consultationFee == null && !defaultEncounterService && selectedServiceIds.length === 0) {
+      showValidationError('Configure the doctor visit fee or select a hospital service.');
       return;
     }
 
@@ -624,7 +593,10 @@ export const WalkInIntakeView: React.FC = () => {
         targetInvoiceId = invoice.id;
       }
 
-      // Automatically attach Admin-configured default encounter service to invoice
+      if (targetInvoiceId && doctorId && selectedDoctorObj?.consultationFee != null) {
+        await apiClient.post('/invoices/' + targetInvoiceId + '/doctor-charges', { doctorStaffId: doctorId, quantity: 1 });
+      }
+      // Attach an actual hospital procedure if configured for the encounter.
       if (targetInvoiceId && defaultEncounterService) {
         try {
           await addServiceLine(targetInvoiceId, {
@@ -633,7 +605,7 @@ export const WalkInIntakeView: React.FC = () => {
             performedByStaffId: doctorId || undefined,
           });
         } catch (srvErr) {
-          console.warn('Could not auto-attach encounter service line:', srvErr);
+          throw srvErr;
         }
       }
 
@@ -645,11 +617,12 @@ export const WalkInIntakeView: React.FC = () => {
           try {
             await addServiceLine(targetInvoiceId, {
               serviceRateId: serviceId,
+              ...selectionFromSource(selectedServiceStream),
               quantity: 1,
               performedByStaffId: doctorId || undefined,
             });
           } catch (srvErr) {
-            console.warn('Could not attach additional service line:', srvErr);
+            throw srvErr;
           }
         }
       }
@@ -710,7 +683,7 @@ export const WalkInIntakeView: React.FC = () => {
                     : 'bg-slate-100 text-slate-600 border-slate-200'
               }`}
           >
-            {encounterType === 'CUSTOM' ? 'Custom Billing Intake' : encounterType ? `${encounterType} Intake` : 'Walk-In Intake'}
+            {encounterType === 'CUSTOM' ? 'Custom Billing Intake' : encounterType ? `${getEncounterLabel(encounterType)} Intake` : 'Walk-In Intake'}
           </span>
           <button
             type="button"
@@ -1313,13 +1286,7 @@ export const WalkInIntakeView: React.FC = () => {
               <div className="space-y-3 pt-1">
                 {/* 1. Category / Source Selection */}
                 <div>
-                  <Select
-                    label="1. Service Category / Source"
-                    options={serviceStreamOptions}
-                    value={selectedServiceStream}
-                    onChange={(e) => setSelectedServiceStream(e.target.value)}
-                    onKeyDown={handleEnterNext}
-                  />
+                  <ServiceSourcePicker value={selectedServiceStream} onChange={value => { setSelectedServiceStream(value); setSelectedServiceIds([]); }} departments={departments} onServices={setAdditionalCatalog} />
                   <p className="text-[11px] text-slate-500 mt-1 pl-0.5">
                     {selectedServiceStream === 'HOSPITAL_SERVICES'
                       ? 'Internal hospital procedures, clinical care & nursing'
@@ -1480,7 +1447,7 @@ export const WalkInIntakeView: React.FC = () => {
                   <div>
                     <div className="font-bold text-xs text-slate-900">Encounter Services &amp; Procedures</div>
                     <div className="text-[10.5px] text-slate-500 mt-0.5">
-                      No base {encounterType} consultation configured — billing selected services directly
+                      No base {getEncounterLabel(encounterType)} service configured — billing selected services directly
                     </div>
                   </div>
                   <div className="text-right">
@@ -1525,7 +1492,7 @@ export const WalkInIntakeView: React.FC = () => {
               <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2 text-xs text-amber-800">
                 <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
                 <span>
-                  No default rate configured for <strong>{encounterType}</strong> in Services &amp; Rates. Please select services above to bill this encounter.
+                  No default rate configured for <strong>{getEncounterLabel(encounterType)}</strong> in Services &amp; Rates. Please select services above to bill this encounter.
                 </span>
               </div>
             )}
@@ -1592,14 +1559,14 @@ export const WalkInIntakeView: React.FC = () => {
                 : !encounterType
                   ? 'Select Encounter Service to Proceed'
                   : isSelectedCoreServiceInactive
-                    ? `${encounterType} Service Deactivated in Setup`
+                    ? `${getEncounterLabel(encounterType)} Service Deactivated in Setup`
                     : encounterType === 'OPD' && !defaultEncounterService
                       ? 'Missing OPD Consultation Service'
                       : !defaultEncounterService && selectedServiceIds.length === 0
-                        ? `Select Services for ${encounterType}`
+                        ? `Select Services for ${getEncounterLabel(encounterType)}`
                         : payerType === 'Self Pay'
-                          ? `Register & Create ${encounterType} Invoice (${formatPKR((defaultEncounterService?.standardRate || 0) + selectedServicesTotal)})`
-                          : `Register Panel & Create ${encounterType} Invoice`}
+                          ? `Register & Create ${getEncounterLabel(encounterType)} Invoice (${formatPKR((defaultEncounterService?.standardRate || 0) + (selectedDoctorObj?.consultationFee ?? 0) + selectedServicesTotal)})`
+                          : `Register Panel & Create ${getEncounterLabel(encounterType)} Invoice`}
             </button>
             <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
               <span>⚡ Fast-billing front desk</span>

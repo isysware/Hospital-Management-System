@@ -27,7 +27,13 @@ export type BillingUnit =
 
 export type ServiceStatus = 'Active' | 'Inactive';
 
+export type ProviderType = 'INTERNAL' | 'OUTSOURCED';
 export interface HospitalService {
+  providerType?: ProviderType;
+  billingSource?: string;
+  selectable?: boolean;
+  outsourcedProviderId?: string;
+
   id: string;
   code: string;
   name: string;
@@ -70,6 +76,7 @@ export interface HospitalService {
 }
 
 export interface ServiceFilterState {
+  providerType?: ProviderType;
   searchTerm: string;
   departmentId: string;
   category: string;
@@ -79,6 +86,7 @@ export interface ServiceFilterState {
 }
 
 export interface ServiceFormValues {
+  providerType?: ProviderType;
   code: string;
   name: string;
   description: string;

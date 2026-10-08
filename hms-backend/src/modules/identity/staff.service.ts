@@ -52,12 +52,12 @@ const MAX_EMPLOYEE_ID_RETRIES = 3;
 async function assertServicesActive(serviceIds: string[]): Promise<void> {
   const rows = await prisma.serviceRate.findMany({
     where: { id: { in: serviceIds } },
-    select: { id: true, isActive: true, isDeleted: true },
+    select: { id: true, isActive: true, isDeleted: true, selectable: true, isSystemGenerated: true },
   });
   const found = new Map(rows.map((r) => [r.id, r]));
   for (const id of serviceIds) {
     const svc = found.get(id);
-    if (!svc || svc.isDeleted || !svc.isActive) {
+    if (!svc || svc.isDeleted || !svc.isActive || !svc.selectable || svc.isSystemGenerated) {
       throw new ConflictError(`Service "${id}" is not an active service and cannot be assigned to a doctor.`);
     }
   }

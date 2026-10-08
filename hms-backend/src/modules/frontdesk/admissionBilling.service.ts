@@ -8,6 +8,7 @@ import { commissionService } from '@/modules/commission/commission.service';
 import { generateReceiptNumber, generateFinalBillNumber } from '@/shared/idGenerator';
 import { patientPaymentStatus, patientResponsibility } from '@/shared/invoicePaymentStatus';
 import { pharmacyBridgeClient } from '@/shared/pharmacyBridgeClient';
+import { computePharmacyPortion } from '@/shared/pharmacyFifoCredit';
 import {
   isEligibleHospitalService,
   DISCOUNT_APPROVAL_PERCENT_THRESHOLD,
@@ -119,9 +120,7 @@ export const admissionBillingService = {
       // admission invoice (see the collectPayment FIFO note below), so detect
       // by line content instead of the now-dead invoice-number prefix.
       const isPharmacy =
-        inv.lines?.some((l: any) => l.serviceRate?.code === 'SRV-PHARMACY') ||
-        inv.department?.code === 'PHARM' ||
-        inv.department?.code === 'PHARMACY';
+        inv.lines?.some((l: any) => l.billingSource === 'PHARMACY');
 
       return {
         ...inv,
@@ -447,12 +446,13 @@ export const admissionBillingService = {
 
           return {
             id: l.id,
+            billingSource: l.billingSource,
             date: l.createdAt,
-            type: /ward\s*fixed/i.test(l.serviceRate.name) ? 'Ward Price' : l.serviceRate.name,
+            type: /ward\s*fixed/i.test((l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource)) ? 'Ward Price' : (l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource),
             department: inv.department?.name ?? null,
             description: isSelf
               ? '[Self-Arranged]'
-              : (l.discountReason || (/ward\s*fixed/i.test(l.serviceRate.name) ? 'Ward Price' : l.serviceRate.name)),
+              : (l.discountReason || (/ward\s*fixed/i.test((l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource)) ? 'Ward Price' : (l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource))),
             qty: l.quantity,
             rate: l.rateSnapshot,
             grossAmount: l.lineGross,
@@ -500,6 +500,7 @@ export const admissionBillingService = {
                 : 'UNPAID';
 
       return {
+        billingSource: (l as any).billingSource ?? 'PHARMACY',
         date: l.date,
         type: l.type,
         department: l.department,
@@ -906,7 +907,7 @@ export const admissionBillingService = {
       // §"Clean up any legacy erroneous INV-PHARM-... invoices"). Resolve the
       // pharmacy service rate once so every allocation below can tell whether
       // the invoice it's paying actually carries pharmacy lines.
-      const pharmacyServiceRate = await tx.serviceRate.findFirst({ where: { code: 'SRV-PHARMACY' } });
+
 
       for (const alloc of allocations) {
         if (alloc.amount.lessThanOrEqualTo(0) || !alloc.invoiceId) continue;
@@ -925,26 +926,14 @@ export const admissionBillingService = {
           // convention `getLedger` uses), so walk the lines in that order and
           // take the overlap between [previousPaidTotal, newPaidTotal) and
           // each pharmacy line's own patient-share span.
-          if (pharmacyServiceRate) {
+          {
             const invoiceLines = await tx.invoiceLineItem.findMany({
               where: { hospitalInvoiceId: invoice.id },
               orderBy: { createdAt: 'asc' },
-              select: { serviceRateId: true, patientShare: true },
+              select: { billingSource: true, patientShare: true },
             });
 
-            let cursor = new Decimal(0);
-            let pharmacyPortion = new Decimal(0);
-            for (const line of invoiceLines) {
-              const lineStart = cursor;
-              const lineEnd = cursor.plus(line.patientShare);
-              cursor = lineEnd;
-              if (line.serviceRateId !== pharmacyServiceRate.id) continue;
-              const overlapStart = Decimal.max(lineStart, previousPaidTotal);
-              const overlapEnd = Decimal.min(lineEnd, newPaidTotal);
-              if (overlapEnd.greaterThan(overlapStart)) {
-                pharmacyPortion = pharmacyPortion.plus(overlapEnd.minus(overlapStart));
-              }
-            }
+            const pharmacyPortion = computePharmacyPortion(invoiceLines, previousPaidTotal, newPaidTotal);
 
             if (pharmacyPortion.greaterThan(0)) {
               const charge = await tx.hmsPharmacyCharge.findFirst({

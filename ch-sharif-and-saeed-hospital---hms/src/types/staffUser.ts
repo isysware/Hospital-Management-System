@@ -123,6 +123,7 @@ export interface StaffUser {
   clinicalAuthUsername?: string | null;
   clinicalAuthActive?: boolean;
   clinicalAuthUpdatedAt?: string;
+  consultationFee?: number | null;
   availableForOpd?: boolean;
   availableForObservation?: boolean;
   availableForEmergency?: boolean;

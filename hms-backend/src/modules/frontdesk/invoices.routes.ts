@@ -1,3 +1,4 @@
+import { doctorCharges, doctorChargeSchema } from '@/shared/doctorCharges';
 import { Router } from 'express';
 import { authorize } from '@/middleware/authorize';
 import { validate } from '@/middleware/validate';
@@ -38,6 +39,8 @@ const invView = authorize('frontdesk', 'view');
 const invCreate = authorize('frontdesk', 'create');
 const invWrite = authorize('frontdesk', 'edit');
 const invRefund = authorize('frontdesk', 'refund');
+invoicesRouter.post('/:id/doctor-charges', invWrite, validate({ body: doctorChargeSchema }), asyncHandler(async (req, res) => { res.status(201).json({ data: await doctorCharges.post(req.params.id!, 'INVOICE', req.body, req.user!.sub) }); }));
+
 
 invoicesRouter.get(
   '/',

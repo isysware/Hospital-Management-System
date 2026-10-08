@@ -1,3 +1,4 @@
+import { doctorCharges, doctorFeeSchema } from '@/shared/doctorCharges';
 import { Router } from 'express';
 import { authorize } from '@/middleware/authorize';
 import { validate } from '@/middleware/validate';
@@ -30,6 +31,9 @@ router.post('/floors', create, validate({ body: s.createFloorSchema }), asyncHan
 router.patch('/floors/:id', write, validate({ params: s.idParamsSchema, body: s.updateFloorSchema }), asyncHandler(c.updateFloor));
 router.put('/floors/:id', write, validate({ params: s.idParamsSchema, body: s.updateFloorSchema }), asyncHandler(c.updateFloor));
 router.delete('/floors/:id', remove, validate({ params: s.idParamsSchema }), asyncHandler(c.deleteFloor));
+
+router.get('/doctor-fees', view, asyncHandler(async (_req, res) => { res.json({ data: await doctorCharges.list() }); }));
+router.patch('/doctor-fees/:id', write, validate({ params: s.idParamsSchema, body: doctorFeeSchema }), asyncHandler(async (req, res) => { res.json({ data: await doctorCharges.configure(req.params.id!, req.body.consultationFee) }); }));
 
 // Services & Rates
 router.get('/services-rates', view, asyncHandler(c.listServiceRates));

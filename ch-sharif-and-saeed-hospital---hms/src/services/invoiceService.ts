@@ -17,6 +17,7 @@ export type EncounterType = 'OPD' | 'OBSERVATION' | 'EMERGENCY' | 'CUSTOM';
 export type PaymentMethod = 'CASH' | 'CARD' | 'BANK' | 'ONLINE';
 
 export interface InvoiceLine {
+  billingSource?: string;
   id: string;
   serviceName: string;
   serviceCode: string;
@@ -198,7 +199,8 @@ function toInvoiceDetail(raw: Record<string, any>): InvoiceDetail {
     bedNumber: raw.admissionRecord?.bed?.bedNumber || undefined,
     lines: (raw.lines || []).filter((l: any) => raw.sourceType !== 'ADMISSION' || l.serviceRate?.code !== 'ADM-ADVANCE').map((l: any) => ({
       id: l.id,
-      serviceName: formatServiceName(l.serviceRate?.name || ''),
+      serviceName: l.descriptionSnapshot || formatServiceName(l.serviceRate?.name || '') || l.billingSource,
+      billingSource: l.billingSource,
       serviceCode: formatServiceCode(l.serviceRate?.code || ''),
       serviceCategory: l.serviceRate?.category || '',
       serviceStream: l.serviceRate?.serviceStream || '',

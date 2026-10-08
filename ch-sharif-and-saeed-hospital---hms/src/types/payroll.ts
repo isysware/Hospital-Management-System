@@ -16,7 +16,8 @@ export interface EligibleRow {
   employeeId: string;
   salaryBasis: string;
   monthlyBaseAmount?: string;
-  monthlyPerDayAmount?: string;
+  monthlyScheduledDays: number;
+  dailyRate: string;
   scheduledPayableDays: number;
   attendanceEquivalentDays: number;
   periodBaseAmount: string;

@@ -56,6 +56,7 @@ export const ServicesFilterBar: React.FC<ServicesFilterBarProps> = ({
 
         {/* Filters Group */}
         <div className="flex flex-wrap items-center gap-2.5">
+          <select aria-label="Provider" value={filters.providerType ?? 'INTERNAL'} onChange={e => onFilterChange({ providerType: e.target.value as 'INTERNAL' | 'OUTSOURCED', departmentId: 'All' })} className="border rounded p-2"><option value="INTERNAL">Hospital / Internal</option><option value="OUTSOURCED">Outsourced</option></select>
           {/* Department */}
           <div className="flex items-center gap-1.5">
             <select
@@ -66,7 +67,7 @@ export const ServicesFilterBar: React.FC<ServicesFilterBarProps> = ({
               className="text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A]"
             >
               <option value="All">All Departments</option>
-              {departments.map((d) => (
+              {departments.filter(d => !d.pharmacyRelated && (d.fulfillmentOwnership === 'Outsourced' ? 'OUTSOURCED' : 'INTERNAL') === (filters.providerType ?? 'INTERNAL')).map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name} ({d.code}) {d.status === 'Inactive' ? '(Inactive)' : ''}
                 </option>
@@ -116,7 +117,7 @@ export const ServicesFilterBar: React.FC<ServicesFilterBarProps> = ({
               onChange={(e) => onFilterChange({ status: e.target.value as any })}
               className="text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A]"
             >
-              <option value="All">All Statuses</option>
+              
               <option value="Active">Active Only</option>
               <option value="Inactive">Inactive Only</option>
             </select>

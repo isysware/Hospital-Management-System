@@ -27,6 +27,7 @@ export interface HospitalFloor {
 }
 
 export interface Department {
+  isDefaultPharmacy?: boolean;
   id: string;
   code: string;
   name: string;

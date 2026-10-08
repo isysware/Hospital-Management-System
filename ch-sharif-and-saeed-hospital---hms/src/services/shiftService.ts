@@ -108,8 +108,8 @@ function toShift(raw: Record<string, any>): Shift {
     id: raw.id,
     code: raw.code,
     name: raw.name,
-    departmentId: raw.departmentId,
-    departmentName: raw.department?.name || '',
+    departmentId: raw.departmentId ?? '',
+    departmentName: raw.department?.name || 'HMS (All Departments)',
     shiftType: raw.shiftType as ShiftType,
     startTime: raw.startTime,
     endTime: raw.endTime,
@@ -141,7 +141,7 @@ function toBackendPayload(data: ShiftFormData) {
     // Left blank, the backend auto-generates a unique code.
     code: data.code.trim() ? data.code.trim().toUpperCase() : undefined,
     name: data.name.trim(),
-    departmentId: data.departmentId,
+    departmentId: data.departmentId || null,
     shiftType: data.shiftType,
     startTime: data.startTime,
     endTime: data.endTime,
@@ -224,9 +224,7 @@ export class ShiftService {
     const cleanName = (data.name || '').trim();
     if (!cleanName) errors.name = 'Shift Name is required.';
 
-    if (!data.departmentId) {
-      errors.departmentId = 'Department selection is required.';
-    } else {
+    if (data.departmentId) {
       const matchedDept = DepartmentService.getDepartmentById(data.departmentId);
       if (!matchedDept) {
         errors.departmentId = 'Selected department is invalid or does not exist.';
@@ -249,7 +247,7 @@ export class ShiftService {
       }
     }
 
-    if (cleanName && data.departmentId && timingCalc.valid) {
+    if (cleanName && timingCalc.valid) {
       const duplicateFound = shifts.some(
         (s) =>
           s.id !== existingShiftId &&
@@ -260,7 +258,7 @@ export class ShiftService {
           s.endTime === data.endTime
       );
       if (duplicateFound) {
-        errors.name = `A shift named "${cleanName}" with identical type and timing already exists in this department.`;
+        errors.name = `A shift named "${cleanName}" with identical type and timing already exists for this department/HMS scope.`;
       }
     }
 

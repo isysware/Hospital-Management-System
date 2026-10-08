@@ -1,3 +1,6 @@
+import { DoctorChargeForm } from '../../../components/forms/DoctorChargeForm';
+import { ServiceSourcePicker } from '../../../components/forms/ServiceSourcePicker';
+import { selectionFromSource } from '../../../utils/serviceSelection';
 import { HOSPITAL_SERVICE_SOURCE, NO_ACTIVE_DEPARTMENT_SERVICES, serviceSourceOptions, servicesForSource } from '../../../utils/serviceSelection';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Tag, CreditCard, RotateCcw, Loader2, AlertCircle, CheckCircle2, Printer } from 'lucide-react';
@@ -106,13 +109,12 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>(HOSPITAL_SERVICE_SOURCE);
 
   useEffect(() => {
-    fetchServices().then(setServices).catch(() => {});
+
     fetchDepartments().then((depts) => {
       setDepartments(depts.filter((d) => d.status === 'Active'));
     }).catch(() => {});
   }, []);
 
-  const departmentDropdownOptions = useMemo(() => serviceSourceOptions(departments), [departments]);
 
   const filteredServices = useMemo(
     () => servicesForSource(services, selectedDeptFilter),
@@ -122,8 +124,8 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   // Add Service Line form state
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   useEffect(() => {
-    setSelectedServiceIds((ids) => ids.filter((id) => services.some((s) => s.id === id && s.status === 'Active')));
-  }, [services]);
+    setSelectedServiceIds((ids) => ids.filter((id) => filteredServices.some((s) => s.id === id)));
+  }, [filteredServices]);
   const [lineQty, setLineQty] = useState<number>(1);
   const [linePerformedBy, setLinePerformedBy] = useState('');
 
@@ -176,13 +178,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
     }
     return invoice.lines
       .filter((l: any) => {
-        const cat = (l.serviceCategory || '').toLowerCase();
-        const dept = (l.departmentName || '').toLowerCase();
-        const srvStream = (l.serviceStream || '').toUpperCase();
-        const isLab = srvStream === 'LAB' || cat.includes('lab') || dept.includes('lab') || cat.includes('pathology') || dept.includes('pathology');
-        const isPharm = cat.includes('pharmacy') || dept.includes('pharmacy');
-        const isRad = cat.includes('radiology') || dept.includes('radiology') || dept.includes('imaging');
-        return !isLab && !isPharm && !isRad && l.discountAllowed !== false;
+        return l.billingSource === 'HOSPITAL_SERVICE' && l.discountAllowed !== false;
       })
       .reduce((sum: number, l: any) => sum + (l.lineGross || 0), 0);
   }, [invoice]);
@@ -248,6 +244,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
       for (const serviceId of selectedServiceIds) {
         await addServiceLine(invoiceId, {
           serviceRateId: serviceId,
+          ...selectionFromSource(selectedDeptFilter),
           quantity: lineQty,
           performedByStaffId: linePerformedBy || undefined,
         });
@@ -642,7 +639,7 @@ ${invoice?.sourceType === 'ADMISSION' ? `<div class="meta-row"><span class="meta
                           {formatServiceCode(l.serviceCode) && (
                             <span className="text-slate-400 font-semibold text-[11px]">({formatServiceCode(l.serviceCode)})</span>
                           )}
-                          {l.serviceCode === 'SRV-PHARMACY' && (
+                          {l.billingSource === 'PHARMACY' && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
                               Pharmacy
                             </span>
@@ -938,17 +935,8 @@ ${invoice?.sourceType === 'ADMISSION' ? `<div class="meta-row"><span class="meta
 
               {/* Service Category / Source Filter */}
               <div>
-                <Select
-                  label="1. Service Category / Source"
-                  options={departmentDropdownOptions}
-                  value={selectedDeptFilter}
-                  onChange={(e) => setSelectedDeptFilter(e.target.value)}
-                  hint={
-                    selectedDeptFilter === 'HOSPITAL_SERVICES'
-                      ? 'Internal hospital procedures & care'
-                      : 'Departmental clinical services'
-                  }
-                />
+                <DoctorChargeForm target="invoices" id={invoiceId} onPosted={() => { load(); }} />
+                      <ServiceSourcePicker value={selectedDeptFilter} onChange={value => { setSelectedDeptFilter(value); setSelectedServiceIds([]); }} departments={departments} onServices={setServices} />
               </div>
 
               {/* Searchable Multi-Select Service Checklist */}

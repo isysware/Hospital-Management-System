@@ -6,9 +6,6 @@ import { PAYABLE_EQUIVALENT } from '../attendance/attendance.service';
  * payroll.service `computeEligibility`, so both always produce identical figures.
  */
 
-/** Plain MONTHLY absence deductions use a fixed 30-day divisor. */
-export const MONTHLY_SALARY_DIVISOR = 30;
-
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_MS = 86_400_000;
 
@@ -34,6 +31,18 @@ function countWorkingDays(from: number, to: number, working: Set<string>): numbe
   return n;
 }
 
+/**
+ * Monthly Scheduled Days: this employee's own scheduled working days across
+ * the *complete* calendar month that `anchor` falls in — their real weekly
+ * schedule/shift, never a flat constant — the true denominator for a per-day
+ * rate (PDF §11, "Monthly Scheduled Working Days").
+ */
+function countMonthlyScheduledDays(anchor: Date, working: Set<string>): number {
+  const monthStart = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1);
+  const monthEnd = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0);
+  return countWorkingDays(monthStart, monthEnd, working);
+}
+
 export interface SalaryProfileLike {
   salaryBasis: string;
   baseAmount: Decimal;
@@ -47,6 +56,8 @@ export interface SalaryProfileLike {
 }
 
 export interface SalaryAmounts {
+  monthlyScheduledDays: number;
+  dailyRate: Decimal;
   scheduledPayableDays: number;
   attendanceEquivalentDays: number;
   periodBaseAmount: Decimal;
@@ -92,21 +103,24 @@ function computeTimingDeduction(rule: DeductionRule, totalMinutes: number, occur
  *
  *   Attendance Equivalent = Present + Half×0.5 + Paid Leave
  *
- *   MONTHLY and MONTHLY_COMMISSION (identical fixed 30-day basis — Doctor
- *   commission is always a fully separate ledger, never blended into this
- *   figure or its divisor):
- *     per-day            = Monthly Base / 30
- *     Period Base        = configured Monthly Base, regardless of period length
- *     Attendance Deduct. = per-day × (Scheduled Days − Attendance Equivalent)   — weekly OFFs stay paid
- *     Earned Base        = Period Base − Attendance Deduction
+ *   MONTHLY and MONTHLY_COMMISSION (identical basis — Doctor commission is
+ *   always a fully separate ledger, never blended into this figure):
+ *     Monthly Scheduled Days = employee's scheduled working days across the
+ *                              *complete* calendar month the period falls in
+ *     Daily Rate          = Monthly Base / Monthly Scheduled Days
+ *     Period Scheduled Days = scheduled working days inside the selected From/To
+ *     Period Base          = Daily Rate × Period Scheduled Days
+ *     Attendance Deduction = Daily Rate × (Period Scheduled Days − Attendance Equivalent)  — weekly OFFs stay paid
+ *     Earned Base          = Period Base − Attendance Deduction
  *   PER_DAY(_COMMISSION): Earned = Daily Rate × equivalent
  *
  *   Gross = Earned Base + Allowance;  Tax% = Gross × %;  Net = Gross − Tax − Deduction
  *
- * Scheduled Days / Attendance Equivalent are reported for attendance only; they
- * are never the divisor of a plain MONTHLY salary. Fixed allowance / deduction /
- * fixed tax retain their configured amounts for Monthly types. Daily types
- * retain their existing per-run fixed components.
+ * A selected period is NEVER credited the full monthly salary regardless of
+ * its length — Period Base always scales to however many of the month's
+ * scheduled days actually fall inside the selected range. Fixed allowance /
+ * deduction / fixed tax retain their configured amounts, unprorated. Daily
+ * types retain their existing per-run fixed components.
  *
  * Returns null when the period has no scheduled working days.
  */
@@ -143,37 +157,39 @@ export function computeSalaryAmounts(
     }
   }
 
+  let monthlyScheduledDays = scheduledPayableDays;
+  let dailyRate = zero;
   let periodBaseAmount = zero;
   let earnedBase = zero;
   let attendanceDeductions = zero;
-  // Share of a monthly amount that belongs to this period (1 for a full month).
-  let monthFraction = zero;
   if (isMonthly) {
-    // MONTHLY and MONTHLY_COMMISSION share this exact formula — the fixed
-    // 30-day divisor never changes with the period's scheduled/calendar day
-    // count, and Doctor commission (DoctorCommissionRule) is always computed
-    // and accrued completely separately, never blended into this figure.
-    const perDay = base.div(MONTHLY_SALARY_DIVISOR);
-    monthFraction = new Decimal(1);
-    periodBaseAmount = base;
-    attendanceDeductions = perDay.mul(scheduledPayableDays - attendanceEquivalentDays);
+    // MONTHLY and MONTHLY_COMMISSION share this exact formula — Doctor
+    // commission (DoctorCommissionRule) is always computed and accrued
+    // completely separately, never blended into this figure.
+    monthlyScheduledDays = countMonthlyScheduledDays(periodStart, working);
+    dailyRate = monthlyScheduledDays > 0 ? base.div(monthlyScheduledDays) : zero;
+    const unpaidEquivalent = Decimal.max(new Decimal(scheduledPayableDays).minus(attendanceEquivalentDays), zero);
+    periodBaseAmount = dailyRate.mul(scheduledPayableDays);
+    attendanceDeductions = dailyRate.mul(unpaidEquivalent);
     earnedBase = periodBaseAmount.minus(attendanceDeductions);
   } else {
+    dailyRate = base;
     periodBaseAmount = base.mul(scheduledPayableDays);
     earnedBase = base.mul(attendanceEquivalentDays);
     attendanceDeductions = Decimal.max(periodBaseAmount.minus(earnedBase), zero);
   }
 
-  const scale = (amount: Decimal) => (isMonthly ? amount.mul(monthFraction) : amount);
-  const allowances = scale(profile.fixedAllowance);
-  const otherDeductions = scale(profile.fixedDeduction);
+  // Fixed allowance / deduction / fixed tax are paid at their configured
+  // amount per payroll run — never prorated by period length.
+  const allowances = profile.fixedAllowance;
+  const otherDeductions = profile.fixedDeduction;
   const grossAmount = earnedBase.plus(allowances);
 
   let tax = zero;
   if (profile.salaryTaxMethod === 'PERCENTAGE' && profile.salaryTaxValue) {
     tax = grossAmount.mul(profile.salaryTaxValue).div(100);
   } else if (profile.salaryTaxMethod === 'FIXED' && profile.salaryTaxValue) {
-    tax = scale(profile.salaryTaxValue);
+    tax = profile.salaryTaxValue;
   }
 
   // Late-In / Early-Out cutting — dynamically read from this staff member's
@@ -187,6 +203,8 @@ export function computeSalaryAmounts(
   // results at this shared boundary so Preview and persisted Generate agree.
   const money = (amount: Decimal) => isMonthly ? amount.toDecimalPlaces(2) : amount;
   return {
+    monthlyScheduledDays,
+    dailyRate: money(dailyRate),
     scheduledPayableDays,
     attendanceEquivalentDays,
     periodBaseAmount: money(periodBaseAmount),

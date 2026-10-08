@@ -19,6 +19,7 @@ interface ServiceModalProps {
 export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onSave, service }) => {
   const toast = useToast();
   const isEditing = !!service;
+  const isCore = !!service?.isDefaultEncounterService && ['OPD', 'OBSERVATION', 'EMERGENCY'].includes(service.encounterType ?? '');
   const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const [departmentsLoading, setDepartmentsLoading] = useState(true);
   const [departmentError, setDepartmentError] = useState<string | null>(null);
@@ -40,7 +41,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
     setAllDepartments([]);
     setErrors({});
     setCodeError(null);
-    setSelectedStream(service?.serviceStream === 'LAB' ? 'OUTSOURCED' : 'HOSPITAL');
+    setSelectedStream(service?.providerType === 'OUTSOURCED' ? 'OUTSOURCED' : 'HOSPITAL');
     setFormValues({
       code: service?.code ?? '', name: service?.name ?? '',
       description: service?.description ?? '', departmentId: service?.departmentId ?? '',
@@ -58,7 +59,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
       const department = list.find((d) => d.id === service?.departmentId);
       setSelectedStream(department
         ? department.fulfillmentOwnership === 'Outsourced' ? 'OUTSOURCED' : 'HOSPITAL'
-        : service?.serviceStream === 'LAB' ? 'OUTSOURCED' : 'HOSPITAL');
+        : service?.providerType === 'OUTSOURCED' ? 'OUTSOURCED' : 'HOSPITAL');
     }).catch(() => {
       if (!cancelled) setDepartmentError('Unable to load departments. Close and reopen the modal to retry.');
     }).finally(() => {
@@ -67,7 +68,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
     return () => { cancelled = true; };
   }, [service, isOpen]);
 
-  const availableDepartments = useMemo(() => allDepartments.filter((d) =>
+  const availableDepartments = useMemo(() => allDepartments.filter(d => !d.pharmacyRelated).filter((d) =>
     selectedStream === 'OUTSOURCED'
       ? d.status === 'Active' && d.fulfillmentOwnership === 'Outsourced'
       : d.fulfillmentOwnership === 'Internal' &&
@@ -117,7 +118,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
       newErrors.name = 'Service name is required.';
     }
 
-    if (formValues.departmentId && (departmentsLoading || departmentError || !availableDepartments.some((d) => d.id === formValues.departmentId))) {
+    if (!isCore && (!formValues.departmentId || (departmentsLoading || departmentError || !availableDepartments.some((d) => d.id === formValues.departmentId)))) {
       newErrors.departmentId = 'Select an available department.';
     }
 
@@ -134,9 +135,8 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
 
     onSave({
       ...formValues,
-      // LAB remains the existing outsourced storage stream for billing compatibility.
-      serviceStream: selectedStream === 'HOSPITAL' ? 'HOSPITAL'
-        : formValues.departmentId && service?.departmentId === formValues.departmentId ? (service.serviceStream ?? 'LAB') : 'LAB',
+      providerType: selectedStream === 'OUTSOURCED' ? 'OUTSOURCED' : 'INTERNAL',
+      serviceStream: service?.serviceStream ?? 'HOSPITAL',
     });
   };
 
@@ -180,7 +180,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
                 <button
                   id="stream-select-hospital"
                   type="button"
-                  disabled={departmentsLoading || !!departmentError}
+                  disabled={isCore || departmentsLoading || !!departmentError}
                   onClick={() => handleStreamChange('HOSPITAL')}
                   className={`relative flex flex-col items-start p-2.5 text-left rounded-xl border transition-all ${
                     selectedStream === 'HOSPITAL'
@@ -204,7 +204,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
                           : 'border-slate-300'
                       }`}
                     >
-                      {selectedStream === 'HOSPITAL' && (
+                      {isCore && (
                         <div className="w-1 h-1 rounded-full bg-white" />
                       )}
                     </div>
@@ -218,7 +218,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
                 <button
                   id="stream-select-outsourced"
                   type="button"
-                  disabled={departmentsLoading || !!departmentError}
+                  disabled={isCore || departmentsLoading || !!departmentError}
                   onClick={() => handleStreamChange('OUTSOURCED')}
                   className={`relative flex flex-col items-start p-2.5 text-left rounded-xl border transition-all ${
                     selectedStream === 'OUTSOURCED'
@@ -264,7 +264,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
                     Service Code
                   </label>
                   <input
-                    id="service-form-code"
+                    id="service-form-code" disabled={isCore}
                     type="text"
                     value={formValues.code}
                     onChange={(e) => handleCodeChange(e.target.value)}
@@ -289,7 +289,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
                     Service Name <span className="text-rose-500">*</span>
                   </label>
                   <input
-                    id="service-form-name"
+                    id="service-form-name" disabled={isCore}
                     type="text"
                     value={formValues.name}
                     onChange={(e) =>
@@ -313,20 +313,20 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Department */}
-                <div>
+                {!isCore && <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    {selectedStream === 'OUTSOURCED' ? 'Outsourced Department' : 'Department'} (Optional)
+                    {selectedStream === 'OUTSOURCED' ? 'Outsourced Department' : 'Department'} (Required)
                   </label>
                   <select
-                    id="service-form-dept"
-                    disabled={departmentsLoading || !!departmentError}
+                    id="service-form-dept" required
+                    disabled={isCore || departmentsLoading || !!departmentError}
                     value={availableDepartments.some((d) => d.id === formValues.departmentId) ? formValues.departmentId : ''}
                     onChange={(e) =>
                       setFormValues((prev) => ({ ...prev, departmentId: e.target.value }))
                     }
                     className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A]"
                   >
-                    <option value="">{departmentsLoading ? 'Loading departments...' : 'No department'}</option>
+                    <option value="">{departmentsLoading ? 'Loading departments...' : 'Select Department'}</option>
                     {availableDepartments.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.name} {d.status === 'Inactive' ? '(Inactive)' : ''}
@@ -339,14 +339,15 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
                   {!departmentsLoading && !departmentError && availableDepartments.length === 0 && (
                     <p className="text-[11px] text-slate-500 mt-1">No active departments available for this classification.</p>
                   )}
-                </div>
+                </div>}
+                {isCore && <p className="text-xs text-slate-500">Default encounter service — no department.</p>}
 
               </div>
 
               {/* Description */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Description / Clinical Specification (Optional)
+                  Description / Clinical Specification (Required)
                 </label>
                 <textarea
                   id="service-form-description"
@@ -514,7 +515,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
                         Encounter Type Link
                       </label>
                       <select
-                        id="service-form-encounter-type"
+                        id="service-form-encounter-type" disabled
                         value={formValues.encounterType || 'NONE'}
                         onChange={(e) =>
                           setFormValues((prev) => ({
@@ -527,7 +528,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
                         className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A]"
                       >
                         <option value="NONE">None (Regular Billable Service)</option>
-                        <option value="OPD">OPD Consultation</option>
+                        <option value="OPD">OPD</option>
                         <option value="OBSERVATION">Observation Stay</option>
                         <option value="EMERGENCY">Emergency Care</option>
                       </select>
@@ -538,7 +539,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
                         <label className="flex items-start gap-2 cursor-pointer">
                           <input
                             type="checkbox"
-                            checked={formValues.isDefaultEncounterService || false}
+                            disabled checked={formValues.isDefaultEncounterService || false}
                             onChange={(e) =>
                               setFormValues((prev) => ({
                                 ...prev,
@@ -591,7 +592,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({ isOpen, onClose, onS
             <button
               id="service-modal-submit-btn"
               type="submit"
-              disabled={departmentsLoading || !!departmentError}
+              disabled={isCore || departmentsLoading || !!departmentError}
               className="px-5 py-2 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg shadow-xs transition-colors"
             >
               {isEditing ? 'Update Service' : 'Save Service Record'}

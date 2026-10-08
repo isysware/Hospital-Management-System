@@ -1,3 +1,4 @@
+import { doctorCharges, doctorChargeSchema } from '@/shared/doctorCharges';
 import { Router } from 'express';
 import { authorize } from '@/middleware/authorize';
 import { validate } from '@/middleware/validate';
@@ -95,7 +96,9 @@ router.post(
   asyncHandler(c.transferBed),
 );
 
-// Hospital Services & Running Charges
+// Doctor visit charges
+router.post('/:id/doctor-charges', write, validate({ body: doctorChargeSchema }), asyncHandler(async (req, res) => { res.status(201).json({ data: await doctorCharges.post(req.params.id!, 'ADMISSION', req.body, req.user!.sub) }); }));
+
 router.post(
   '/:id/add-service',
   write,

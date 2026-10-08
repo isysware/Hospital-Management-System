@@ -124,6 +124,14 @@ export const updateFloorSchema = createFloorSchema.partial();
 export type UpdateFloorBody = z.infer<typeof updateFloorSchema>;
 
 // ── Service Rates ────────────────────────────────────────────────────
+export const listServiceRatesSchema = z.object({
+  providerType: z.enum(['INTERNAL', 'OUTSOURCED']).default('INTERNAL'),
+  departmentId: z.string().uuid().optional(),
+  outsourcedProviderId: z.string().uuid().optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+  activeOnly: z.enum(['true', 'false']).optional(),
+  selectable: z.literal('true').optional(),
+});
 export const createServiceRateSchema = z.object({
   // Optional: auto-generated when left blank (see Departments note above).
   code: z.string().max(20).optional(),
@@ -139,6 +147,7 @@ export const createServiceRateSchema = z.object({
   isActive: z.boolean().optional(),
   encounterType: z.enum(['NONE', 'OPD', 'OBSERVATION', 'EMERGENCY']).optional(),
   isDefaultEncounterService: z.boolean().optional(),
+  providerType: z.enum(['INTERNAL', 'OUTSOURCED']).optional(),
   serviceStream: z.enum(['HOSPITAL', 'LAB']).optional(),
 });
 export type CreateServiceRateBody = z.infer<typeof createServiceRateSchema>;
@@ -388,7 +397,7 @@ export const createShiftSchema = z.object({
   // Optional: auto-generated when left blank (see Departments note above).
   code: z.string().max(20).optional(),
   name: z.string().min(1).max(100),
-  departmentId: z.string().uuid(),
+  departmentId: z.string().uuid().nullable().optional(),
   shiftType: z.enum(['MORNING', 'EVENING', 'NIGHT', 'CUSTOM']).default('CUSTOM'),
   startTime: timeSchema,
   endTime: timeSchema,

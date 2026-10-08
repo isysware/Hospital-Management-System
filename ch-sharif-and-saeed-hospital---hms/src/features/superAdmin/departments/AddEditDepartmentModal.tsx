@@ -290,7 +290,7 @@ export const AddEditDepartmentModal: React.FC<AddEditDepartmentModalProps> = ({
               Department Type <span className="text-rose-600">*</span>
             </label>
             <select
-              value={formData.type}
+              disabled={departmentToEdit?.isDefaultPharmacy} value={formData.type}
               onChange={(e) => setFormData({ ...formData, type: e.target.value as DepartmentType })}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#08775A] focus:outline-hidden focus:ring-2 focus:ring-[#08775A]/20"
             >
@@ -316,7 +316,7 @@ export const AddEditDepartmentModal: React.FC<AddEditDepartmentModalProps> = ({
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700">
                     <input
                       type="radio"
-                      name="fulfillmentOwnership"
+                      disabled={departmentToEdit?.isDefaultPharmacy} name="fulfillmentOwnership"
                       value="Internal"
                       checked={formData.fulfillmentOwnership === 'Internal'}
                       onChange={() => setFormData({ ...formData, fulfillmentOwnership: 'Internal', outsourcedProviderId: '' })}
@@ -327,7 +327,7 @@ export const AddEditDepartmentModal: React.FC<AddEditDepartmentModalProps> = ({
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700">
                     <input
                       type="radio"
-                      name="fulfillmentOwnership"
+                      disabled={departmentToEdit?.isDefaultPharmacy} name="fulfillmentOwnership"
                       value="Outsourced"
                       checked={formData.fulfillmentOwnership === 'Outsourced'}
                       onChange={() => setFormData({ ...formData, fulfillmentOwnership: 'Outsourced' })}

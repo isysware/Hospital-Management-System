@@ -217,6 +217,7 @@ function toStaffUser(raw: Record<string, any>): StaffUser {
     clinicalAuthUsername: raw.clinicalAuthUsername ?? null,
     clinicalAuthActive: !!raw.clinicalAuthActive,
     clinicalAuthUpdatedAt: raw.clinicalAuthUpdatedAt ? formatTimestamp(raw.clinicalAuthUpdatedAt) : undefined,
+    consultationFee: raw.consultationFee == null ? null : Number(raw.consultationFee),
     availableForOpd: !!raw.availableForOpd || assignedEncounterTypes.has('OPD'),
     availableForObservation: !!raw.availableForObservation || assignedEncounterTypes.has('OBSERVATION'),
     availableForEmergency: !!raw.availableForEmergency || assignedEncounterTypes.has('EMERGENCY'),

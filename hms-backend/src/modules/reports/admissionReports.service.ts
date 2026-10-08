@@ -320,7 +320,7 @@ export const admissionReportsService = {
     for (const inv of admission.hospitalInvoices) {
       for (const l of inv.lines) {
         running = running.plus(l.lineNet);
-        rows.push({ occurredAt: l.createdAt, chargeRef: inv.invoiceNumber, category: l.serviceRate.category, service: l.serviceRate.name, qty: l.quantity, rate: l.rateSnapshot, gross: l.lineGross, discount: l.discountAmount, net: l.lineNet, runningBalance: running });
+        rows.push({ occurredAt: l.createdAt, chargeRef: inv.invoiceNumber, category: l.billingSource, service: (l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource), qty: l.quantity, rate: l.rateSnapshot, gross: l.lineGross, discount: l.discountAmount, net: l.lineNet, runningBalance: running });
       }
     }
     const hospitalPaid = admission.hospitalInvoices.reduce((s, inv) => s.plus(inv.paidTotal), new Decimal(0));
@@ -352,10 +352,10 @@ export const admissionReportsService = {
     const byKey = new Map<string, Bucket>();
     for (const l of lines) {
       const dept = l.hospitalInvoice.department?.name || 'Unassigned';
-      const key = `${dept}::${l.serviceRate.name}`;
+      const key = `${dept}::${(l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource)}`;
       let bucket = byKey.get(key);
       if (!bucket) {
-        bucket = { department: dept, service: l.serviceRate.name, qty: new Decimal(0), gross: new Decimal(0), discount: new Decimal(0), net: new Decimal(0), admissions: new Set() };
+        bucket = { department: dept, service: (l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource), qty: new Decimal(0), gross: new Decimal(0), discount: new Decimal(0), net: new Decimal(0), admissions: new Set() };
         byKey.set(key, bucket);
       }
       bucket.qty = bucket.qty.plus(l.quantity);

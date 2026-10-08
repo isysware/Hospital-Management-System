@@ -1,3 +1,4 @@
+import { isCoreEncounterService, serviceSelectionWhere, validateServiceMaster, type ServiceFilters } from '@/shared/serviceClassification';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/db/client';
 import { NotFoundError, ConflictError, ValidationError } from '@/shared/errors/AppError';
@@ -318,6 +319,7 @@ export const setupService = {
 
   async updateDepartment(id: string, body: UpdateDepartmentBody, updatedById: string) {
     const existing = await this.assertExists('department', id);
+    if ((existing as any).isDefaultPharmacy && (body.isActive === false || body.pharmacyRelated === false || (body.departmentType && body.departmentType !== 'PHARMACY') || (body.fulfillmentOwnership && body.fulfillmentOwnership !== 'INTERNAL') || body.outsourcedProviderId)) throw new ValidationError('Default Pharmacy must remain active, internal and classified as Pharmacy');
     const nextOwnership = body.fulfillmentOwnership ?? (existing as { fulfillmentOwnership: string }).fulfillmentOwnership;
     const nextProviderId =
       body.outsourcedProviderId !== undefined
@@ -352,7 +354,8 @@ export const setupService = {
   },
 
   async deactivateDepartment(id: string, updatedById: string) {
-    await this.assertExists('department', id);
+    const existing = await this.assertExists('department', id);
+    if ((existing as any).isDefaultPharmacy) throw new ValidationError('Default Pharmacy department cannot be deactivated');
     const updated = await prisma.department.update({
       where: { id },
       data: {
@@ -368,6 +371,7 @@ export const setupService = {
 
   async deleteDepartment(id: string) {
     const dept = (await this.assertExists('department', id)) as any;
+    if (dept.isDefaultPharmacy) throw new ValidationError('Default Pharmacy department cannot be deleted');
 
     const [staffCount, wardCount, apptCount, admCount, rateCount] = await Promise.all([
       prisma.staff.count({ where: { departmentId: id } }),
@@ -572,7 +576,7 @@ export const setupService = {
 
   // ── Service Rates ────────────────────────────────────────────────────
   serviceRateInclude: {
-    department: { select: { id: true, name: true, code: true } },
+    department: { select: { id: true, name: true, code: true, outsourcedProviderId: true, fulfillmentOwnership: true } },
     createdByUser: actorSelect,
     updatedByUser: actorSelect,
     _count: { select: { invoiceLines: true, panelDiscountRules: true } },
@@ -608,36 +612,22 @@ export const setupService = {
     });
   },
 
-  async listServiceRates(activeOnly = false) {
-    const rows = await prisma.serviceRate.findMany({
-      where: {
-        isDeleted: false,
-        // Internal accommodation-billing rows (Ward/Room charges) are never
-        // human-selectable — they don't belong in Services & Rates, the
-        // Doctor "Assigned Services" picker, or any other service picker.
-        isSystemGenerated: false,
-        ...(activeOnly ? { isActive: true } : {}),
-      },
-      include: this.serviceRateInclude,
-      orderBy: { name: 'asc' },
-    });
+  async listServiceRates(filters: ServiceFilters | { activeOnly?: string; providerType?: 'INTERNAL' | 'OUTSOURCED'; departmentId?: string; outsourcedProviderId?: string; status?: 'ACTIVE' | 'INACTIVE' } = {}) {
+    const rows = await prisma.serviceRate.findMany({ where: serviceSelectionWhere({ ...filters, activeOnly: filters.activeOnly === true || filters.activeOnly === 'true' }), include: this.serviceRateInclude, orderBy: { name: 'asc' } });
     return this.decorateServiceRates(rows as any);
   },
 
   async createServiceRate(body: CreateServiceRateBody, createdById: string) {
-    const code = normalizeCode(body.code) ?? (await generateUniqueCode('serviceRate', 'SRV'));
-    if (body.isDefaultEncounterService && body.encounterType && body.encounterType !== 'NONE') {
-      await prisma.serviceRate.updateMany({
-        where: { encounterType: body.encounterType },
-        data: { isDefaultEncounterService: false },
-      });
-    }
+    if (body.isDefaultEncounterService) throw new ValidationError('OPD, OBS and ER defaults already exist; edit the existing entry');
+    const classification = await validateServiceMaster(prisma, body);
+    const code = normalizeCode(body.code) ?? (await generateUniqueCode('serviceRate', 'SRV')); 
     try {
       const created = await prisma.serviceRate.create({
         data: {
           ...body,
           code,
           createdById,
+          ...classification,
           serviceStream: body.serviceStream ?? 'HOSPITAL',
         },
         include: this.serviceRateInclude,
@@ -656,14 +646,16 @@ export const setupService = {
     if ((existing as any).isDeleted) {
       throw new NotFoundError('Service rate not found or already deleted.');
     }
-    if (body.isDefaultEncounterService && (body.encounterType ?? (existing as any).encounterType) && (body.encounterType ?? (existing as any).encounterType) !== 'NONE') {
-      const encType = body.encounterType ?? (existing as any).encounterType;
-      await prisma.serviceRate.updateMany({
-        where: { encounterType: encType, id: { not: id } },
-        data: { isDefaultEncounterService: false },
-      });
+    if (isCoreEncounterService(existing)) {
+      if (body.departmentId || (body.providerType && body.providerType !== 'INTERNAL') || body.isActive === false || body.isDefaultEncounterService === false || (body.encounterType && body.encounterType !== (existing as any).encounterType) || (body.code && body.code !== (existing as any).code) || (body.serviceStream && body.serviceStream !== 'HOSPITAL')) throw new ValidationError('Default encounter services must remain active, internal and without a department');
+      const { standardRate, description, billingUnit, panelEligible, discountAllowed, manualRateOverrideAllowed } = body;
+      const updated = await prisma.serviceRate.update({ where: { id }, data: { standardRate, description, billingUnit, panelEligible, discountAllowed, manualRateOverrideAllowed, updatedById }, include: this.serviceRateInclude });
+      return this.decorateServiceRates([updated as any])[0];
     }
-    const data: Prisma.ServiceRateUncheckedUpdateInput = { ...body, code: normalizeCode(body.code), updatedById };
+    if (body.isDefaultEncounterService) throw new ValidationError('Edit the existing OPD, OBS or ER default');
+    if ((existing as any).isSystemGenerated) throw new ValidationError('Legacy billing records cannot be edited as Services');
+    const classification = await validateServiceMaster(prisma, { ...existing, ...body });
+    const data: Prisma.ServiceRateUncheckedUpdateInput = { ...body, ...classification, code: normalizeCode(body.code), updatedById };
     if (body.isActive !== undefined && body.isActive !== (existing as { isActive: boolean }).isActive) {
       data.statusChangedAt = new Date();
       data.statusChangedBy = await resolveActorLabel(updatedById);
@@ -682,7 +674,8 @@ export const setupService = {
   },
 
   async deactivateServiceRate(id: string, updatedById: string) {
-    await this.assertExists('serviceRate', id);
+    const existing = await this.assertExists('serviceRate', id);
+    if (isCoreEncounterService(existing)) throw new ValidationError('Default encounter services can only be edited');
     const updated = await prisma.serviceRate.update({
       where: { id },
       data: { isActive: false, updatedById, statusChangedAt: new Date(), statusChangedBy: await resolveActorLabel(updatedById) },
@@ -706,63 +699,12 @@ export const setupService = {
 
     if (isCoreEncounter) {
       throw new ValidationError(
-        `Core encounter service "${service.name}" (${encType}) cannot be deleted from the hospital master catalog. You can deactivate it instead.`
+        `Core encounter service "${service.name}" (${encType}) cannot be deleted from the hospital master catalog. Only editing is allowed.`
       );
     }
 
-    const invoiceLineCount = await prisma.invoiceLineItem.count({
-      where: { serviceRateId: id },
-    });
-
-    await prisma.$transaction(async (tx) => {
-      // 1. Delete associated panel discount rules
-      await tx.panelDiscountRule.deleteMany({
-        where: { serviceRateId: id },
-      });
-
-      // 2. Delete associated doctor commission rules
-      await tx.doctorCommissionRule.deleteMany({
-        where: { serviceRateId: id },
-      });
-
-      // 3. Reassign linked appointments to another active, non-deleted service
-      const linkedAppointments = await tx.appointment.count({
-        where: { serviceRateId: id },
-      });
-      if (linkedAppointments > 0) {
-        const fallbackService = await tx.serviceRate.findFirst({
-          where: { id: { not: id }, isDeleted: false, isActive: true },
-          orderBy: { isDefaultEncounterService: 'desc', createdAt: 'asc' },
-        });
-        if (fallbackService) {
-          await tx.appointment.updateMany({
-            where: { serviceRateId: id },
-            data: { serviceRateId: fallbackService.id },
-          });
-        }
-      }
-
-      // 4. Safe deletion:
-      // If the service has no posted invoice lines, physically delete it from the database.
-      // If it has posted invoice lines, archive it (isDeleted: true, isActive: false, renamed code)
-      // so past patient invoices, financial records, receipts, and day-close reports remain 100% intact.
-      if (invoiceLineCount === 0) {
-        await tx.serviceRate.delete({ where: { id } });
-      } else {
-        const uniqueDelSuffix = Date.now().toString(36).toUpperCase();
-        await tx.serviceRate.update({
-          where: { id },
-          data: {
-            code: `${service.code}-DEL-${uniqueDelSuffix}`,
-            isActive: false,
-            isDeleted: true,
-            deletedAt: new Date(),
-            statusChangedAt: new Date(),
-            statusChangedBy: 'System (Deleted by Admin)',
-          },
-        });
-      }
-    });
+    // Archive only: retain all invoice, appointment, panel and commission dependencies.
+    await prisma.serviceRate.update({ where: { id }, data: { isActive: false, isDeleted: true, selectable: false, deletedAt: new Date() } });
   },
 
   // ── Wards / Rooms / Beds — flexible hierarchy, §4.2 ──────────────────

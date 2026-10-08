@@ -1,3 +1,4 @@
+import { listServiceRatesSchema } from './setup.schemas';
 import type { Request, Response } from 'express';
 import { setupService } from './setup.service';
 import { dataResetService } from './dataReset.service';
@@ -58,7 +59,7 @@ export const setupController = {
 
   // Service Rates
   listServiceRates: async (req: Request, res: Response) => {
-    res.json({ data: await setupService.listServiceRates(req.query.activeOnly === 'true') });
+    res.json({ data: await setupService.listServiceRates(listServiceRatesSchema.parse(req.query)) });
   },
   createServiceRate: async (req: Request, res: Response) => {
     res.status(201).json({ data: await setupService.createServiceRate(req.body, actorId(req)) });

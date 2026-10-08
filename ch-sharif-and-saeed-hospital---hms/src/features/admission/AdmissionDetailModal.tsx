@@ -1,3 +1,6 @@
+import { DoctorChargeForm } from '../../components/forms/DoctorChargeForm';
+import { ServiceSourcePicker } from '../../components/forms/ServiceSourcePicker';
+import { selectionFromSource } from '../../utils/serviceSelection';
 import { AdmissionLedgerButton } from './AdmissionLedgerButton';
 import { fetchAdmissionLedger, AdmissionLedger } from '../../services/admissionBillingService';
 import { HOSPITAL_SERVICE_SOURCE, OUTSOURCED_SERVICE_SOURCE, NO_ACTIVE_DEPARTMENT_SERVICES, serviceSourceOptions, servicesForSource } from '../../utils/serviceSelection';
@@ -101,12 +104,11 @@ export const AdmissionDetailModal: React.FC<AdmissionDetailModalProps> = ({ admi
   const [allServices, setAllServices] = useState<HospitalService[]>(() => ServiceRatesService.getServices());
 
   useEffect(() => {
-    fetchServices().then(setAllServices).catch(() => {});
+
     fetchDepartments().then(setAllDepartments).catch(() => {});
     fetchStaffUsers().then(setAllStaff).catch(() => {});
   }, []);
 
-  const departmentDropdownOptions = useMemo(() => serviceSourceOptions(allDepartments), [allDepartments]);
 
   const availableServices = useMemo(
     () => servicesForSource(allServices, selectedDeptFilter),
@@ -118,7 +120,7 @@ export const AdmissionDetailModal: React.FC<AdmissionDetailModalProps> = ({ admi
   }, [allDepartments, selectedDeptFilter]);
 
   const isCurrentSelectionOutsourced = useMemo(() => {
-    return selectedDeptFilter === OUTSOURCED_SERVICE_SOURCE || selectedDeptObj?.fulfillmentOwnership === 'Outsourced';
+    return selectionFromSource(selectedDeptFilter).providerType === 'OUTSOURCED' || selectedDeptObj?.fulfillmentOwnership === 'Outsourced';
   }, [selectedDeptFilter, selectedDeptObj, allDepartments]);
 
   const load = async () => {
@@ -150,8 +152,8 @@ export const AdmissionDetailModal: React.FC<AdmissionDetailModalProps> = ({ admi
   // ── Services & Charges ──────────────────────────────────────────────
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   useEffect(() => {
-    setSelectedServiceIds((ids) => ids.filter((id) => allServices.some((s) => s.id === id && s.status === 'Active')));
-  }, [allServices]);
+    setSelectedServiceIds((ids) => ids.filter((id) => availableServices.some((s) => s.id === id)));
+  }, [availableServices]);
   const [lineQty, setLineQty] = useState(1);
   const [linePerformedBy, setLinePerformedBy] = useState('');
   const [lineArrangementMode, setLineArrangementMode] = useState<'HOSPITAL_MANAGED' | 'SELF'>('HOSPITAL_MANAGED');
@@ -209,6 +211,7 @@ export const AdmissionDetailModal: React.FC<AdmissionDetailModalProps> = ({ admi
       for (const serviceId of selectedServiceIds) {
         await addAdmissionService(admissionId, {
           serviceRateId: serviceId,
+          ...selectionFromSource(selectedDeptFilter),
           quantity: lineQty,
           performedByStaffId: linePerformedBy || undefined,
           arrangementMode: lineArrangementMode,
@@ -744,17 +747,8 @@ export const AdmissionDetailModal: React.FC<AdmissionDetailModalProps> = ({ admi
 
                   {/* Department / Source Filter */}
                   <div>
-                    <Select
-                      label="1. Department / Source Filter"
-                      options={departmentDropdownOptions}
-                      value={selectedDeptFilter}
-                      onChange={(e) => setSelectedDeptFilter(e.target.value)}
-                      hint={
-                        isCurrentSelectionOutsourced
-                          ? 'Outsourced Department — Billed to Outsourced Invoice (No discounts allowed).'
-                          : 'Internal Hospital Management Services'
-                      }
-                    />
+                    <DoctorChargeForm target="admissions" id={admissionId} onPosted={() => { load(); }} />
+                      <ServiceSourcePicker value={selectedDeptFilter} onChange={value => { setSelectedDeptFilter(value); setSelectedServiceIds([]); }} departments={allDepartments} onServices={setAllServices} />
                   </div>
 
                   {/* Searchable Multi-Select Service Checklist */}

@@ -320,8 +320,9 @@ const GenerateTab: React.FC<{ departments: Department[]; toast: ReturnType<typeo
                 <th className={TH}>Staff</th>
                 <th className={TH}>Emp ID</th>
                 <th className={TH}>Salary Type</th>
-                <th className={`${TH} text-center`}>Sched. Days</th>
+                <th className={`${TH} text-center`}>Period Sched. Days</th>
                 <th className={`${TH} text-center`}>Present Days</th>
+                <th className={`${TH} text-right`}>Daily Rate</th>
                 <th className={`${TH} text-right`}>Period Base</th>
                 <th className={`${TH} text-right`}>Attendance Ded.</th>
                 <th className={`${TH} text-right`}>Allowance</th>
@@ -335,7 +336,7 @@ const GenerateTab: React.FC<{ departments: Department[]; toast: ReturnType<typeo
               preview.eligible.length > 0 ? (
                 <>
                   <TotalLabel />
-                  <td className={TD} colSpan={5} />
+                  <td className={TD} colSpan={6} />
                   <td className={`${TD} ${AMT}`}>{formatPKR(sum('periodBaseAmount'))}</td>
                   <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(sum('attendanceDeductions'))})</td>
                   <td className={`${TD} ${AMT}`}>{formatPKR(sum('allowances'))}</td>
@@ -348,7 +349,7 @@ const GenerateTab: React.FC<{ departments: Department[]; toast: ReturnType<typeo
             }
           >
             {preview.eligible.length === 0 ? (
-              <EmptyRow colSpan={13}>No eligible staff for this period.</EmptyRow>
+              <EmptyRow colSpan={14}>No eligible staff for this period.</EmptyRow>
             ) : (
               preview.eligible.map((r, i) => (
                 <tr key={r.staffId} className={ROW}>
@@ -357,14 +358,15 @@ const GenerateTab: React.FC<{ departments: Department[]; toast: ReturnType<typeo
                   <td className={`${TD} font-semibold text-[#08775A]`}>{r.employeeId}</td>
                   <td className={TD}>
                     {basisLabel(r.salaryBasis)}
-                    {r.salaryBasis === 'MONTHLY' && r.monthlyBaseAmount != null && (
+                    {r.salaryBasis.startsWith('MONTHLY') && r.monthlyBaseAmount != null && (
                       <div className="text-xs font-normal text-slate-500">
-                        {formatPKR(Number(r.monthlyBaseAmount))}/month · {formatPKR(Number(r.monthlyPerDayAmount))}/day (÷ 30)
+                        {formatPKR(Number(r.monthlyBaseAmount))}/month (÷ {r.monthlyScheduledDays} sched. days)
                       </div>
                     )}
                   </td>
                   <td className={`${TD} text-center tabular-nums`}>{r.scheduledPayableDays}</td>
                   <td className={`${TD} text-center tabular-nums`}>{r.attendanceEquivalentDays}</td>
+                  <td className={`${TD} ${AMT}`}>{formatPKR(Number(r.dailyRate))}</td>
                   <td className={`${TD} ${AMT}`}>{formatPKR(Number(r.periodBaseAmount))}</td>
                   <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(Number(r.attendanceDeductions))})</td>
                   <td className={`${TD} ${AMT}`}>{formatPKR(Number(r.allowances))}</td>

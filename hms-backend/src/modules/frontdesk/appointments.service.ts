@@ -1,3 +1,4 @@
+import { assertSelectableService } from '@/shared/serviceClassification';
 import { Decimal } from '@prisma/client/runtime/library';
 import { commissionService } from '@/modules/commission/commission.service';
 import type { Prisma } from '@prisma/client';
@@ -41,15 +42,16 @@ export const appointmentsService = {
       }
 
       // Validate ServiceRate
-      const serviceRate = await tx.serviceRate.findUnique({
-        where: { id: body.serviceRateId },
-      });
-      if (!serviceRate || !serviceRate.isActive) {
-        throw new NotFoundError('Selected service rate not found or inactive');
-      }
+      const serviceRate = body.serviceRateId ? await tx.serviceRate.findUnique({
+        include: { department: { include: { outsourcedProvider: true } } }, where: { id: body.serviceRateId },
+      }) : null;
+      if (serviceRate) assertSelectableService(serviceRate, body);
+      if (body.serviceRateId && !serviceRate) throw new NotFoundError('Service not found');
+      const doctor = !serviceRate && body.doctorStaffId ? await tx.staff.findUnique({ where: { id: body.doctorStaffId } }) : null;
+      if (!serviceRate && (!doctor?.isActive || doctor.category !== 'Doctor' || doctor.consultationFee == null)) throw new ValidationError('Select an active doctor with a configured consultation fee');
 
       if (
-        serviceRate.departmentId &&
+        serviceRate?.departmentId &&
         serviceRate.departmentId !== body.departmentId &&
         !serviceRate.isDefaultEncounterService
       ) {
@@ -72,7 +74,7 @@ export const appointmentsService = {
 
       const estimatedAmount = body.estimatedAmount !== undefined
         ? new Decimal(body.estimatedAmount)
-        : serviceRate.standardRate;
+        : serviceRate?.standardRate ?? doctor!.consultationFee!;
 
       // Create appointment
       const appointment = await tx.appointment.create({
@@ -220,6 +222,10 @@ export const appointmentsService = {
       assertMembershipEligible(patient, body.slotAt);
     }
 
+    if (body.serviceRateId) {
+      const service = await prisma.serviceRate.findUnique({ where: { id: body.serviceRateId }, include: { department: { include: { outsourcedProvider: true } } } });
+      assertSelectableService(service, { departmentId: body.departmentId ?? existing.departmentId, providerType: 'INTERNAL' });
+    }
     return prisma.appointment.update({
       where: { id },
       data: {
@@ -315,6 +321,7 @@ export const appointmentsService = {
       const appointment = await tx.appointment.findUnique({
         where: { id: appointmentId },
         include: {
+          doctor: true,
           serviceRate: true,
           hospitalInvoices: { include: { paymentReceipts: true, lines: true } },
           panelPatient: {
@@ -340,14 +347,15 @@ export const appointmentsService = {
       let invoice = appointment.hospitalInvoices[0];
 
       if (!invoice) {
-        const rate = appointment.serviceRate.standardRate;
+        const rate = appointment.serviceRate?.standardRate ?? appointment.doctor?.consultationFee;
+        if (rate == null) throw new ValidationError('Configure the doctor visit fee before check-in');
         // v7.2 §2.5/§20/§21 — Patient Share vs Panel Receivable split. Panel
         // Service rule (only tier that exists today) → else NOT_COVERED —
         // shared with `admission.service.ts` via `resolvePanelCoverage`.
         const { discountAmount, discountReason, patientShare, panelReceivable, coverageSnapshot } = resolvePanelCoverage(
           rate,
           appointment.panelPatient?.corporatePanel?.discountRules,
-          appointment.serviceRateId, new Date(), appointment.serviceRate.departmentId ?? appointment.departmentId,
+          appointment.serviceRateId ?? 'DOCTOR_CHARGE', new Date(), appointment.serviceRate?.departmentId ?? appointment.departmentId,
           new Decimal(1), appointment.panelPatient,
         );
 
@@ -395,6 +403,7 @@ export const appointmentsService = {
             lines: {
               create: {
                 serviceRateId: appointment.serviceRateId,
+                billingSource: appointment.serviceRate?.billingSource ?? 'DOCTOR_CHARGE', descriptionSnapshot: appointment.serviceRate?.name ?? (appointment.doctor?.fullName ?? 'Doctor') + ' Visit',
                 rateSnapshot: rate,
                 quantity: new Decimal(1),
                 lineGross: rate,

@@ -43,8 +43,8 @@ export const formatAuditTimestamp = (): string => {
  * OPD and Observation are care encounter services (managed under Services & Rates),
  * not departments. Departments are clinical, surgical, diagnostic, and administrative units.
  */
-export function isProtectedCoreDepartment(_dept?: { code?: string | null; name?: string | null } | null): boolean {
-  return false;
+export function isProtectedCoreDepartment(_dept?: { code?: string | null; name?: string | null; isDefaultPharmacy?: boolean } | null): boolean {
+  return _dept?.isDefaultPharmacy === true;
 }
 
 /** Valid department types list */
@@ -104,6 +104,7 @@ function toDepartment(raw: Record<string, any>): Department {
     emergencyEnabled: !!raw.supportsEmergency,
     admissionEnabled: !!raw.supportsAdmission,
     pharmacyRelated: !!raw.pharmacyRelated,
+    isDefaultPharmacy: !!raw.isDefaultPharmacy,
     fulfillmentOwnership: raw.fulfillmentOwnership === 'OUTSOURCED' ? 'Outsourced' : 'Internal',
     outsourcedProviderId: raw.outsourcedProviderId || '',
     outsourcedProviderName: raw.outsourcedProvider?.name || '',

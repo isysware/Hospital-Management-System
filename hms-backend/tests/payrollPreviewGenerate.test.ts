@@ -115,13 +115,20 @@ describe('payroll — Preview and Generate produce identical MONTHLY figures', (
     const preview = await post('/preview', payload, 200);
     expect(tx.salarySlip.create).not.toHaveBeenCalled();
     const row = preview.eligible[0];
+    // August and September 2026 (Sunday OFF) each have 26 scheduled days in
+    // their own complete calendar month — the real Monthly Scheduled Days
+    // divisor, keyed off periodStart's month, regardless of how many of
+    // those days the selected period itself spans.
+    const monthlyScheduledDays = 26;
+    const dailyRate = 28000 / monthlyScheduledDays;
     expect(row.scheduledPayableDays).toBe(scheduled);
     expect(row.attendanceEquivalentDays).toBe(2);
     expect(row.monthlyBaseAmount).toBe('28000');
-    expect(Number(row.monthlyPerDayAmount)).toBeCloseTo(28000 / 30, 8);
-    expect(Number(row.periodBaseAmount)).toBe(28000);
-    expect(Number(row.attendanceDeductions)).toBeCloseTo((scheduled - 2) * 28000 / 30, 2);
-    expect(Number(row.earnedBase)).toBeCloseTo(28000 - (scheduled - 2) * 28000 / 30, 2);
+    expect(row.monthlyScheduledDays).toBe(monthlyScheduledDays);
+    expect(Number(row.dailyRate)).toBeCloseTo(dailyRate, 2);
+    expect(Number(row.periodBaseAmount)).toBeCloseTo(dailyRate * scheduled, 2);
+    expect(Number(row.attendanceDeductions)).toBeCloseTo((scheduled - 2) * dailyRate, 2);
+    expect(Number(row.earnedBase)).toBeCloseTo(2 * dailyRate, 2);
     expect(Number(row.allowances)).toBe(3000);
     expect(Number(row.otherDeductions)).toBe(600);
     expect(Number(row.tax)).toBe(300);
@@ -139,15 +146,26 @@ describe('payroll — Preview and Generate produce identical MONTHLY figures', (
     expect(Number(slip.attendanceDeductions)).toBe(Number(row.attendanceDeductions));
     expect(Number(slip.generatedAmount)).toBe(Number(row.netAmount));
     expect(slip.calculationSnapshot.monthlyBaseAmount).toBe(row.monthlyBaseAmount);
-    expect(slip.calculationSnapshot.monthlyPerDayAmount).toBe(row.monthlyPerDayAmount);
+    expect(slip.calculationSnapshot.monthlyScheduledDays).toBe(row.monthlyScheduledDays);
+    expect(slip.calculationSnapshot.dailyRate).toBe(row.dailyRate);
     expect(generated.totalAmount).toBe(preview.totalAmount);
   });
 
-  it('HTTP Preview keeps the full 30,000 period base for the reported cross-month dates', async () => {
+  it('HTTP Preview prorates Period Base to the period\'s own scheduled days for cross-month dates — never the full 30,000', async () => {
     const fixture = staffCase('monthly', ['Sunday'], 22, '2026-08-31', '2026-09-27');
     load([fixture]);
     const preview = await post('/preview', { periodType: 'MONTHLY', periodStart: '2026-08-31', periodEnd: '2026-09-27' }, 200);
-    expect(preview.eligible[0]).toMatchObject({ monthlyBaseAmount: '30000', monthlyPerDayAmount: '1000', periodBaseAmount: '30000', attendanceDeductions: '22000', earnedBase: '8000' });
+    const row = preview.eligible[0];
+    // periodStart (Aug 31) falls in August 2026, which has 26 scheduled
+    // days (Sunday OFF) — the Monthly Scheduled Days divisor for this run.
+    const dailyRate = 30000 / 26;
+    expect(row.monthlyScheduledDays).toBe(26);
+    expect(row.scheduledPayableDays).toBe(24);
+    expect(row.attendanceEquivalentDays).toBe(2);
+    expect(Number(row.dailyRate)).toBeCloseTo(dailyRate, 2);
+    expect(Number(row.periodBaseAmount)).toBeCloseTo(dailyRate * 24, 2);
+    expect(Number(row.attendanceDeductions)).toBeCloseTo(dailyRate * 22, 2);
+    expect(Number(row.earnedBase)).toBeCloseTo(dailyRate * 2, 2);
   });
 
   // 24 / 28 scheduled in February, 30 / 31 scheduled in a no-OFF 30/31-day month.
@@ -194,10 +212,15 @@ describe('payroll — Preview and Generate produce identical MONTHLY figures', (
           netAmount: row.netAmount.toNumber(),
         });
 
-        // 30-day basis: full attendance → 29,100 net; 2 absent → 27,300 net, whatever the scheduled count.
+        // Full-month period: Monthly Scheduled Days == this period's own
+        // scheduled days, so Daily Rate = Base/scheduled — full attendance
+        // always nets the full base; 2 absent deduct 2 × that real daily rate.
         const fullAttendance = row.attendanceEquivalentDays === row.scheduledPayableDays;
-        expect(row.earnedBase.toNumber()).toBe(fullAttendance ? 30000 : 28000);
-        expect(row.netAmount.toNumber()).toBe(fullAttendance ? 29100 : 27300);
+        const dailyRate = 30000 / row.scheduledPayableDays;
+        const earned = fullAttendance ? 30000 : 30000 - 2 * dailyRate;
+        const net = earned + 3000 - (earned + 3000) * 0.1 - 600;
+        expect(row.earnedBase.toNumber()).toBeCloseTo(earned, 2);
+        expect(row.netAmount.toNumber()).toBeCloseTo(net, 2);
       });
     });
   }
@@ -210,7 +233,7 @@ describe('payroll — MONTHLY_COMMISSION uses the exact same fixed 30-day basis 
     tx.payrollRun.findUniqueOrThrow.mockResolvedValue({ id: 'run-1' });
   });
 
-  it('reported bug: PKR 30,000 base, 26 scheduled, 1 present/25 absent — Daily Rate 1,000, Deduction 25,000, Earned 5,000; Doctor commission stays a separate ledger (untouched here)', async () => {
+  it('PKR 30,000 base, 26 scheduled, 1 present/25 absent — Daily Rate 1,153.85, Deduction ≈28,846.15, Earned ≈1,153.85; Doctor commission stays a separate ledger (untouched here)', async () => {
     const fixture = staffCase('doc-commission', ['Sunday'], 25, '2026-09-01', '2026-09-30');
     fixture.profile.salaryBasis = 'MONTHLY_COMMISSION';
     fixture.profile.fixedAllowance = d(0);
@@ -230,12 +253,15 @@ describe('payroll — MONTHLY_COMMISSION uses the exact same fixed 30-day basis 
 
     const preview = await post('/preview', payload, 200);
     const row = preview.eligible[0];
+    const dailyRate = 30000 / 26;
+    expect(row.monthlyScheduledDays).toBe(26);
     expect(row.scheduledPayableDays).toBe(26);
     expect(row.attendanceEquivalentDays).toBe(1);
+    expect(Number(row.dailyRate)).toBeCloseTo(dailyRate, 2);
     expect(Number(row.periodBaseAmount)).toBe(30000);
-    expect(Number(row.attendanceDeductions)).toBe(25000);
-    expect(Number(row.earnedBase)).toBe(5000);
-    expect(Number(row.netAmount)).toBe(5000);
+    expect(Number(row.attendanceDeductions)).toBeCloseTo(25 * dailyRate, 2);
+    expect(Number(row.earnedBase)).toBeCloseTo(30000 - 25 * dailyRate, 2);
+    expect(Number(row.netAmount)).toBeCloseTo(30000 - 25 * dailyRate, 2);
 
     const generated = await post('/runs', payload, 201);
     const slip = generated.lines[0];

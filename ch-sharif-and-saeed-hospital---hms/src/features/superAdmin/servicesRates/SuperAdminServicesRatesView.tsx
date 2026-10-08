@@ -45,7 +45,7 @@ export const SuperAdminServicesRatesView: React.FC = () => {
     departmentId: 'All',
     category: 'All',
     panelEligible: 'All',
-    status: 'All',
+    status: 'Active', providerType: 'INTERNAL',
   });
 
   // Modal States
@@ -64,7 +64,7 @@ export const SuperAdminServicesRatesView: React.FC = () => {
     setLoadError(null);
     try {
       const [list, depts] = await Promise.all([
-        fetchServices(),
+        fetchServices({ providerType: filters.providerType ?? 'INTERNAL', departmentId: filters.departmentId === 'All' ? undefined : filters.departmentId, status: filters.status === 'Inactive' ? 'INACTIVE' : 'ACTIVE' }),
         fetchDepartments(),
       ]);
       setServices(list);
@@ -78,7 +78,7 @@ export const SuperAdminServicesRatesView: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [filters.providerType, filters.departmentId, filters.status]);
 
   const filteredServices = useMemo(() => {
     return ServiceRatesService.filterServices(services, filters);
@@ -94,7 +94,7 @@ export const SuperAdminServicesRatesView: React.FC = () => {
       departmentId: 'All',
       category: 'All',
       panelEligible: 'All',
-      status: 'All',
+      status: 'Active', providerType: 'INTERNAL',
     });
   };
 

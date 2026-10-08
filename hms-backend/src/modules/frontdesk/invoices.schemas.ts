@@ -41,6 +41,9 @@ export const createEncounterSchema = z.object({
 export type CreateEncounterBody = z.infer<typeof createEncounterSchema>;
 
 export const addServiceLineSchema = z.object({
+  providerType: z.enum(['INTERNAL', 'OUTSOURCED']).optional(),
+  departmentId: z.string().uuid().optional(),
+  outsourcedProviderId: z.string().uuid().optional(),
   serviceRateId: z.string().uuid(),
   quantity: z.coerce.number().positive().default(1),
   manualRateOverride: z.coerce.number().positive().optional(),

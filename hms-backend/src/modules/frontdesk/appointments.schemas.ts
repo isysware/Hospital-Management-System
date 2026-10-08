@@ -21,7 +21,7 @@ export const bookAppointmentSchema = z.object({
     .optional(),
   departmentId: z.string().uuid(),
   doctorStaffId: z.string().uuid().optional(),
-  serviceRateId: z.string().uuid(),
+  serviceRateId: z.string().uuid().optional(),
   slotAt: z.coerce.date(),
   estimatedAmount: z.coerce.number().nonnegative().optional(),
   advanceAmount: z.coerce.number().nonnegative().optional(),

@@ -3,7 +3,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '@/db/client';
 import { NotFoundError, ConflictError, ValidationError } from '@/shared/errors/AppError';
 import { buildPaginationMeta, paginationSkipTake } from '@/shared/pagination';
-import { computeSalaryAmounts, MONTHLY_SALARY_DIVISOR, workingDaySet } from './payroll.calc';
+import { computeSalaryAmounts, workingDaySet } from './payroll.calc';
 import { salaryBalance } from './payroll.balance';
 import type { PayrollRunFilters, ListPayrollRunsQuery, PaySalarySlipBody, ListSalarySlipsQuery } from './payroll.schemas';
 
@@ -13,7 +13,8 @@ interface EligibleRow {
   employeeId: string;
   salaryBasis: string;
   monthlyBaseAmount?: Decimal;
-  monthlyPerDayAmount?: Decimal;
+  monthlyScheduledDays: number;
+  dailyRate: Decimal;
   scheduledPayableDays: number;
   attendanceEquivalentDays: number;
   periodBaseAmount: Decimal;
@@ -128,10 +129,7 @@ async function computeEligibility(filters: PayrollRunFilters): Promise<{ eligibl
       fullName: s.fullName,
       employeeId: s.employeeId,
       salaryBasis: profile.salaryBasis,
-      ...(profile.salaryBasis === 'MONTHLY' ? {
-        monthlyBaseAmount: profile.baseAmount,
-        monthlyPerDayAmount: profile.baseAmount.div(MONTHLY_SALARY_DIVISOR),
-      } : {}),
+      ...(profile.salaryBasis.startsWith('MONTHLY') ? { monthlyBaseAmount: profile.baseAmount } : {}),
       ...amounts,
       taxMethod: profile.salaryTaxMethod,
       taxValue: profile.salaryTaxValue,
@@ -215,11 +213,13 @@ export const payrollService = {
             },
             calculationSnapshot: {
               salaryBasis: row.salaryBasis,
-              ...(row.salaryBasis === 'MONTHLY' ? {
-                monthlyBaseAmount: row.monthlyBaseAmount?.toString(),
-                monthlyPerDayAmount: row.monthlyPerDayAmount?.toString(),
-              } : {}),
+              ...(row.salaryBasis.startsWith('MONTHLY') ? { monthlyBaseAmount: row.monthlyBaseAmount?.toString() } : {}),
               salaryProfileId: row.salaryProfileId,
+              // Audit trail (PDF §11): the exact day-count/rate basis used,
+              // so historical payroll stays reproducible even if the salary
+              // profile, schedule, or attendance is edited afterwards.
+              monthlyScheduledDays: row.monthlyScheduledDays,
+              dailyRate: row.dailyRate.toString(),
               scheduledPayableDays: row.scheduledPayableDays,
               attendanceEquivalentDays: row.attendanceEquivalentDays,
               taxMethod: row.taxMethod,

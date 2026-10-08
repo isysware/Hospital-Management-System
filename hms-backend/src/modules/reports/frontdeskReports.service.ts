@@ -261,7 +261,7 @@ export const frontdeskReportsService = {
       rows: rows.map((r) => ({
         invoiceNumber: r.hospitalInvoice.invoiceNumber,
         patientOrPanel: r.hospitalInvoice.corporatePanel?.organizationName || patientDisplayName(r.hospitalInvoice),
-        service: r.serviceRate.name,
+        service: (r.descriptionSnapshot ?? r.serviceRate?.name ?? r.billingSource),
         standardAmount: r.lineGross,
         discountAmount: r.discountAmount,
         net: r.lineNet,
@@ -343,10 +343,10 @@ export const frontdeskReportsService = {
     const byKey = new Map<string, Bucket>();
     for (const r of rows) {
       const dept = r.hospitalInvoice.department?.name || 'Unassigned';
-      const key = `${dept}::${r.serviceRate.name}`;
+      const key = `${dept}::${(r.descriptionSnapshot ?? r.serviceRate?.name ?? r.billingSource)}`;
       let bucket = byKey.get(key);
       if (!bucket) {
-        bucket = { department: dept, service: r.serviceRate.name, qty: new Decimal(0), gross: new Decimal(0), discount: new Decimal(0), net: new Decimal(0) };
+        bucket = { department: dept, service: (r.descriptionSnapshot ?? r.serviceRate?.name ?? r.billingSource), qty: new Decimal(0), gross: new Decimal(0), discount: new Decimal(0), net: new Decimal(0) };
         byKey.set(key, bucket);
       }
       bucket.qty = bucket.qty.plus(r.quantity);
@@ -461,7 +461,7 @@ export const frontdeskReportsService = {
     type LedgerRow = { occurredAt: Date; reference: string; type: string; description: string; debit: Decimal; credit: Decimal; performedBy: string };
     const entries: LedgerRow[] = [];
     for (const l of invoice.lines) {
-      entries.push({ occurredAt: l.createdAt, reference: invoice.invoiceNumber, type: 'CHARGE', description: l.serviceRate.name, debit: l.lineNet, credit: new Decimal(0), performedBy: '—' });
+      entries.push({ occurredAt: l.createdAt, reference: invoice.invoiceNumber, type: 'CHARGE', description: (l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource), debit: l.lineNet, credit: new Decimal(0), performedBy: '—' });
     }
     for (const p of invoice.paymentReceipts) {
       entries.push({
@@ -640,7 +640,7 @@ export const frontdeskReportsService = {
     const rows: ExceptionRow[] = [
       ...discountLines.map((l) => ({
         type: 'DISCOUNT' as const,
-        reference: l.serviceRate.name,
+        reference: (l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource),
         invoiceNumber: l.hospitalInvoice.invoiceNumber,
         invoiceId: l.hospitalInvoice.id,
         patient: l.hospitalInvoice.corporatePanel?.organizationName || patientDisplayName(l.hospitalInvoice),

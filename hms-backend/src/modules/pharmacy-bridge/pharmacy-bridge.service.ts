@@ -1,9 +1,11 @@
+import { requirePharmacyDepartment } from '@/shared/pharmacyDepartment';
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '@/db/client';
 import { NotFoundError, ValidationError, AuthorizationError } from '@/shared/errors/AppError';
 import { generateInvoiceNumber, generateExpenseNumber } from '@/shared/idGenerator';
 import { pharmacyBridgeClient } from '@/shared/pharmacyBridgeClient';
 import { resolvePanelCoverage } from '@/shared/panelCoverage';
+import { computePharmacyPortion } from '@/shared/pharmacyFifoCredit';
 import type {
   ListRequestsQuery,
   DispensedCallbackBody,
@@ -63,7 +65,7 @@ export const pharmacyBridgeService = {
 
   // ── Dispense Callback from Pharmacy Backend (Webhook) ────────────────────
   async handleDispensedCallback(body: DispensedCallbackBody) {
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // 1. Concurrency lock per admission reference
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${body.externalAdmissionRef}))`;
 
@@ -101,7 +103,7 @@ export const pharmacyBridgeService = {
           admissionRecordId: admission.id,
           sourceType: 'ADMISSION',
           status: { not: 'VOID' },
-          NOT: { invoiceNumber: { startsWith: 'INV-PHARM-' } },
+
         },
         orderBy: { createdAt: 'asc' }, // The original admission invoice created at admission check-in
         include: { lines: true },
@@ -147,38 +149,11 @@ export const pharmacyBridgeService = {
          (reqKey && existingCharge.processedEventIds.includes(reqKey)))
       ) {
         // Idempotent retry: this exact dispense event / request has already been processed!
-        return { charge: existingCharge, hospitalInvoice, alreadyProcessed: true };
+        return { charge: existingCharge, hospitalInvoice, alreadyProcessed: true, advanceFolded: false };
       }
 
-      // 6. Ensure Pharmacy Service Rate exists
-      let serviceRate = await tx.serviceRate.findFirst({
-        where: { code: 'SRV-PHARMACY' },
-      });
-      if (!serviceRate) {
-        let dept = await tx.department.findFirst({
-          where: { OR: [{ code: 'PHARM' }, { code: 'PHARMACY' }] },
-        });
-        if (!dept) {
-          dept = await tx.department.create({
-            data: {
-              code: 'PHARM',
-              name: 'Pharmacy Department',
-              departmentType: 'CLINICAL',
-            },
-          });
-        }
-        serviceRate = await tx.serviceRate.create({
-          data: {
-            code: 'SRV-PHARMACY',
-            name: 'Pharmacy Medication Charges',
-            departmentId: dept.id,
-            category: 'PHARMACY',
-            billingUnit: 'Items',
-            standardRate: new Decimal(0),
-            manualRateOverrideAllowed: true,
-          },
-        });
-      }
+      const pharmacyDepartment = await requirePharmacyDepartment(tx);
+      const legacyService = await tx.serviceRate.findUnique({ where: { code: 'SRV-PHARMACY' } });
 
       // 7. Prepare Pharmacy Lines
       const totalDecimal = new Decimal(body.totalAmount);
@@ -199,7 +174,7 @@ export const pharmacyBridgeService = {
         if (!admission.panelPatientId) {
           return { discountAmount: new Decimal(0), discountReason: reasonPrefix, lineNet: gross, patientShare: gross, panelReceivable: new Decimal(0), coverageSnapshot: undefined as any };
         }
-        const coverage = resolvePanelCoverage(gross, panelDiscountRules, serviceRate.id, new Date(), serviceRate.departmentId, quantity, admission.panelPatient);
+        const coverage = resolvePanelCoverage(gross, panelDiscountRules, legacyService?.id ?? 'PHARMACY', new Date(), pharmacyDepartment.id, quantity, admission.panelPatient);
         return {
           discountAmount: coverage.discountAmount,
           discountReason: coverage.discountReason ? `${reasonPrefix} — ${coverage.discountReason}` : reasonPrefix,
@@ -220,7 +195,7 @@ export const pharmacyBridgeService = {
               `Pharmacy: ${l.medicineName}${l.batchNumber ? ` [Batch: ${l.batchNumber}]` : ''}${l.externalRequestRef ? ` [Req: ${l.externalRequestRef}]` : ''}`,
             );
             return {
-              serviceRateId: serviceRate.id,
+              billingSource: 'PHARMACY' as const, descriptionSnapshot: l.medicineName,
               rateSnapshot: new Decimal(l.rate),
               quantity: new Decimal(l.quantity),
               lineGross: gross,
@@ -236,7 +211,7 @@ export const pharmacyBridgeService = {
             (() => {
               const coverage = applyCoverage(totalDecimal, new Decimal(1), `Pharmacy Medication Charges${body.externalRequestRef ? ` [Req: ${body.externalRequestRef}]` : ''}`);
               return {
-                serviceRateId: serviceRate.id,
+                billingSource: 'PHARMACY' as const, descriptionSnapshot: 'Pharmacy Medication',
                 rateSnapshot: totalDecimal,
                 quantity: new Decimal(1),
                 lineGross: totalDecimal,
@@ -256,7 +231,7 @@ export const pharmacyBridgeService = {
       await tx.invoiceLineItem.deleteMany({
         where: {
           hospitalInvoiceId: targetInvoice.id,
-          serviceRateId: serviceRate.id,
+          billingSource: 'PHARMACY',
         },
       });
 
@@ -268,25 +243,12 @@ export const pharmacyBridgeService = {
         })),
       });
 
-      // Clean up any legacy erroneous INV-PHARM-... invoices for this admission
-      const legacyPharmInvoices = await tx.hospitalInvoice.findMany({
-        where: {
-          admissionRecordId: admission.id,
-          invoiceNumber: { startsWith: 'INV-PHARM-' },
-          id: { not: targetInvoice.id },
-        },
-        include: { paymentReceipts: true },
-      });
-      for (const legacy of legacyPharmInvoices) {
-        if (legacy.paymentReceipts.length === 0) {
-          await tx.invoiceLineItem.deleteMany({ where: { hospitalInvoiceId: legacy.id } });
-          await tx.hospitalInvoice.delete({ where: { id: legacy.id } });
-        }
-      }
+      // Historical invoices are retained. Never identify/delete financial history by invoice-number prefix.
 
       // 9. Recalculate Hospital Invoice Totals (Hospital Charges + Pharmacy Charges):
       const allLines = await tx.invoiceLineItem.findMany({
         where: { hospitalInvoiceId: hospitalInvoice.id },
+        orderBy: { createdAt: 'asc' },
       });
 
       const newSubtotal = allLines.reduce((sum, l) => sum.plus(l.lineGross), new Decimal(0));
@@ -295,8 +257,28 @@ export const pharmacyBridgeService = {
       const newPatientShare = allLines.reduce((sum, l) => sum.plus(l.patientShare), new Decimal(0));
       const newPanelReceivable = allLines.reduce((sum, l) => sum.plus(l.panelReceivable), new Decimal(0));
 
-      // PRESERVE existing paid amount! (§10)
-      const paidTotal = hospitalInvoice.paidTotal;
+      // PRESERVE existing paid amount! (§10) — plus fold in any admission
+      // advance/deposit collected BEFORE these charges existed
+      // (`PaymentReceipt.hospitalInvoiceId: null`, e.g. the deposit taken at
+      // admission creation). Without this, that advance sits forever as
+      // unallocated credit: the invoice's own `paidTotal` and
+      // `HmsPharmacyCharge.patientPaid` never learn about it, so the
+      // pharmacy line stays stuck "Unpaid" at Front Desk even though the
+      // patient already paid enough to cover it (bug found via live testing
+      // 2026-10-06). Same linking pattern as `appointments.service.ts`'s
+      // check-in step uses for pre-Check-In advance receipts.
+      const previousPaidTotal = hospitalInvoice.paidTotal;
+      const unlinkedAdvance = await tx.paymentReceipt.findMany({
+        where: { admissionRecordId: admission.id, hospitalInvoiceId: null, isReversed: false },
+      });
+      const advanceTotal = unlinkedAdvance.reduce((sum, r) => sum.plus(r.amount), new Decimal(0));
+      if (advanceTotal.greaterThan(0)) {
+        await tx.paymentReceipt.updateMany({
+          where: { id: { in: unlinkedAdvance.map((r) => r.id) } },
+          data: { hospitalInvoiceId: hospitalInvoice.id },
+        });
+      }
+      const paidTotal = previousPaidTotal.plus(advanceTotal);
       const newOutstanding = Decimal.max(0, newPatientShare.minus(paidTotal));
       const newStatus = newOutstanding.equals(0)
         ? 'PAID'
@@ -312,10 +294,19 @@ export const pharmacyBridgeService = {
           total: newTotal,
           patientShare: newPatientShare,
           panelReceivable: newPanelReceivable,
+          paidTotal,
           status: newStatus,
         },
         include: { lines: true },
       });
+
+      // How much of the just-folded-in advance actually lands on THIS
+      // dispense's pharmacy lines (same FIFO-by-posting-order convention as
+      // `admissionBillingService.collectPayment`/`getLedger`) — credited
+      // onto `HmsPharmacyCharge.patientPaid` right after it's created/
+      // updated below (step 11), so Front Desk and the Pharmacy bridge both
+      // see it immediately instead of only on the next fresh payment.
+      const pharmacyPortionFromAdvance = computePharmacyPortion(allLines, previousPaidTotal, paidTotal);
 
       // 10. Update Pharmacy Clearance status to DISPENSED
       const allRequestRefs = new Set<string>();
@@ -416,6 +407,25 @@ export const pharmacyBridgeService = {
         });
       }
 
+      // Credit the advance-derived pharmacy portion computed above (step 9)
+      // on top of whatever `chargeData.patientPaid` already carried
+      // forward — same CLEARED/PARTIALLY_COLLECTED rule `collectPayment`
+      // applies for a fresh payment.
+      if (pharmacyPortionFromAdvance.greaterThan(0)) {
+        const newPatientPaid = charge.patientPaid.plus(pharmacyPortionFromAdvance);
+        const newPatientOutstanding = Decimal.max(0, charge.totalAmount.minus(newPatientPaid));
+        const chargePaidInFull = newPatientOutstanding.equals(0);
+        charge = await tx.hmsPharmacyCharge.update({
+          where: { id: charge.id },
+          data: {
+            patientPaid: newPatientPaid,
+            patientOutstanding: newPatientOutstanding,
+            patientPaymentStatus: chargePaidInFull ? 'CLEARED' : 'PARTIALLY_COLLECTED',
+            settlementStatus: chargePaidInFull && charge.settlementStatus === 'NOT_DUE' ? 'PENDING' : charge.settlementStatus,
+          },
+        });
+      }
+
       // Link clearance to charge if applicable
       if (allRequestRefs.size > 0) {
         await tx.pharmacyClearance.updateMany({
@@ -430,8 +440,24 @@ export const pharmacyBridgeService = {
         });
       }
 
-      return { charge, hospitalInvoice, alreadyProcessed: false };
+      return { charge, hospitalInvoice, alreadyProcessed: false, advanceFolded: pharmacyPortionFromAdvance.greaterThan(0) };
     }, { maxWait: 15000, timeout: 30000 });
+
+    // Resync the authoritative collected total to Pharmacy outside the DB
+    // transaction — same non-blocking, error-swallowing pattern
+    // `collectPayment` uses, so a webhook retry/network blip here never
+    // breaks the dispense callback itself.
+    if (result.advanceFolded) {
+      pharmacyBridgeClient.reconcileCollection({
+        pharmacyInvoiceNumber: result.charge.pharmacyInvoiceNumber,
+        authoritativeCollectedAmount: Number(result.charge.patientPaid),
+      }).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('[pharmacyBridgeService] Failed to notify pharmacy of advance-credited collection:', err);
+      });
+    }
+
+    return result;
   },
 
   // ── Inter-Entity Settlement Workflow (Hospital Management ↔ Pharmacy) ───
@@ -547,7 +573,7 @@ export const pharmacyBridgeService = {
       // showed up anywhere HMS's own cash/expense reporting looks (Expense
       // Report, Management Summary), so Admin had no visibility into how
       // much had actually been paid out to Pharmacy.
-      const pharmacyServiceRate = await tx.serviceRate.findFirst({ where: { code: 'SRV-PHARMACY' } });
+      const pharmacyDepartment = await requirePharmacyDepartment(tx);
       await tx.expense.create({
         data: {
           expenseNumber: await generateExpenseNumber(tx),
@@ -558,7 +584,7 @@ export const pharmacyBridgeService = {
           paidTo: 'Standalone Pharmacy',
           reference: body.paymentReference,
           description: `Pharmacy settlement release — ${settlement.pharmacyInvoiceNumber} (Settlement ${settlement.settlementNumber})${body.remarks ? `: ${body.remarks}` : ''}`,
-          departmentId: pharmacyServiceRate?.departmentId ?? null,
+          departmentId: pharmacyDepartment.id,
           createdById: actorId,
         },
       });

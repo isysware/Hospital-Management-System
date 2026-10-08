@@ -340,7 +340,8 @@ function toAdmissionDetail(raw: Record<string, any>): AdmissionDetail {
       status: inv.status,
       lines: (inv.lines || []).map((l: any) => ({
         id: l.id,
-        serviceName: /ward\s*fixed/i.test(l.serviceRate?.name || '') ? 'Ward Price' : (l.serviceRate?.name || ''),
+        serviceName: l.descriptionSnapshot || l.serviceRate?.name || l.billingSource,
+        billingSource: l.billingSource,
         serviceCode: (/^ward[-_]fixed/i.test(l.serviceRate?.code || '') || (l.serviceRate?.code || '').includes('-DEL-') || /ward[-_]price/i.test(l.serviceRate?.code || '')) ? '' : (l.serviceRate?.code || ''),
         quantity: toNumber(l.quantity) || 1,
         lineGross: toNumber(l.lineGross),

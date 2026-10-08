@@ -93,6 +93,9 @@ export const transferBedSchema = z.object({
 export type TransferBedBody = z.infer<typeof transferBedSchema>;
 
 export const addAdmissionServiceSchema = z.object({
+  providerType: z.enum(['INTERNAL', 'OUTSOURCED']).optional(),
+  departmentId: z.string().uuid().optional(),
+  outsourcedProviderId: z.string().uuid().optional(),
   serviceRateId: z.string().uuid(),
   quantity: z.coerce.number().positive().default(1),
   notes: z.string().optional(),

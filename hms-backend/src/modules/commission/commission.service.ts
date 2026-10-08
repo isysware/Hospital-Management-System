@@ -31,7 +31,7 @@ export const commissionService = {
     tx: Prisma.TransactionClient,
     lineItem: {
       id: string;
-      serviceRateId: string;
+      serviceRateId: string | null;
       quantity: Decimal;
       lineGross: Decimal;
       lineNet: Decimal;
@@ -40,6 +40,7 @@ export const commissionService = {
     doctorStaffId: string,
     actorId?: string,
   ) {
+    if (!lineItem.serviceRateId) return null;
     // 1. Check if commission is already accrued for this invoice line (enforces 1:1 constraint)
     const existing = await tx.doctorCommissionAccrual.findUnique({
       where: { invoiceLineItemId: lineItem.id },
@@ -47,7 +48,7 @@ export const commissionService = {
     if (existing) return existing;
 
     const source = await tx.invoiceLineItem.findUnique({ where: { id: lineItem.id }, include: { hospitalInvoice: true } });
-    if (!source?.isCompleted || source.hospitalInvoice.status === 'VOID' || source.performedByStaffId !== doctorStaffId) return null;
+    if (!source?.serviceRateId || !source.isCompleted || source.hospitalInvoice.status === 'VOID' || source.performedByStaffId !== doctorStaffId) return null;
     const assignment = await tx.staffService.findFirst({ where: {
       staffId: doctorStaffId, serviceRateId: source.serviceRateId, isActive: true,
       staff: { isActive: true }, serviceRate: { isActive: true, isDeleted: false },

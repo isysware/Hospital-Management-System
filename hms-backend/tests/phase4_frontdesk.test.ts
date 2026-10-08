@@ -111,6 +111,7 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (prisma.invoiceLineItem.findMany as any).mockResolvedValue([]);
     (prisma.selfPayEncounter.create as any).mockResolvedValue({
       id: 'self-pay-mock-id',
       fullName: 'Ahmad Khan',
@@ -121,8 +122,9 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
   describe('1. Appointments Flow & Advance Collection (§4.6, D16 p.8)', () => {
     it('books an appointment with advance payment and logs cashier physical cash', async () => {
       (prisma.serviceRate.findUnique as any).mockResolvedValue({
+        providerType: 'INTERNAL', billingSource: 'HOSPITAL_SERVICE', selectable: true, isDeleted: false, isSystemGenerated: false, department: { isActive: true, pharmacyRelated: false, fulfillmentOwnership: 'INTERNAL' }, departmentId: 'dept-1',
         id: serviceRateId,
-        name: 'Consultation - General OPD',
+        name: 'Dressing',
         standardRate: new Decimal(2000),
         isActive: true,
       });
@@ -422,6 +424,7 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
 
     it('rejects booking when service rate belongs to another department', async () => {
       (prisma.serviceRate.findUnique as any).mockResolvedValue({
+        providerType: 'INTERNAL', billingSource: 'HOSPITAL_SERVICE', selectable: true, isDeleted: false, isSystemGenerated: false, department: { isActive: true, pharmacyRelated: false, fulfillmentOwnership: 'INTERNAL' }, 
         id: serviceRateId,
         standardRate: new Decimal(2000),
         isActive: true,
@@ -439,7 +442,7 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
           },
           cashierId,
         ),
-      ).rejects.toThrow('Selected service does not belong to the chosen department');
+      ).rejects.toThrow('Service does not belong to the selected department');
     });
 
     it('reschedules appointment and updates status to RESCHEDULED', async () => {
@@ -541,6 +544,7 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
       });
 
       (prisma.serviceRate.findUnique as any).mockResolvedValue({
+        providerType: 'INTERNAL', billingSource: 'HOSPITAL_SERVICE', selectable: true, isDeleted: false, isSystemGenerated: false, department: { isActive: true, pharmacyRelated: false, fulfillmentOwnership: 'INTERNAL' }, departmentId: 'dept-1',
         id: serviceRateId,
         standardRate: new Decimal(5000),
         isActive: true,
@@ -583,6 +587,7 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
       });
 
       (prisma.serviceRate.findUnique as any).mockResolvedValue({
+        providerType: 'INTERNAL', billingSource: 'HOSPITAL_SERVICE', selectable: true, isDeleted: false, isSystemGenerated: false, department: { isActive: true, pharmacyRelated: false, fulfillmentOwnership: 'INTERNAL' }, departmentId: 'dept-1',
         id: serviceRateId,
         standardRate: new Decimal(10000),
         isActive: true,
@@ -610,6 +615,7 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
       });
 
       (prisma.serviceRate.findUnique as any).mockResolvedValue({
+        providerType: 'INTERNAL', billingSource: 'HOSPITAL_SERVICE', selectable: true, isDeleted: false, isSystemGenerated: false, department: { isActive: true, pharmacyRelated: false, fulfillmentOwnership: 'INTERNAL' }, departmentId: 'dept-1',
         id: serviceRateId,
         standardRate: new Decimal(10000),
         isActive: true,

@@ -1,3 +1,4 @@
+import { assertSelectableService } from '@/shared/serviceClassification';
 import bcrypt from 'bcryptjs';
 import { Decimal } from '@prisma/client/runtime/library';
 import { commissionService } from '@/modules/commission/commission.service';
@@ -91,31 +92,9 @@ async function recalcInvoiceTotals(
  * admitted room's OWN configured daily rate instead (rates differ per
  * room/bed, one shared rate card wouldn't fit).
  */
-async function getOrCreateRoomChargeServiceRate(tx: Prisma.TransactionClient, fallbackDepartmentId: string, actorId: string) {
-  let serviceRate = await tx.serviceRate.findFirst({
-    where: {
-      OR: [{ code: 'ROOM-ACC' }, { name: { contains: 'Room / Bed Accommodation', mode: 'insensitive' } }],
-    },
-  });
-
-  if (!serviceRate) {
-    serviceRate = await tx.serviceRate.create({
-      data: {
-        code: 'ROOM-ACC',
-        name: 'Room / Bed Accommodation Charges',
-        category: 'Accommodation',
-        departmentId: fallbackDepartmentId,
-        standardRate: new Decimal(2000),
-        billingUnit: 'PER_DAY',
-        discountAllowed: false,
-        isActive: true,
-        isSystemGenerated: true,
-        createdById: actorId,
-      },
-    });
-  }
-
-  return serviceRate;
+async function getOrCreateRoomChargeServiceRate(tx: Prisma.TransactionClient, _fallbackDepartmentId: string, _actorId: string) {
+  // Optional legacy reference for existing panel contracts only. Never create a master row.
+  return tx.serviceRate.findFirst({ where: { code: 'ROOM-ACC' } });
 }
 
 /**
@@ -184,43 +163,9 @@ async function postWardFixedChargeIfApplicable(
     });
   }
 
-  let serviceRate = await tx.serviceRate.findFirst({
-    where: {
-      OR: [
-        { code: 'WARD-PRICE' },
-        { code: 'WARD-FIXED' },
-        { name: { contains: 'Ward Price', mode: 'insensitive' } },
-        { name: { contains: 'Ward Fixed / Admission Fee', mode: 'insensitive' } },
-        { name: { contains: 'Ward Fixed', mode: 'insensitive' } },
-      ],
-    },
-  });
-
-  if (!serviceRate) {
-    serviceRate = await tx.serviceRate.create({
-      data: {
-        code: 'WARD-PRICE',
-        name: 'Ward Price',
-        category: 'Accommodation',
-        departmentId: invoice.departmentId ?? ward.departmentId,
-        standardRate: new Decimal(0),
-        billingUnit: 'PER_ADMISSION',
-        discountAllowed: false,
-        isActive: true,
-        isSystemGenerated: true,
-        createdById: actorId,
-      },
-    });
-  } else if (/fixed/i.test(serviceRate.name)) {
-    serviceRate = await tx.serviceRate.update({
-      where: { id: serviceRate.id },
-      data: { name: 'Ward Price' },
-    });
-  }
-
-  // Idempotency: verify this one-time fee has not already been posted on the admission's invoice
-  const linesList = invoice.lines ?? (await tx.invoiceLineItem.findMany({ where: { hospitalInvoiceId: invoice.id } })) ?? [];
-  const alreadyBilled = linesList.some((l: any) => l.serviceRateId === serviceRate!.id);
+  const serviceRate = await tx.serviceRate.findFirst({ where: { code: { in: ['WARD-PRICE', 'WARD-FIXED'] } } });
+  const linesList = await tx.invoiceLineItem.findMany({ where: { hospitalInvoiceId: invoice.id } });
+  const alreadyBilled = linesList.some((l: any) => l.billingSource === 'ROOM_BED' && l.descriptionSnapshot === 'Ward Price');
   if (alreadyBilled) {
     return null;
   }
@@ -228,7 +173,7 @@ async function postWardFixedChargeIfApplicable(
   const panelPatient = invoice.panelPatientId ? await tx.panelPatient.findUnique({
     where: { id: invoice.panelPatientId }, include: { corporatePanel: { include: { discountRules: true } } },
   }) : null;
-  const coverage = resolvePanelCoverage(wardFixedRate, panelPatient?.corporatePanel.discountRules, serviceRate.id, new Date(), ward.departmentId, new Decimal(1), panelPatient);
+  const coverage = resolvePanelCoverage(wardFixedRate, panelPatient?.corporatePanel.discountRules, serviceRate?.id ?? 'ROOM_BED', new Date(), ward.departmentId, new Decimal(1), panelPatient);
   if (panelPatient) {
     const authFields = await tx.admissionRecord.findUnique({
       where: { id: admissionId },
@@ -239,7 +184,7 @@ async function postWardFixedChargeIfApplicable(
   const createdLine = await tx.invoiceLineItem.create({
     data: {
       hospitalInvoiceId: invoice.id,
-      serviceRateId: serviceRate.id,
+      billingSource: 'ROOM_BED', descriptionSnapshot: 'Ward Price',
       rateSnapshot: wardFixedRate,
       quantity: new Decimal(1),
       lineGross: wardFixedRate,
@@ -274,12 +219,12 @@ async function postInitialRoomChargeIfApplicable(tx: Prisma.TransactionClient, a
   });
   if (!invoice) throw new NotFoundError('Admission invoice not found');
   const service = await getOrCreateRoomChargeServiceRate(tx, admission.departmentId, actorId);
-  const coverage = resolvePanelCoverage(rate, admission.panelPatient?.corporatePanel?.discountRules, service.id, new Date(), admission.departmentId, new Decimal(1), admission.panelPatient);
+  const coverage = resolvePanelCoverage(rate, admission.panelPatient?.corporatePanel?.discountRules, service?.id ?? 'ROOM_BED', new Date(), admission.departmentId, new Decimal(1), admission.panelPatient);
   if (admission.panelPatient) {
     assertCaseAuthorization(admission.panelPatient.corporatePanel?.authorizationRequired, coverage.matchedRule?.preauthorizationRequired, admission);
   }
   const line = await tx.invoiceLineItem.create({ data: {
-    hospitalInvoiceId: invoice.id, serviceRateId: service.id, rateSnapshot: rate,
+    hospitalInvoiceId: invoice.id, billingSource: 'ROOM_BED', descriptionSnapshot: 'Room / Bed Charges', rateSnapshot: rate,
     quantity: new Decimal(1), lineGross: rate, discountAmount: coverage.discountAmount,
     discountReason: coverage.discountReason, lineNet: rate.minus(coverage.discountAmount),
     patientShare: coverage.patientShare, panelReceivable: coverage.panelReceivable, coverageSnapshot: coverage.coverageSnapshot, isCompleted: true,
@@ -939,10 +884,9 @@ export const admissionService = {
         throw new ValidationError('Cannot add hospital charges to a non-active admission');
       }
 
-      const serviceRate = await tx.serviceRate.findUnique({ where: { id: body.serviceRateId } });
-      if (!serviceRate || !serviceRate.isActive) {
-        throw new NotFoundError('Service rate not found or inactive');
-      }
+      const serviceRate = await tx.serviceRate.findUnique({ include: { department: { include: { outsourcedProvider: true } } }, where: { id: body.serviceRateId } });
+      assertSelectableService(serviceRate, body);
+      if (!serviceRate) throw new NotFoundError('Service not found');
 
       // 1 Admission = 1 Single Master Invoice!
       // All services, investigations, procedures, and room charges added for this admission
@@ -972,7 +916,7 @@ export const admissionService = {
 
       const rate = serviceRate.standardRate;
       const qty = new Decimal(body.quantity);
-      const arrangementMode = body.arrangementMode ?? (serviceRate.serviceStream === 'LAB' ? admission.outsourcedFulfillmentMode : 'HOSPITAL_MANAGED');
+      const arrangementMode = body.arrangementMode ?? (serviceRate.providerType === 'OUTSOURCED' ? admission.outsourcedFulfillmentMode : 'HOSPITAL_MANAGED');
       const isSelf = arrangementMode === 'SELF';
 
       let lineGross: Decimal;
@@ -1011,6 +955,7 @@ export const admissionService = {
         data: {
           hospitalInvoiceId: invoice.id,
           serviceRateId: serviceRate.id,
+          billingSource: serviceRate.billingSource, descriptionSnapshot: serviceRate.name,
           rateSnapshot: isSelf ? new Decimal(0) : rate,
           quantity: qty,
           lineGross,
@@ -1983,7 +1928,7 @@ export const admissionService = {
           });
         }
 
-        const coverage = resolvePanelCoverage(dailyRate, admission.panelPatient?.corporatePanel?.discountRules, serviceRate.id, new Date(), admission.departmentId, new Decimal(1), admission.panelPatient);
+        const coverage = resolvePanelCoverage(dailyRate, admission.panelPatient?.corporatePanel?.discountRules, serviceRate?.id ?? 'ROOM_BED', new Date(), admission.departmentId, new Decimal(1), admission.panelPatient);
         if (
           admission.panelPatient &&
           caseAuthorizationIneligibilityReasons(!!coverage.matchedRule?.preauthorizationRequired, admission).length > 0
@@ -1995,7 +1940,7 @@ export const admissionService = {
         const createdLine = await tx.invoiceLineItem.create({
           data: {
             hospitalInvoiceId: invoice.id,
-            serviceRateId: serviceRate.id,
+            billingSource: 'ROOM_BED', descriptionSnapshot: 'Room / Bed Charges',
             rateSnapshot: dailyRate,
             quantity: new Decimal(1),
             lineGross: dailyRate,

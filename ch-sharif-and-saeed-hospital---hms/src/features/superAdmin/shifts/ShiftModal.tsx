@@ -94,10 +94,9 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         }
       } else {
         // ADD NEW MODE:
-        const firstActiveDept = departments.find((d) => d.status === 'Active') || departments[0];
         setFormData({
           ...defaultState,
-          departmentId: firstActiveDept ? firstActiveDept.id : '',
+          departmentId: '',
         });
       }
       setErrors({});
@@ -265,7 +264,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               {/* Canonical Department */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  Department <span className="text-rose-500">*</span>
+                  Department (Optional)
                 </label>
                 <select
                   value={formData.departmentId}
@@ -279,7 +278,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                       : 'border-slate-300 focus:border-[#08775A] focus:ring-[#08775A]'
                   }`}
                 >
-                  <option value="">-- Select Department --</option>
+                  <option value="">HMS (All Departments)</option>
                   {selectableDepartments.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name} {d.status === 'Inactive' ? '(Inactive)' : ''}
@@ -290,7 +289,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   <p className="text-[11px] text-rose-500 mt-1">{errors.departmentId}</p>
                 ) : (
                   <p className="text-[10.5px] text-slate-400 mt-0.5">
-                    Hospital department owning this shift
+                    Leave blank for an HMS-wide shift, or select its department
                   </p>
                 )}
               </div>

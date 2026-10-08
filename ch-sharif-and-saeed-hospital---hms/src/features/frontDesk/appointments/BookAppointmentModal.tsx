@@ -291,27 +291,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
   // - If an encounter type is selected (OPD / Observation / Emergency), service must match that encounterType OR be a general hospital service (NONE)
   // - If department is selected and service is department-specific, must match department or be assigned to the doctor
   const selectableServices = useMemo(() => {
-    return activeServices.filter((s) => {
-      if (s.status !== 'Active') return false;
-      if (s.code === 'SRV-PHARMACY' || (s.category as string) === 'Pharmacy' || s.category === 'Room / Bed') return false;
-
-      // Doctor assigned services are always eligible
-      const assignedIds = activeDoctors.find((d) => d.id === doctorStaffId)?.assignedServiceIds;
-      const isAssignedToDoctor = assignedIds && assignedIds.includes(s.id);
-
-      // Encounter type match:
-      if (encounterType) {
-        const matchesEncounter = s.encounterType === encounterType || s.encounterType === 'NONE';
-        if (!matchesEncounter && !isAssignedToDoctor) return false;
-      }
-
-      // Department match (hospital-wide services with null/empty departmentId are always available):
-      if (departmentId && s.departmentId && s.departmentId !== departmentId && !isAssignedToDoctor) {
-        return false;
-      }
-
-      return true;
-    });
+    return servicesForSource(activeServices, departmentId).filter(s => !encounterType || s.encounterType === encounterType || s.encounterType === 'NONE');
   }, [activeServices, encounterType, departmentId, activeDoctors, doctorStaffId]);
 
   // Keep selected service ONLY if it is still valid in selectableServices.
@@ -324,7 +304,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
 
   const selectedDoctor = activeDoctors.find((d) => d.id === doctorStaffId);
   const selectedService = selectableServices.find((s) => s.id === serviceRateId) || activeServices.find((s) => s.id === serviceRateId);
-  const grossFee = selectedService?.standardRate ?? 0;
+  const grossFee = selectedService?.standardRate ?? selectedDoctor?.consultationFee ?? 0;
 
   const panelPreview =
     payerType === 'Corporate / Panel' && panelId && selectedService
@@ -402,8 +382,8 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
       return;
     }
 
-    if (!serviceRateId || !selectedService) {
-      setFormError('Please select a Consultation Service from the list.');
+    if (!selectedService && selectedDoctor?.consultationFee == null) {
+      setFormError('Select a doctor with a configured visit fee, or select a hospital procedure.');
       return;
     }
     if (collectAdvance) {
@@ -457,7 +437,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
             ? selectedService.departmentId
             : departmentId || selectedService?.departmentId || departments.find((department) => encounterDeptFlag && department[encounterDeptFlag])?.id || departments[0]?.id || '',
         doctorStaffId: doctorStaffId || undefined,
-        serviceRateId,
+        serviceRateId: serviceRateId || undefined,
         slotAt,
         estimatedAmount: grossFee || undefined,
         advanceAmount: collectAdvance ? Number(advanceAmount) : undefined,
@@ -770,7 +750,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
             </div>
           )}
 
-          {/* 3. Encounter Service, Consulting Doctor & Consultation Service */}
+          {/* 3. Encounter Service, Consulting Doctor & Hospital Procedure (optional) */}
           <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3.5 shadow-xs">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">

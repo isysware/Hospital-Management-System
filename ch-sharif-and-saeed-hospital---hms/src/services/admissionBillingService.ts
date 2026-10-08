@@ -45,6 +45,7 @@ export type PaymentMethod = 'CASH' | 'CARD' | 'BANK' | 'ONLINE';
 
 export interface DepartmentInvoiceLine {
   id: string;
+  billingSource?: string;
   serviceName: string;
   quantity: number;
   lineGross: number;
@@ -132,7 +133,7 @@ function normalize(raw: Record<string, any>): AdmissionStatement {
     departmentInvoices: (raw.departmentInvoices || []).map((inv: any) => ({
       id: inv.id,
       invoiceNumber: inv.invoiceNumber,
-      departmentName: inv.department?.name || (inv.invoiceNumber?.startsWith('INV-PHARM-') ? 'Pharmacy Department' : 'Unassigned'),
+      departmentName: inv.department?.name || 'Unassigned',
       subtotal: toNumber(inv.subtotal),
       discountTotal: toNumber(inv.discountTotal),
       total: toNumber(inv.total),
@@ -146,7 +147,8 @@ function normalize(raw: Record<string, any>): AdmissionStatement {
       pharmacyDetails: inv.pharmacyDetails || null,
       lines: (inv.lines || []).map((l: any) => ({
         id: l.id,
-        serviceName: l.serviceRate?.name || '',
+        billingSource: l.billingSource,
+        serviceName: l.descriptionSnapshot || l.serviceRate?.name || '',
         quantity: Number(l.quantity ?? 1),
         lineGross: toNumber(l.lineGross),
         discountAmount: toNumber(l.discountAmount),

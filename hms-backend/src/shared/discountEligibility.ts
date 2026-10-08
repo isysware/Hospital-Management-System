@@ -8,43 +8,9 @@
  * eligibility rule can't drift between the two call sites.
  */
 export function isEligibleHospitalService(serviceRate: any): boolean {
-  if (!serviceRate) return true;
-  if (serviceRate.discountAllowed === false) return false;
-  if (serviceRate.serviceStream === 'LAB') return false;
-
-  const cat = (serviceRate.category || '').toLowerCase();
-  if (
-    cat.includes('lab') ||
-    cat.includes('pathology') ||
-    cat.includes('pharmacy') ||
-    cat.includes('radiology') ||
-    cat.includes('diagnostic')
-  ) {
-    return false;
-  }
-
-  const dept = serviceRate.department;
-  if (dept) {
-    if (dept.fulfillmentOwnership === 'OUTSOURCED') return false;
-    if (Boolean(dept.outsourcedProviderId)) return false;
-    if (dept.pharmacyRelated) return false;
-    const deptName = (dept.name || '').toLowerCase();
-    const deptCode = (dept.code || '').toLowerCase();
-    if (
-      deptName.includes('lab') ||
-      deptName.includes('pathology') ||
-      deptName.includes('pharmacy') ||
-      deptName.includes('radiology') ||
-      deptName.includes('imaging') ||
-      deptCode.includes('lab') ||
-      deptCode.includes('pharm') ||
-      deptCode.includes('rad')
-    ) {
-      return false;
-    }
-  }
-
-  return true;
+  return !!serviceRate && serviceRate.selectable === true &&
+    serviceRate.billingSource === 'HOSPITAL_SERVICE' &&
+    serviceRate.providerType === 'INTERNAL' && serviceRate.discountAllowed !== false;
 }
 
 export const DISCOUNT_APPROVAL_PERCENT_THRESHOLD = 15; // > 15% requires Admin approval

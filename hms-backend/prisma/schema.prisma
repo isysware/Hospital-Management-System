@@ -381,6 +381,7 @@ enum CommissionStatus {
 /// Permanent HR identity (§4.1, §6.4 `staff`). Exists independently of any
 /// login — "No Portal Access" is a valid, fully supported state.
 model Staff {
+  consultationFee Decimal? @map("consultation_fee") @db.Decimal(14, 2)
   id                 String                @id @default(uuid())
   employeeId         String                @unique @map("employee_id") // system-generated (§16 Q-01)
   fullName           String                @map("full_name")
@@ -777,6 +778,7 @@ model HospitalFloor {
 }
 
 model Department {
+  isDefaultPharmacy Boolean @default(false) @map("is_default_pharmacy")
   id                   String                         @id @default(uuid())
   code                 String                         @unique
   name                 String
@@ -946,7 +948,21 @@ enum ServiceStream {
 }
 
 /// §4.2 "Services & Rates" (renamed `ServiceRate` for this phase; = §6.5 `services`).
+enum BillingSource {
+  HOSPITAL_SERVICE
+  OUTSOURCED_SERVICE
+  DOCTOR_CHARGE
+  ROOM_BED
+  PHARMACY
+  LAB
+  OTHER_VALID_SOURCE
+}
+
 model ServiceRate {
+  billingSource BillingSource @default(HOSPITAL_SERVICE) @map("billing_source")
+  providerType DepartmentFulfillmentOwnership @default(INTERNAL) @map("provider_type")
+  selectable Boolean @default(true)
+
   id                        String        @id @default(uuid())
   code                      String        @unique
   name                      String
@@ -989,6 +1005,7 @@ model ServiceRate {
   updatedByUser PortalUser?   @relation("ServiceRateUpdatedBy", fields: [updatedById], references: [id])
   Appointment   Appointment[]
 
+  @@index([providerType, departmentId, isActive, selectable], map: "service_rates_selection_idx")
   @@map("service_rates")
 }
 
@@ -1099,8 +1116,8 @@ model Shift {
   id                               String     @id @default(uuid())
   code                             String     @unique
   name                             String
-  departmentId                     String     @map("department_id")
-  department                       Department @relation(fields: [departmentId], references: [id])
+  departmentId                     String?    @map("department_id")
+  department                       Department?@relation(fields: [departmentId], references: [id])
   shiftType                        ShiftType  @default(CUSTOM) @map("shift_type")
   startTime                        String     @map("start_time") // HH:mm, 24h
   endTime                          String     @map("end_time") // HH:mm, 24h
@@ -1371,8 +1388,8 @@ model Appointment {
   department         Department        @relation(fields: [departmentId], references: [id])
   doctorStaffId      String?           @map("doctor_staff_id")
   doctor             Staff?            @relation("AppointmentDoctor", fields: [doctorStaffId], references: [id], onDelete: Restrict)
-  serviceRateId      String            @map("service_rate_id")
-  serviceRate        ServiceRate       @relation(fields: [serviceRateId], references: [id])
+  serviceRateId      String?           @map("service_rate_id")
+  serviceRate        ServiceRate?      @relation(fields: [serviceRateId], references: [id])
   slotAt             DateTime          @map("slot_at")
   estimatedAmount    Decimal           @map("estimated_amount") @db.Decimal(14, 2)
   status             AppointmentStatus @default(DRAFT)
@@ -1471,12 +1488,15 @@ model HospitalInvoice {
 /// = §6.8 `invoice_lines`. `rateSnapshot` is frozen at billing time — later
 /// ServiceRate.standardRate changes must never rewrite a posted line (D15 §15).
 model InvoiceLineItem {
+  billingSource BillingSource @default(HOSPITAL_SERVICE) @map("billing_source")
+  descriptionSnapshot String? @map("description_snapshot")
+
   coverageSnapshot Json? @map("coverage_snapshot")
   id                 String          @id @default(uuid())
   hospitalInvoiceId  String          @map("hospital_invoice_id")
   hospitalInvoice    HospitalInvoice @relation(fields: [hospitalInvoiceId], references: [id])
-  serviceRateId      String          @map("service_rate_id")
-  serviceRate        ServiceRate     @relation(fields: [serviceRateId], references: [id])
+  serviceRateId      String?         @map("service_rate_id")
+  serviceRate        ServiceRate?    @relation(fields: [serviceRateId], references: [id])
   rateSnapshot       Decimal         @map("rate_snapshot") @db.Decimal(14, 2)
   quantity           Decimal         @default(1) @db.Decimal(14, 3)
   lineGross          Decimal         @map("line_gross") @db.Decimal(14, 2)
@@ -1498,6 +1518,7 @@ model InvoiceLineItem {
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([billingSource], map: "invoice_line_items_source_idx")
   @@map("invoice_line_items")
 }
 

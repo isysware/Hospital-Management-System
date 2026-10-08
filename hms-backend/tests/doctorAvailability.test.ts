@@ -34,7 +34,7 @@ vi.mock('@/db/client', () => ({
       // Echoes back every requested id as an active, non-deleted service —
       // staff.service.ts's assertServicesActive() consumes this.
       findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
-        where.id.in.map((serviceId) => ({ id: serviceId, isActive: true, isDeleted: false })),
+        where.id.in.map((serviceId) => ({ id: serviceId, isActive: true, isDeleted: false, selectable: true, isSystemGenerated: false })),
       ),
     },
   },

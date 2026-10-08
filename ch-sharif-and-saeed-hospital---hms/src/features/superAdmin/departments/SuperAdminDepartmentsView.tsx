@@ -308,7 +308,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
   const handleConfirmDelete = async () => {
     if (!selectedDeptForDelete) return;
     if (isProtectedCoreDepartment(selectedDeptForDelete)) {
-      toast.error(`Core hospital care department "${selectedDeptForDelete.name}" (${selectedDeptForDelete.code}) is protected and cannot be deleted.`);
+      toast.error(`Default Pharmacy department "${selectedDeptForDelete.name}" (${selectedDeptForDelete.code}) is protected and cannot be deleted.`);
       setIsDeleteOpen(false);
       setSelectedDeptForDelete(null);
       return;
@@ -934,7 +934,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
                         </button>
 
                         {/* Activate / Deactivate Toggle */}
-                        <button
+                        <button disabled={dept.isDefaultPharmacy}
                           type="button"
                           onClick={() => {
                             setSelectedDeptForDeactivate(dept);
@@ -953,7 +953,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
                         {/* Delete Button (Protected for OPD, ER, OBS; Guarded by Linked Records for others) */}
                         {isProtectedCoreDepartment(dept) ? (
                           <span
-                            title="Protected Core Care Department (OPD, Emergency, Observation cannot be deleted)"
+                            title="Default Pharmacy department cannot be deleted"
                             className="rounded-lg p-1.5 text-slate-300 cursor-not-allowed inline-flex items-center justify-center opacity-60"
                           >
                             <ShieldAlert className="h-3.5 w-3.5 text-slate-400" />

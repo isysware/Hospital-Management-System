@@ -19,7 +19,7 @@ beforeEach(() => {
   db.admissionRecord.create.mockImplementation(async ({ data }) => ({ id: 'admission', ...data }));
   db.hospitalInvoice.create.mockImplementation(async ({ data }) => ({ id: 'invoice', ...data }));
   db.invoiceLineItem.create.mockImplementation(async ({ data }) => ({ id: 'line', ...data }));
-  db.serviceRate.findUnique.mockResolvedValue({ id: 'service', departmentId: 'department', isActive: true, serviceStream: 'LAB', standardRate: new Decimal(500) });
+  db.serviceRate.findUnique.mockResolvedValue({ providerType: 'OUTSOURCED', billingSource: 'OUTSOURCED_SERVICE', selectable: true, isDeleted: false, isSystemGenerated: false, department: { isActive: true, pharmacyRelated: false, fulfillmentOwnership: 'OUTSOURCED', outsourcedProviderId: 'provider', outsourcedProvider: { isActive: true } }, id: 'service', departmentId: 'department', isActive: true, serviceStream: 'LAB', standardRate: new Decimal(500) });
 });
 
 describe('admission intake fulfillment defaults', () => {

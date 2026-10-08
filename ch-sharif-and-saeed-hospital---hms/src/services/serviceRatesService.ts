@@ -22,11 +22,9 @@ import { formatDisplayDate } from '../utils/dateConstants';
  */
 
 export const VALID_SERVICE_CATEGORIES: ServiceCategory[] = [
-  'Consultation',
   'Emergency',
   'Observation',
   'Admission',
-  'Room / Bed',
   'Procedure',
   'Surgery',
   'Diagnostic',
@@ -62,6 +60,10 @@ function formatTimestamp(iso?: string | null): string {
 /** Maps a backend service-rate row (as returned by `setup.service.ts`) onto the frontend `HospitalService` shape. */
 function toHospitalService(raw: Record<string, any>): HospitalService {
   return {
+    providerType: raw.providerType,
+    billingSource: raw.billingSource,
+    selectable: raw.selectable,
+    outsourcedProviderId: raw.department?.outsourcedProviderId,
     id: raw.id,
     code: raw.code,
     name: raw.name,
@@ -101,6 +103,7 @@ function toBackendPayload(values: ServiceFormValues): Record<string, unknown> {
   return {
     code: values.code.trim() ? values.code.trim().toUpperCase() : undefined,
     name: values.name.trim(),
+    providerType: values.providerType,
     description: values.description?.trim() || undefined,
     departmentId: values.departmentId || null,
     category: values.category,
@@ -118,10 +121,12 @@ function toBackendPayload(values: ServiceFormValues): Record<string, unknown> {
 
 let cachedServices: HospitalService[] = [];
 
-export async function fetchServices(): Promise<HospitalService[]> {
-  const res = await apiClient.get<{ data: Record<string, any>[] }>('/setup/services-rates');
-  cachedServices = res.data.data.map(toHospitalService);
-  return cachedServices;
+export interface ServiceQuery { providerType?: 'INTERNAL' | 'OUTSOURCED'; departmentId?: string; outsourcedProviderId?: string; status?: 'ACTIVE' | 'INACTIVE' }
+export async function fetchServices(filters: ServiceQuery = {}): Promise<HospitalService[]> {
+  const res = await apiClient.get<{ data: Record<string, any>[] }>('/setup/services-rates', { params: { providerType: 'INTERNAL', status: 'ACTIVE', ...filters, selectable: true } });
+  const rows = res.data.data.map(toHospitalService);
+  if (!Object.keys(filters).length) cachedServices = rows;
+  return rows;
 }
 
 /** Async warm-up — call once at app startup so sync readers below have real data. */
@@ -210,6 +215,7 @@ export class ServiceRatesService {
 
   static filterServices(services: HospitalService[], filters: ServiceFilterState): HospitalService[] {
     return services.filter((s) => {
+      if (s.providerType !== (filters.providerType ?? 'INTERNAL')) return false;
       if (filters.searchTerm.trim()) {
         const query = filters.searchTerm.toLowerCase().trim();
         const matchCode = s.code.toLowerCase().includes(query);

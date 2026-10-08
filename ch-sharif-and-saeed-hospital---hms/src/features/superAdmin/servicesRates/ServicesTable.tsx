@@ -194,14 +194,14 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
                   <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1">
                       {/* View Details */}
-                      <button
+                      {!isCoreEncounterService && <button
                         id={`service-view-btn-${service.id}`}
                         onClick={() => onView(service)}
                         title="View Full Service Details"
                         className="p-1.5 text-slate-500 hover:text-[#08775A] hover:bg-[#effaf5] rounded-md transition-colors"
                       >
                         <Eye className="w-4 h-4" />
-                      </button>
+                      </button>}
 
                       {/* Edit */}
                       <button
@@ -214,6 +214,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
                       </button>
 
                       {/* Toggle Status */}
+                      {!isCoreEncounterService && <>
                       <button
                         id={`service-toggle-status-btn-${service.id}`}
                         onClick={() => onToggleStatus(service)}
@@ -253,6 +254,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      </>}
                     </div>
                   </td>
                 </tr>

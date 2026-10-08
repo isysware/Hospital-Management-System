@@ -1,3 +1,4 @@
+import { assertSelectableService } from '@/shared/serviceClassification';
 import { resolvePanelCoverage } from '@/shared/panelCoverage';
 import { assertMembershipEligible } from '@/shared/panelMembership';
 import { assertCaseAuthorization } from '@/shared/panelAuthorization';
@@ -122,11 +123,10 @@ export const invoicesService = {
       }
 
       const serviceRate = await tx.serviceRate.findUnique({
-        where: { id: body.serviceRateId },
+        include: { department: { include: { outsourcedProvider: true } } }, where: { id: body.serviceRateId },
       });
-      if (!serviceRate || !serviceRate.isActive) {
-        throw new NotFoundError('Service rate not found or inactive');
-      }
+      assertSelectableService(serviceRate, body);
+      if (!serviceRate) throw new NotFoundError('Service not found');
 
       // Rate snapshot: frozen at billing time (D15 §15)
       let rate = serviceRate.standardRate;
@@ -198,6 +198,7 @@ export const invoicesService = {
         data: {
           hospitalInvoiceId: invoice.id,
           serviceRateId: serviceRate.id,
+          billingSource: serviceRate.billingSource, descriptionSnapshot: serviceRate.name,
           rateSnapshot: rate,
           quantity: qty,
           lineGross,
@@ -546,12 +547,12 @@ export const invoicesService = {
 
       // ── Pharmacy Charges & Cross-Entity Settlement Reconciliation ──
       const pharmacyNotifications: Array<{ pharmacyInvoiceNumber: string; amount: number; receiptNumber: string }> = [];
-      const pharmacyServiceRate = await tx.serviceRate.findFirst({ where: { code: 'SRV-PHARMACY' } });
-      if (pharmacyServiceRate) {
+
+      {
         const invoiceLines = await tx.invoiceLineItem.findMany({
           where: { hospitalInvoiceId: invoice.id },
           orderBy: { createdAt: 'asc' },
-          select: { serviceRateId: true, patientShare: true },
+          select: { billingSource: true, patientShare: true },
         });
 
         let cursor = new Decimal(0);
@@ -560,7 +561,7 @@ export const invoicesService = {
           const lineStart = cursor;
           const lineEnd = cursor.plus(line.patientShare);
           cursor = lineEnd;
-          if (line.serviceRateId !== pharmacyServiceRate.id) continue;
+          if (line.billingSource !== 'PHARMACY') continue;
           const overlapStart = Decimal.max(lineStart, previousPaidTotal);
           const overlapEnd = Decimal.min(lineEnd, newPaidTotal);
           if (overlapEnd.greaterThan(overlapStart)) {
@@ -809,10 +810,11 @@ export const invoicesService = {
             phone: invoice.selfPayEncounter?.phone,
             cnic: invoice.selfPayEncounter?.cnicOrPassport,
           },
-      lines: invoice.lines.filter((l) => invoice.sourceType !== 'ADMISSION' || l.serviceRate.code !== 'ADM-ADVANCE').map((l) => ({
+      lines: invoice.lines.filter((l) => invoice.sourceType !== 'ADMISSION' || l.serviceRate?.code !== 'ADM-ADVANCE').map((l) => ({
         id: l.id,
-        serviceName: l.serviceRate.name,
-        billingUnit: l.serviceRate.billingUnit,
+        billingSource: l.billingSource,
+        serviceName: (l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource),
+        billingUnit: (l.serviceRate?.billingUnit ?? 'Items'),
         rate: l.rateSnapshot,
         quantity: l.quantity,
         gross: l.lineGross,
@@ -953,7 +955,7 @@ export const invoicesService = {
       ...invoice,
       balanceDue: patientBalanceDue(invoice, invoice.paidTotal).toNumber(),
       status: invoice.status === 'VOID' ? 'VOID' : patientPaymentStatus(invoice, invoice.paidTotal),
-      lines: invoice.lines.filter((l) => invoice.sourceType !== 'ADMISSION' || l.serviceRate.code !== 'ADM-ADVANCE'),
+      lines: invoice.lines.filter((l) => invoice.sourceType !== 'ADMISSION' || l.serviceRate?.code !== 'ADM-ADVANCE'),
     };
   },
 };

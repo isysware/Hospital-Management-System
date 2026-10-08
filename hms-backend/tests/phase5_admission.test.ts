@@ -546,6 +546,7 @@ describe('Phase 5: Inpatient Admission, Bed Lifecycle & Dual Clearance Discharge
       });
 
       (prisma.serviceRate.findUnique as any).mockResolvedValue({
+        providerType: 'INTERNAL', billingSource: 'HOSPITAL_SERVICE', selectable: true, isDeleted: false, isSystemGenerated: false, department: { isActive: true, pharmacyRelated: false, fulfillmentOwnership: 'INTERNAL' },
         id: 'srv-rate-ecg',
         standardRate: new Decimal(3000),
         isActive: true,
@@ -563,7 +564,7 @@ describe('Phase 5: Inpatient Admission, Bed Lifecycle & Dual Clearance Discharge
 
       const line = await admissionService.addAdmissionService(
         'adm-001',
-        { serviceRateId: 'srv-rate-ecg', quantity: 1, notes: 'Daily doctor rounds' },
+        { serviceRateId: 'srv-rate-ecg', quantity: 1, notes: 'Dressing procedure' },
         staffUserId,
       );
 
@@ -603,6 +604,7 @@ describe('Phase 5: Inpatient Admission, Bed Lifecycle & Dual Clearance Discharge
       });
 
       (prisma.serviceRate.findUnique as any).mockResolvedValue({
+        providerType: 'INTERNAL', billingSource: 'HOSPITAL_SERVICE', selectable: true, isDeleted: false, isSystemGenerated: false, department: { isActive: true, pharmacyRelated: false, fulfillmentOwnership: 'INTERNAL' },
         id: 'srv-rate-outside-lab',
         standardRate: new Decimal(5000),
         isActive: true,
@@ -666,6 +668,7 @@ describe('Phase 5: Inpatient Admission, Bed Lifecycle & Dual Clearance Discharge
       });
 
       (prisma.serviceRate.findUnique as any).mockResolvedValue({
+        providerType: 'INTERNAL', billingSource: 'HOSPITAL_SERVICE', selectable: true, isDeleted: false, isSystemGenerated: false, department: { isActive: true, pharmacyRelated: false, fulfillmentOwnership: 'INTERNAL' },
         id: 'srv-rate-cbc',
         standardRate: new Decimal(1500),
         isActive: true,
@@ -717,6 +720,7 @@ describe('Phase 5: Inpatient Admission, Bed Lifecycle & Dual Clearance Discharge
       });
 
       (prisma.serviceRate.findUnique as any).mockResolvedValue({
+        providerType: 'INTERNAL', billingSource: 'HOSPITAL_SERVICE', selectable: true, isDeleted: false, isSystemGenerated: false, department: { isActive: true, pharmacyRelated: false, fulfillmentOwnership: 'INTERNAL' },
         id: 'srv-rate-mri',
         standardRate: new Decimal(20000),
         isActive: true,

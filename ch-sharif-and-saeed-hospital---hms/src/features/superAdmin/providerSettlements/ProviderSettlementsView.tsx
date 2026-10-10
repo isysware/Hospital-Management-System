@@ -13,6 +13,7 @@ import { Department } from '../../../types/department';
 import { Modal } from '../../../components/common/Modal';
 import { TextInput, NumberInput, Select, Textarea } from '../../../components/forms/FormControls';
 import { useToast } from '../../../context/ToastContext';
+import { HospitalKpiHeader, KpiItem } from '../../../components/common/HospitalKpiHeader';
 
 const EMPTY_FORM: ProviderSettlementFormValues = {
   outsourcedProviderId: '',
@@ -128,6 +129,47 @@ export const ProviderSettlementsView: React.FC = () => {
     }
   };
 
+  const kpis: KpiItem[] = useMemo(() => {
+    const totalCount = filteredSettlements.length;
+    const totalRealized = filteredSettlements.reduce((sum, s) => sum + s.eligibleRealizedAmount, 0);
+    const totalSettled = filteredSettlements.reduce((sum, s) => sum + s.settlementAmount, 0);
+    const totalRemaining = filteredSettlements.reduce((sum, s) => sum + s.remainingAfter, 0);
+    return [
+      {
+        category: 'SETTLEMENT VOUCHERS',
+        title: 'Total Settlements',
+        value: totalCount,
+        icon: Landmark,
+        subtitle: 'Processed payment vouchers',
+        tone: 'default',
+      },
+      {
+        category: 'REVENUE BASE',
+        title: 'Eligible Realized',
+        value: formatPKR(totalRealized),
+        icon: FileCheck2,
+        subtitle: 'Collected patient funds',
+        tone: 'info',
+      },
+      {
+        category: 'FUNDS DISBURSED',
+        title: 'Settlement Payout',
+        value: formatPKR(totalSettled),
+        icon: CheckCircle2,
+        subtitle: 'Paid to external providers',
+        tone: 'success',
+      },
+      {
+        category: 'OUTSTANDING BALANCE',
+        title: 'Remaining Payable',
+        value: formatPKR(totalRemaining),
+        icon: AlertTriangle,
+        subtitle: 'Pending future disbursement',
+        tone: totalRemaining > 0 ? 'warning' : 'default',
+      },
+    ];
+  }, [filteredSettlements]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24 text-slate-500 gap-2 text-sm">
@@ -150,35 +192,50 @@ export const ProviderSettlementsView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-bold text-slate-900">Department Payables &amp; Provider Settlements</h1>
+    <div className="space-y-4">
+      {/* Section 4.1 Card Page Header Block */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-xl bg-[#effaf5] text-[#08775A] border border-[#c2e7db] flex items-center justify-center shadow-2xs">
+              <Landmark className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-[#123e2b] tracking-tight">Department Payables &amp; Provider Settlements</h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                  Realized Collections Active
+                </span>
+              </div>
+              <p className="text-xs text-[#52665e] mt-0.5 max-w-2xl">
+                Full/Partial settlements against Outsourced Providers, verified against realized patient collections
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-            Full/Partial settlement against Outsourced Providers, settled from realized collections only. Each row is a voucher —
-            payment method/reference and representative acknowledgement are captured at posting time.
-          </p>
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            disabled={activeProviders.length === 0}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors shrink-0 disabled:opacity-50 cursor-pointer"
+            title={activeProviders.length === 0 ? 'Add an Outsourced Provider first' : undefined}
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Settlement</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          disabled={activeProviders.length === 0}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#149E75] hover:bg-[#08775A] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors shrink-0 disabled:opacity-50"
-          title={activeProviders.length === 0 ? 'Add an Outsourced Provider first' : undefined}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>New Settlement</span>
-        </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-slate-500">Provider:</span>
+      {/* Section 4.2 & Section 9 HospitalKpiHeader */}
+      <HospitalKpiHeader columns="grid-cols-2 sm:grid-cols-4" items={kpis} />
+
+      {/* Section 4.4 Filter Toolbar */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-3 shadow-2xs flex items-center gap-2">
+        <span className="text-xs font-semibold text-[#52665e]">Provider Filter:</span>
         <select
           value={providerFilter}
           onChange={(e) => setProviderFilter(e.target.value)}
-          className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-[#149E75]"
+          className="text-xs px-3 py-1.5 border border-[#c2e7db] rounded-lg bg-[#fbfdfc] focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-[#08775A]"
         >
           <option value="All">All Providers</option>
           {providers.map((p) => (
@@ -189,59 +246,83 @@ export const ProviderSettlementsView: React.FC = () => {
         </select>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Section 4.5 Data Table */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] shadow-2xs overflow-hidden flex flex-col">
+        {/* Dark Emerald Header Strip */}
+        <div className="bg-[#0e5944] text-white px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Landmark className="h-4 w-4 text-[#c2e7db]" />
+            <span className="font-semibold text-xs tracking-wide">Provider Settlements Ledger</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+              {filteredSettlements.length} Vouchers
+            </span>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                <th className="py-2.5 px-4">Provider</th>
-                <th className="py-2.5 px-4">Department</th>
-                <th className="py-2.5 px-4 text-right">Eligible Realized</th>
-                <th className="py-2.5 px-4 text-right">Already Settled</th>
-                <th className="py-2.5 px-4 text-right">This Settlement</th>
-                <th className="py-2.5 px-4 text-right">Remaining</th>
-                <th className="py-2.5 px-4">Status</th>
-                <th className="py-2.5 px-4">Method / Ref</th>
+              <tr className="bg-[#effaf5] border-b border-[#c2e7db] text-[11px] font-bold text-[#08775A] select-none sticky top-0 z-10">
+                <th className="py-2.5 px-3 text-center border-r border-[#c2e7db]/60 w-12">#</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Provider</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Department</th>
+                <th className="py-2.5 px-4 text-right border-r border-[#c2e7db]/60">Eligible Realized</th>
+                <th className="py-2.5 px-4 text-right border-r border-[#c2e7db]/60">Already Settled</th>
+                <th className="py-2.5 px-4 text-right border-r border-[#c2e7db]/60">This Settlement</th>
+                <th className="py-2.5 px-4 text-right border-r border-[#c2e7db]/60">Remaining</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Status</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Method / Ref</th>
                 <th className="py-2.5 px-4">Settled By / At</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredSettlements.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50/80">
-                  <td className="py-2.5 px-4 font-bold text-slate-900">
-                    {s.providerName} <span className="text-slate-400 font-mono font-normal">({s.providerCode})</span>
-                  </td>
-                  <td className="py-2.5 px-4">{s.departmentName || '—'}</td>
-                  <td className="py-2.5 px-4 text-right font-mono">{formatPKR(s.eligibleRealizedAmount)}</td>
-                  <td className="py-2.5 px-4 text-right font-mono text-slate-500">{formatPKR(s.alreadySettledAmount)}</td>
-                  <td className="py-2.5 px-4 text-right font-mono font-bold text-[#08775A]">{formatPKR(s.settlementAmount)}</td>
-                  <td className="py-2.5 px-4 text-right font-mono">{formatPKR(s.remainingAfter)}</td>
-                  <td className="py-2.5 px-4">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        s.status === 'FULL' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'
-                      }`}
-                    >
-                      {s.status === 'FULL' ? 'Fully Settled' : 'Partially Settled'}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-4">
-                    {PAYMENT_METHOD_LABELS[s.paymentMethod]}
-                    {s.paymentReference && <span className="text-slate-400"> · {s.paymentReference}</span>}
-                  </td>
-                  <td className="py-2.5 px-4 text-[11px] text-slate-500">
-                    {s.settledBy}
-                    <br />
-                    {s.settledAt}
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-[#e2eae5] text-slate-700">
+              {filteredSettlements.map((s, idx) => {
+                const isEven = idx % 2 === 0;
+                return (
+                  <tr
+                    key={s.id}
+                    className={`transition-colors border-b border-[#e2eae5] ${
+                      isEven ? 'bg-white' : 'bg-[#fbfdfc]'
+                    } hover:bg-[#e7f6f1]/40`}
+                  >
+                    <td className="py-2.5 px-3 text-center border-r border-[#e2eae5] text-[#52665e] font-mono text-[11px] bg-[#effaf5]/20">
+                      {idx + 1}
+                    </td>
+                    <td className="py-2.5 px-4 font-bold text-[#123e2b] border-r border-[#e2eae5]">
+                      {s.providerName} <span className="text-[#52665e] font-mono font-normal">({s.providerCode})</span>
+                    </td>
+                    <td className="py-2.5 px-4 border-r border-[#e2eae5]">{s.departmentName || '—'}</td>
+                    <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-800 border-r border-[#e2eae5]">{formatPKR(s.eligibleRealizedAmount)}</td>
+                    <td className="py-2.5 px-4 text-right font-mono text-[#52665e] border-r border-[#e2eae5]">{formatPKR(s.alreadySettledAmount)}</td>
+                    <td className="py-2.5 px-4 text-right font-mono font-bold text-[#08775A] border-r border-[#e2eae5]">{formatPKR(s.settlementAmount)}</td>
+                    <td className="py-2.5 px-4 text-right font-mono font-bold text-rose-700 border-r border-[#e2eae5]">{formatPKR(s.remainingAfter)}</td>
+                    <td className="py-2.5 px-4 border-r border-[#e2eae5]">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          s.status === 'FULL' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}
+                      >
+                        {s.status === 'FULL' ? 'Fully Settled' : 'Partially Settled'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 border-r border-[#e2eae5]">
+                      {PAYMENT_METHOD_LABELS[s.paymentMethod]}
+                      {s.paymentReference && <span className="text-[#52665e] font-mono"> · {s.paymentReference}</span>}
+                    </td>
+                    <td className="py-2.5 px-4 text-[11px] text-[#52665e]">
+                      <span className="font-semibold text-slate-800">{s.settledBy}</span>
+                      <br />
+                      <span className="font-mono">{s.settledAt}</span>
+                    </td>
+                  </tr>
+                );
+              })}
 
               {filteredSettlements.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-500">
-                    <Landmark className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                    <span className="font-semibold text-xs text-slate-700 block">No settlements recorded yet.</span>
+                  <td colSpan={10} className="py-12 text-center text-[#52665e]">
+                    <Landmark className="h-8 w-8 text-[#52665e]/40 mx-auto mb-2" />
+                    <span className="font-semibold text-xs text-[#123e2b] block">No settlements recorded yet.</span>
                   </td>
                 </tr>
               )}

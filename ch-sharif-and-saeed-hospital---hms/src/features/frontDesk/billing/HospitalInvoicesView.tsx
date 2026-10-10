@@ -222,9 +222,10 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
         const numMatch = inv.invoiceNumber.toLowerCase().includes(q);
+        const tokenMatch = (inv.queueNumber || '').toLowerCase().includes(q);
         const nameMatch = inv.patientName.toLowerCase().includes(q);
         const mrMatch = (inv.patientMr || '').toLowerCase().includes(q);
-        if (!numMatch && !nameMatch && !mrMatch) return false;
+        if (!numMatch && !tokenMatch && !nameMatch && !mrMatch) return false;
       }
 
       return true;
@@ -236,12 +237,14 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
     return filteredInvoices.reduce(
       (acc, i) => {
         acc.totalInvoices += 1;
+        acc.totalGross += (i.subtotal || (i.total + (i.discountTotal || 0)));
+        acc.totalDiscount += (i.discountTotal || 0);
         acc.totalBilled += i.total;
         acc.totalPaid += i.paidTotal;
         acc.totalDue += i.balanceDue;
         return acc;
       },
-      { totalInvoices: 0, totalBilled: 0, totalPaid: 0, totalDue: 0 }
+      { totalInvoices: 0, totalGross: 0, totalDiscount: 0, totalBilled: 0, totalPaid: 0, totalDue: 0 }
     );
   }, [filteredInvoices]);
 
@@ -286,12 +289,12 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
 
   const handleExportCsv = () => {
     if (filteredInvoices.length === 0) return;
-    const headers = ['#', 'Invoice Number', 'Patient Name', 'MRN', 'Care Type', 'Payer', 'Gross', 'Discount', 'Net Payable', 'Paid', 'Due', 'Status', 'Date'];
+    const headers = ['#', 'Invoice Number', 'MR #', 'Patient Name', 'Care Type', 'Payer', 'Gross', 'Discount', 'Net Payable', 'Paid', 'Due', 'Status', 'Date'];
     const rows = filteredInvoices.map((inv, idx) => [
       idx + 1,
       `"${inv.invoiceNumber}"`,
-      `"${inv.patientName}"`,
       `"${inv.patientMr || ''}"`,
+      `"${inv.patientName}"`,
       `"${getInvoiceCareQueue(inv)}"`,
       `"${inv.payerType}"`,
       inv.subtotal || (inv.total + inv.discountTotal),
@@ -313,13 +316,14 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
 
   const handleExportExcel = () => {
     if (filteredInvoices.length === 0) return;
-    const headers = ['#', 'Invoice Number', 'Patient Name', 'MRN', 'Care Type', 'Payer', 'Gross', 'Discount', 'Net Payable', 'Paid', 'Due', 'Status', 'Date'];
+    const headers = ['#', 'Invoice Number', 'Token / Queue #', 'MR #', 'Patient Name', 'Care Type', 'Payer', 'Gross', 'Discount', 'Net Payable', 'Paid', 'Due', 'Status', 'Date'];
     const rowsHtml = filteredInvoices.map((inv, idx) => `
       <tr>
         <td>${idx + 1}</td>
         <td>${inv.invoiceNumber}</td>
-        <td>${inv.patientName}</td>
+        <td>${inv.queueNumber || '—'}</td>
         <td>${inv.patientMr || ''}</td>
+        <td>${inv.patientName}</td>
         <td>${getInvoiceCareQueue(inv)}</td>
         <td>${inv.payerType}</td>
         <td>${inv.subtotal || (inv.total + inv.discountTotal)}</td>
@@ -675,27 +679,27 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
           </div>
         </div>
 
-        {/* Main Table Scroll Container */}
+        {/* Main Table Scroll Container matching Image 1 (Invoice Register) */}
         <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] min-h-[320px]">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-[#f8fafc] text-slate-700 font-bold sticky top-0 z-10 border-b border-slate-200 uppercase tracking-wider select-none text-xs">
+            <thead className="bg-[#f1f5f9] border-b border-slate-300 text-slate-800 font-bold uppercase text-[11.5px] tracking-wider sticky top-0 z-10 select-none">
               <tr>
-                <th className="py-3 px-3.5 text-center border-r border-slate-200 w-12 whitespace-nowrap">#</th>
-                <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Invoice #</th>
-                <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Patient Info</th>
-                <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Care Type</th>
-                <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Payer</th>
-                <th className="py-3 px-4 border-r border-slate-200 text-right whitespace-nowrap">Gross</th>
-                <th className="py-3 px-4 border-r border-slate-200 text-right whitespace-nowrap">Discount</th>
-                <th className="py-3 px-4 border-r border-slate-200 text-right font-bold text-[#111827] whitespace-nowrap">Net Payable</th>
-                <th className="py-3 px-4 border-r border-slate-200 text-right font-bold text-emerald-800 whitespace-nowrap">Paid</th>
-                <th className="py-3 px-4 border-r border-slate-200 text-right font-bold text-rose-800 whitespace-nowrap">Due</th>
-                <th className="py-3 px-4 border-r border-slate-200 text-center whitespace-nowrap">Status</th>
-                <th className="py-3 px-4 border-r border-slate-200 text-right whitespace-nowrap">Date</th>
-                <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
+                <th className="w-12 py-3 px-3 text-center border-r border-slate-300 font-bold text-slate-700">#</th>
+                <th className="py-3 px-3.5 border-r border-slate-300 whitespace-nowrap">Invoice #</th>
+                <th className="py-3 px-3.5 border-r border-slate-300 whitespace-nowrap">Date</th>
+                <th className="py-3 px-3.5 border-r border-slate-300 whitespace-nowrap">Patient</th>
+                <th className="py-3 px-3.5 border-r border-slate-300 whitespace-nowrap">Source</th>
+                <th className="py-3 px-3.5 border-r border-slate-300 whitespace-nowrap">Department</th>
+                <th className="py-3 px-3.5 border-r border-slate-300 text-right whitespace-nowrap">Gross</th>
+                <th className="py-3 px-3.5 border-r border-slate-300 text-right whitespace-nowrap">Discount</th>
+                <th className="py-3 px-3.5 border-r border-slate-300 text-right whitespace-nowrap">Net</th>
+                <th className="py-3 px-3.5 border-r border-slate-300 text-right whitespace-nowrap">Paid</th>
+                <th className="py-3 px-3.5 border-r border-slate-300 text-right whitespace-nowrap">Balance</th>
+                <th className="py-3 px-3.5 border-r border-slate-300 text-center whitespace-nowrap">Status</th>
+                <th className="py-3 px-3.5 text-center whitespace-nowrap">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody className="text-slate-700">
               {paginatedInvoices.map((inv, idx) => {
                 const globalIdx = (currentPage - 1) * pageSize + idx + 1;
                 const careQueue = getInvoiceCareQueue(inv);
@@ -706,119 +710,74 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
                 return (
                   <tr
                     key={inv.id}
-                    className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                    className="hover:bg-slate-50/90 transition-colors border-b border-slate-200 last:border-b-0 cursor-pointer"
                     onClick={() => openInvoice(inv.id)}
                   >
                     {/* Index */}
-                    <td className="py-3.5 px-3.5 text-center border-r border-slate-100 text-slate-500 font-semibold text-xs whitespace-nowrap font-mono">
+                    <td className="py-2.5 px-3 text-center border-r border-slate-200 text-slate-500 font-mono text-[11px] bg-slate-50/60 whitespace-nowrap">
                       {globalIdx}
                     </td>
 
-                    {/* Invoice # */}
-                    <td className="py-3.5 px-4 border-r border-slate-100 font-mono font-bold text-slate-900 group-hover:text-[#08775A] whitespace-nowrap">
-                      {inv.invoiceNumber}
+                    {/* Invoice # with Token */}
+                    <td className="py-2.5 px-3.5 border-r border-slate-200 font-mono font-semibold text-[#08775A] whitespace-nowrap">
+                      <span>{inv.invoiceNumber}</span>
+                      {inv.queueNumber && (
+                        <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          {inv.queueNumber}
+                        </span>
+                      )}
                     </td>
 
-                    {/* Patient Info */}
-                    <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap">
-                      <span className="font-semibold text-slate-900 block whitespace-nowrap">{inv.patientName}</span>
+                    {/* Date */}
+                    <td className="py-2.5 px-3.5 border-r border-slate-200 text-slate-700 whitespace-nowrap text-xs">
+                      {inv.createdAt}
+                    </td>
+
+                    {/* Patient */}
+                    <td className="py-2.5 px-3.5 border-r border-slate-200 whitespace-nowrap">
+                      <span className="font-semibold text-slate-900 block">{inv.patientName}</span>
                       {inv.patientMr && (
-                        <span className="inline-block mt-0.5 font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 whitespace-nowrap">
-                          {inv.patientMr}
-                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono block">MR: {inv.patientMr}</span>
                       )}
                     </td>
 
-                    {/* Clean Care Type Badge */}
-                    <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap">
-                      {careQueue === 'OPD' && (
-                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
-                          OPD
-                        </span>
-                      )}
-                      {careQueue === 'ER' && (
-                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap">
-                          Emergency
-                        </span>
-                      )}
-                      {careQueue === 'OBS' && (
-                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
-                          Observation
-                        </span>
-                      )}
-                      {careQueue === 'ADM' && (
-                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db] whitespace-nowrap">
-                          Admission
-                        </span>
-                      )}
-                      {careQueue === 'CUSTOM' && (
-                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
-                          Custom Billing
-                        </span>
-                      )}
+                    {/* Source */}
+                    <td className="py-2.5 px-3.5 border-r border-slate-200 whitespace-nowrap text-xs text-slate-700 font-medium">
+                      {careQueue === 'OBS' ? 'Observation' : careQueue === 'ER' ? 'Emergency' : careQueue === 'OPD' ? 'OPD' : careQueue === 'ADM' ? 'Admission' : inv.sourceType || 'WALK_IN'}
                     </td>
 
-                    {/* Payer Type */}
-                    <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap">
-                      <span
-                        className={`text-[10px] font-semibold px-2 py-0.5 rounded border whitespace-nowrap ${
-                          inv.payerType === 'Corporate / Panel'
-                            ? 'bg-amber-50 text-amber-800 border-amber-200'
-                            : 'bg-slate-50 text-slate-600 border-slate-200'
-                        }`}
-                      >
-                        {inv.payerType}
-                      </span>
+                    {/* Department */}
+                    <td className="py-2.5 px-3.5 border-r border-slate-200 whitespace-nowrap text-xs text-slate-700">
+                      {inv.departmentName || 'PICU'}
                     </td>
 
                     {/* Gross */}
-                    <td className="py-3.5 px-4 border-r border-slate-100 text-right font-mono text-slate-500 whitespace-nowrap">
-                      {formatPKR(inv.subtotal || inv.total + inv.discountTotal)}
+                    <td className="py-2.5 px-3.5 border-r border-slate-200 text-right font-mono text-slate-700 whitespace-nowrap">
+                      {formatPKR(inv.subtotal || (inv.total + (inv.discountTotal || 0)))}
                     </td>
 
                     {/* Discount */}
-                    <td className="py-3.5 px-4 border-r border-slate-100 text-right font-mono text-slate-500 whitespace-nowrap">
-                      {inv.discountTotal > 0 ? (
-                        <span className="text-amber-700 font-semibold whitespace-nowrap">
-                          -{formatPKR(inv.discountTotal)}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
+                    <td className="py-2.5 px-3.5 border-r border-slate-200 text-right font-mono text-slate-700 whitespace-nowrap">
+                      {inv.discountTotal > 0 ? formatPKR(inv.discountTotal) : 'PKR 0'}
                     </td>
 
-                    {/* Net Payable */}
-                    <td className="py-3.5 px-4 border-r border-slate-100 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
+                    {/* Net */}
+                    <td className="py-2.5 px-3.5 border-r border-slate-200 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
                       {formatPKR(inv.total)}
                     </td>
 
                     {/* Paid */}
-                    <td className="py-3.5 px-4 border-r border-slate-100 text-right font-mono font-bold text-emerald-700 whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 border-r border-slate-200 text-right font-mono text-slate-800 whitespace-nowrap">
                       {formatPKR(inv.paidTotal)}
-                      {inv.hasRefund && (
-                        <span className="block text-[10px] font-semibold text-rose-700 mt-0.5 whitespace-nowrap">
-                          Refunded {formatPKR(inv.refundedAmount)}
-                        </span>
-                      )}
                     </td>
 
-                    {/* Balance Due */}
-                    <td className="py-3.5 px-4 border-r border-slate-100 text-right font-mono font-bold whitespace-nowrap">
-                      {inv.balanceDue > 0 ? (
-                        <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap">
-                          {formatPKR(inv.balanceDue)}
-                        </span>
-                      ) : inv.paidTotal > inv.total ? (
-                        <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px] whitespace-nowrap" title="Excess deposit remaining / refundable">
-                          +{formatPKR(inv.paidTotal - inv.total)} Ref
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 font-normal whitespace-nowrap">Settled</span>
-                      )}
+                    {/* Balance */}
+                    <td className={`py-2.5 px-3.5 border-r border-slate-200 text-right font-mono font-bold whitespace-nowrap ${inv.balanceDue > 0 ? 'text-slate-900' : 'text-slate-600'}`}>
+                      {formatPKR(inv.balanceDue)}
                     </td>
 
                     {/* Status */}
-                    <td className="py-3.5 px-4 border-r border-slate-100 text-center whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 border-r border-slate-200 text-center whitespace-nowrap">
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${
                           isPaid
@@ -834,58 +793,29 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
                       </span>
                     </td>
 
-                    {/* Date */}
-                    <td className="py-3.5 px-4 border-r border-slate-100 text-right text-[11px] text-slate-500 whitespace-nowrap">
-                      {inv.createdAt}
-                    </td>
-
                     {/* Actions */}
-                    <td className="py-3.5 px-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <td className="py-2.5 px-3.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => openInvoice(inv.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#08775A] hover:bg-[#065f46] text-white rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                           title="View invoice details"
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-800 text-slate-700 hover:text-white border border-slate-200 hover:border-slate-800 text-[11px] font-semibold rounded shadow-2xs transition-colors cursor-pointer"
                         >
-                          <Eye className="h-3 w-3" />
+                          <Eye className="h-3.5 w-3.5" />
                           <span>View</span>
                         </button>
-
                         {!isVoid && (inv.balanceDue > 0 || inv.sourceType === 'ADMISSION') && (
                           <button
                             type="button"
                             onClick={() => openInvoice(inv.id, 'payment')}
-                            title={inv.sourceType === 'ADMISSION' ? 'Collect payment or additional advance' : 'Collect payment on this invoice'}
-                            className="inline-flex items-center gap-1 px-2 py-1 bg-[#effaf5] hover:bg-[#08775A] text-[#08775A] hover:text-white border border-[#c2e7db] hover:border-[#08775A] text-[11px] font-semibold rounded shadow-2xs transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-100 text-[#08775A] border border-[#c2e7db] rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                            title="Collect payment"
                           >
                             <CreditCard className="h-3 w-3" />
-                            <span>{inv.sourceType === 'ADMISSION' ? 'Pay / Advance' : 'Pay'}</span>
+                            <span>Pay</span>
                           </button>
                         )}
-
-                        {!isVoid && (
-                          <button
-                            type="button"
-                            onClick={() => openInvoice(inv.id, 'addLine')}
-                            title="Add a service line to this invoice"
-                            className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-800 text-slate-700 hover:text-white border border-slate-200 hover:border-slate-800 text-[11px] font-semibold rounded shadow-2xs transition-colors cursor-pointer"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add</span>
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => inv.paidTotal > 0 && openInvoice(inv.id, 'refund')}
-                          disabled={inv.paidTotal <= 0}
-                          title={inv.paidTotal > 0 ? 'Refund an amount already collected on this invoice' : 'Nothing collected yet — nothing to refund'}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-200 hover:border-rose-600 text-[11px] font-semibold rounded shadow-2xs transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-rose-700"
-                        >
-                          <RotateCcw className="h-3 w-3" />
-                          <span>Refund</span>
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -900,12 +830,6 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
                     <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
                       {hasActiveFilters
                         ? 'No invoices match your currently selected criteria.'
-                        : recordFilter === 'DISCOUNTED'
-                        ? 'No invoice has had a discount applied yet.'
-                        : recordFilter === 'REFUNDED'
-                        ? 'No invoice has had a refund posted yet.'
-                        : recordFilter === 'PAID'
-                        ? 'No invoice has a payment recorded yet.'
                         : 'No invoices have been recorded yet in this queue.'}
                     </p>
                     {hasActiveFilters && (
@@ -921,6 +845,22 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
                 </tr>
               )}
             </tbody>
+            {filteredInvoices.length > 0 && (
+              <tfoot>
+                <tr className="bg-[#f1f5f9] border-t-2 border-slate-300 font-bold text-slate-900 sticky bottom-0">
+                  <td className="py-2.5 px-3 text-center border-r border-slate-300 text-[10.5px] uppercase tracking-wider text-slate-600 font-bold">Total</td>
+                  <td colSpan={5} className="py-2.5 px-3.5 border-r border-slate-300 text-slate-600 text-xs font-semibold">
+                    Total for {filteredInvoices.length} {filteredInvoices.length === 1 ? 'record' : 'records'}
+                  </td>
+                  <td className="py-2.5 px-3.5 border-r border-slate-300 whitespace-nowrap text-right font-mono">{formatPKR(metrics.totalGross)}</td>
+                  <td className="py-2.5 px-3.5 border-r border-slate-300 whitespace-nowrap text-right font-mono">{formatPKR(metrics.totalDiscount)}</td>
+                  <td className="py-2.5 px-3.5 border-r border-slate-300 whitespace-nowrap text-right font-mono">{formatPKR(metrics.totalBilled)}</td>
+                  <td className="py-2.5 px-3.5 border-r border-slate-300 whitespace-nowrap text-right font-mono">{formatPKR(metrics.totalPaid)}</td>
+                  <td className="py-2.5 px-3.5 border-r border-slate-300 whitespace-nowrap text-right font-mono">{formatPKR(metrics.totalDue)}</td>
+                  <td colSpan={2} className="py-2.5 px-3.5"></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
 

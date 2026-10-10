@@ -50,6 +50,8 @@ import {
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { toErrorMessage } from '../../../utils/apiErrors';
+import { HospitalKpiHeader, KpiItem } from '../../../components/common/HospitalKpiHeader';
+import { StatusBadge } from '../../../components/common/StatusBadge';
 import { AddEditDepartmentModal } from './AddEditDepartmentModal';
 import { ViewDepartmentDrawer } from './ViewDepartmentDrawer';
 import { DeactivateConfirmModal } from './DeactivateConfirmModal';
@@ -161,6 +163,44 @@ export const SuperAdminDepartmentsView: React.FC = () => {
   const kpiDiagSupport = departments.filter(
     (d) => d.type === 'Diagnostic' || d.type === 'Support Service'
   ).length;
+
+  const deptKpiItems: KpiItem[] = useMemo(
+    () => [
+      {
+        category: 'TOTAL DEPARTMENTS',
+        title: 'Total Units',
+        value: kpiTotal,
+        icon: Layers,
+        subtitle: 'Registered departments',
+        tone: 'default',
+      },
+      {
+        category: 'ACTIVE OPERATING',
+        title: 'Active Departments',
+        value: kpiActive,
+        icon: CheckCircle2,
+        subtitle: `of ${kpiTotal} operating`,
+        tone: 'success',
+      },
+      {
+        category: 'CLINICAL CARE',
+        title: 'Clinical Departments',
+        value: kpiClinical,
+        icon: Stethoscope,
+        subtitle: 'Patient care & OPD',
+        tone: 'info',
+      },
+      {
+        category: 'DIAGNOSTIC & SUPPORT',
+        title: 'Diagnostic / Support',
+        value: kpiDiagSupport,
+        icon: FlaskConical,
+        subtitle: 'Labs, imaging & support',
+        tone: 'default',
+      },
+    ],
+    [kpiTotal, kpiActive, kpiClinical, kpiDiagSupport],
+  );
 
   // Filtered dataset
   const filteredDepartments = useMemo(() => {
@@ -402,31 +442,31 @@ export const SuperAdminDepartmentsView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* 1. Page Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-5">
+    <div className="space-y-4 animate-in fade-in duration-200">
+      {/* 1. Page Header Block (design.md §4.1) */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#08775A]">
-            <Building2 className="h-4 w-4" />
-            <span>Master Registry</span>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-xl font-bold text-[#111827]">Hospital Departments</h1>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db] inline-flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#129b70]" />
+              Clinical &amp; Administrative Units
+            </span>
           </div>
-          <h2 className="text-xl font-black tracking-tight text-slate-900 mt-1">
-            Hospital Departments
-          </h2>
-          <p className="text-xs text-slate-600 mt-0.5">
-            Manage hospital departments, department heads, operational capabilities, staffing links and status.
+          <p className="text-xs text-[#52665e] max-w-2xl leading-relaxed">
+            Manage hospital departments, clinical care units, department heads, operational capabilities, and tariff linkages.
           </p>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap self-start md:self-auto">
           {/* Export Dropdown Menu */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
               disabled={isExportingPdf || isExportingExcel}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#f6faf8] text-[#52665e] hover:text-[#111827] border border-[#e2eae5] text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer disabled:opacity-60"
             >
               {isExportingPdf || isExportingExcel ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-[#08775A]" />
@@ -438,14 +478,13 @@ export const SuperAdminDepartmentsView: React.FC = () => {
                   ? 'Downloading PDF...'
                   : isExportingExcel
                   ? 'Downloading Excel...'
-                  : 'Export'}
+                  : 'Export Dossier'}
               </span>
               <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
             </button>
 
             {isExportDropdownOpen && (
               <div className="absolute right-0 top-full mt-1.5 z-20 w-52 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl animate-in fade-in duration-100">
-                {/* 1. Download PDF */}
                 <button
                   type="button"
                   onClick={handleDownloadPDF}
@@ -459,7 +498,6 @@ export const SuperAdminDepartmentsView: React.FC = () => {
                   </div>
                 </button>
 
-                {/* 2. Download Excel */}
                 <button
                   type="button"
                   onClick={handleDownloadExcel}
@@ -475,7 +513,6 @@ export const SuperAdminDepartmentsView: React.FC = () => {
 
                 <div className="my-1 border-t border-slate-100" />
 
-                {/* 3. Print */}
                 <button
                   type="button"
                   onClick={handlePrint}
@@ -483,24 +520,8 @@ export const SuperAdminDepartmentsView: React.FC = () => {
                 >
                   <Printer className="h-4 w-4 text-slate-600" />
                   <div className="flex-1">
-                    <span className="font-semibold block text-slate-800">Print</span>
-                    <span className="text-[10px] text-slate-400">Browser print dialog</span>
-                  </div>
-                </button>
-
-                {/* Optional Preview Dossier */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsExportDropdownOpen(false);
-                    setIsExportDossierOpen(true);
-                  }}
-                  className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors cursor-pointer"
-                >
-                  <Eye className="h-4 w-4 text-slate-400" />
-                  <div className="flex-1">
-                    <span className="block">Preview Dossier</span>
-                    <span className="text-[10px] text-slate-400">Visual report preview</span>
+                    <span className="font-semibold block text-slate-800">Print Catalog</span>
+                    <span className="text-[10px] text-slate-400">Browser print preview</span>
                   </div>
                 </button>
               </div>
@@ -511,9 +532,9 @@ export const SuperAdminDepartmentsView: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsImportOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#f6faf8] text-[#52665e] hover:text-[#111827] border border-[#e2eae5] text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
           >
-            <FileSpreadsheet className="h-3.5 w-3.5 text-slate-500" />
+            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
             <span>Import Excel</span>
           </button>
 
@@ -524,7 +545,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
               setSelectedDeptForEdit(null);
               setIsAddEditOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#08775A] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0e7d5a] transition-colors shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#129b70] hover:bg-[#0e7d5a] text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>Add Department</span>
@@ -532,87 +553,21 @@ export const SuperAdminDepartmentsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Departments */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Total Departments
-            </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
-              <Layers className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900">{kpiTotal}</span>
-            <span className="text-[11px] text-slate-500 font-medium">Registered units</span>
-          </div>
-        </div>
+      {/* 2. KPI Summary Cards (design.md §4.2) */}
+      <HospitalKpiHeader items={deptKpiItems} columns="grid-cols-2 lg:grid-cols-4" />
 
-        {/* Active Departments */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#08775A]">
-              Active Departments
-            </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#effaf5] text-[#08775A]">
-              <CheckCircle2 className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#08775A]">{kpiActive}</span>
-            <span className="text-[11px] text-slate-500 font-medium">
-              of {kpiTotal} operating
-            </span>
-          </div>
-        </div>
-
-        {/* Clinical Departments */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Clinical Departments
-            </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
-              <Stethoscope className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900">{kpiClinical}</span>
-            <span className="text-[11px] text-slate-500 font-medium">Patient care &amp; OPD</span>
-          </div>
-        </div>
-
-        {/* Diagnostic / Support Departments */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Diagnostic / Support
-            </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-[#08775A]">
-              <FlaskConical className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900">{kpiDiagSupport}</span>
-            <span className="text-[11px] text-slate-500 font-medium">Labs, Imaging, Support</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Search and Filters Control Bar (Strictly No From/To Date filter for Master Registry!) */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-3">
+      {/* 3. Search and Filters Control Bar (design.md §4.4) */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-3 shadow-2xs space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           {/* Search Input */}
           <div className="relative md:col-span-4">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#8b9e95]" />
             <input
               type="text"
               value={filters.searchTerm}
               onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
-              placeholder="Search departments..."
-              className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 bg-white placeholder:text-slate-400 focus:border-[#08775A] focus:outline-hidden focus:ring-2 focus:ring-[#08775A]/20 transition-colors"
+              placeholder="Search by code, name, or in-charge..."
+              className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-[#c2e7db] bg-white placeholder:text-[#8b9e95] focus:border-[#08775A] focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 transition-colors"
             />
           </div>
 
@@ -621,7 +576,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
             <select
               value={filters.type}
               onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-              className="w-full py-2 px-3 text-xs rounded-lg border border-slate-300 bg-white text-slate-700 focus:border-[#08775A] focus:outline-hidden focus:ring-2 focus:ring-[#08775A]/20"
+              className="w-full py-2 px-3 text-xs rounded-lg border border-[#c2e7db] bg-white text-[#111827] font-medium focus:border-[#08775A] focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 cursor-pointer"
             >
               <option value="All">All Department Types</option>
               {VALID_DEPARTMENT_TYPES.map((t) => (
@@ -637,7 +592,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
             <select
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="w-full py-2 px-3 text-xs rounded-lg border border-slate-300 bg-white text-slate-700 focus:border-[#08775A] focus:outline-hidden focus:ring-2 focus:ring-[#08775A]/20"
+              className="w-full py-2 px-3 text-xs rounded-lg border border-[#c2e7db] bg-white text-[#111827] font-medium focus:border-[#08775A] focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 cursor-pointer"
             >
               <option value="All">All Statuses</option>
               <option value="Active">Active</option>
@@ -650,13 +605,13 @@ export const SuperAdminDepartmentsView: React.FC = () => {
             <select
               value={filters.capability}
               onChange={(e) => setFilters({ ...filters, capability: e.target.value })}
-              className="w-full py-2 px-3 text-xs rounded-lg border border-slate-300 bg-white text-slate-700 focus:border-[#08775A] focus:outline-hidden focus:ring-2 focus:ring-[#08775A]/20"
+              className="w-full py-2 px-3 text-xs rounded-lg border border-[#c2e7db] bg-white text-[#111827] font-medium focus:border-[#08775A] focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 cursor-pointer"
             >
               <option value="All">All Capabilities</option>
               <option value="OPD">OPD Enabled</option>
               <option value="Observation">Observation</option>
-              <option value="Emergency">Emergency Enabled</option>
-              <option value="Admission">Admission Enabled</option>
+              <option value="Emergency">Emergency</option>
+              <option value="Admission">Admission</option>
               <option value="Pharmacy Related">Pharmacy Related</option>
               <option value="None">Administrative / Support Only</option>
             </select>
@@ -668,7 +623,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
               type="button"
               onClick={handleResetFilters}
               title="Reset all filters"
-              className="inline-flex items-center justify-center p-2 rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors shadow-2xs w-full"
+              className="inline-flex items-center justify-center p-2 rounded-lg border border-[#e2eae5] text-rose-600 hover:text-rose-800 hover:bg-rose-50 transition-colors shadow-2xs w-full cursor-pointer"
             >
               <RefreshCw className="h-4 w-4" />
             </button>
@@ -680,7 +635,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
           <div>
             Showing <span className="font-bold text-slate-800">{filteredDepartments.length}</span> departments
             {filters.searchTerm || filters.type !== 'All' || filters.status !== 'All' || filters.capability !== 'All' ? (
-              <span className="text-[#08775A] ml-1 font-medium">(Filtered)</span>
+              <span className="text-[#08775A] ml-1 font-semibold">(Filtered)</span>
             ) : null}
           </div>
 
@@ -689,7 +644,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsColumnDropdownOpen(!isColumnDropdownOpen)}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 hover:text-slate-900"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               <span>Customize Columns</span>
@@ -725,56 +680,116 @@ export const SuperAdminDepartmentsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Master Departments Table */}
-      <div className="bg-white rounded-lg border border-slate-300 shadow-xs overflow-hidden flex flex-col">
+      {/* 4. Master Departments Table (design.md §4.5) */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] overflow-hidden shadow-2xs flex flex-col">
+        {/* Dark Emerald Header Strip */}
+        <div className="bg-[#0e5944] text-white px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-[13px] font-bold text-white tracking-wide">Department Directory</h2>
+            <span className="bg-[#08775A] text-white px-2 py-0.5 rounded-full text-[11px] font-semibold border border-white/10 font-mono">
+              {filteredDepartments.length} {filteredDepartments.length === 1 ? 'Record' : 'Records'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadExcel}
+              disabled={isExportingExcel}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#16a34a] hover:bg-[#15803d] text-white text-[11px] font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              title="Export as Excel"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <span>Excel</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPDF}
+              disabled={isExportingPdf}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#dc2626] hover:bg-[#b91c1c] text-white text-[11px] font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              title="Export as PDF"
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              <span>PDF</span>
+            </button>
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Print Dossier"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              <span>Print</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Sub-header row */}
+        <div className="bg-[#f6faf8] border-b border-[#e2eae5] px-4 py-2 flex items-center justify-between text-xs text-[#52665e]">
+          <div>
+            Showing <span className="font-semibold text-[#111827]">{(currentPage - 1) * pageSize + 1}</span>–
+            <span className="font-semibold text-[#111827]">{Math.min(currentPage * pageSize, filteredDepartments.length)}</span> of{' '}
+            <span className="font-semibold text-[#111827]">{filteredDepartments.length}</span> departments
+            {filteredDepartments.length !== departments.length && (
+              <span className="text-[#08775A] font-semibold ml-1.5">(Filtered from {departments.length} total)</span>
+            )}
+          </div>
+          <div className="text-[11px] text-[#52665e]">
+            Page <span className="font-bold text-[#111827]">{currentPage}</span> of{' '}
+            <span className="font-bold text-[#111827]">{totalPages}</span>
+          </div>
+        </div>
+
+        {/* Table Element */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-[#f1f5f9] border-b border-slate-300 text-[11px] font-bold text-slate-800 uppercase tracking-wider select-none sticky top-0 z-10">
-              <tr>
-                <th className="py-2.5 px-3 text-center border-r border-slate-300 w-12">#</th>
-                {visibleColumns.code && <th className="py-2.5 px-3.5 border-r border-slate-300">Code</th>}
-                {visibleColumns.name && <th className="py-2.5 px-3.5 border-r border-slate-300">Department Name</th>}
-                {visibleColumns.type && <th className="py-2.5 px-3 border-r border-slate-300">Type</th>}
-                {visibleColumns.floor && <th className="py-2.5 px-3 border-r border-slate-300">Location / Floor</th>}
-                {visibleColumns.fixedPrice && <th className="py-2.5 px-3 border-r border-slate-300">Fixed Price (PKR)</th>}
-                {visibleColumns.head && <th className="py-2.5 px-3.5 border-r border-slate-300">Head / In-charge</th>}
-                {visibleColumns.access && <th className="py-2.5 px-3 border-r border-slate-300">Operational Access</th>}
-                {visibleColumns.doctors && <th className="py-2.5 px-3 text-center border-r border-slate-300">Doctors</th>}
-                {visibleColumns.staff && <th className="py-2.5 px-3 text-center border-r border-slate-300">Staff</th>}
-                {visibleColumns.status && <th className="py-2.5 px-3 text-center border-r border-slate-300">Status</th>}
-                {visibleColumns.updatedBy && <th className="py-2.5 px-3 border-r border-slate-300">Updated By</th>}
-                {visibleColumns.updatedDate && <th className="py-2.5 px-3 border-r border-slate-300">Updated Date</th>}
-                {visibleColumns.actions && <th className="py-2.5 px-3.5 text-right">Actions</th>}
+          <table className="w-full text-left border-collapse text-xs">
+            <thead className="bg-[#effaf5] border-b border-[#c2e7db] text-[#08775A] font-bold text-[11px] uppercase tracking-wider select-none sticky top-0 z-10 whitespace-nowrap">
+              <tr className="whitespace-nowrap">
+                <th className="py-2.5 px-3 text-center border-r border-[#c2e7db]/70 w-12 whitespace-nowrap">#</th>
+                {visibleColumns.code && <th className="py-2.5 px-3.5 border-r border-[#c2e7db]/70 whitespace-nowrap">Code</th>}
+                {visibleColumns.name && <th className="py-2.5 px-3.5 border-r border-[#c2e7db]/70 whitespace-nowrap">Department Name</th>}
+                {visibleColumns.type && <th className="py-2.5 px-3 border-r border-[#c2e7db]/70 whitespace-nowrap">Type</th>}
+                {visibleColumns.floor && <th className="py-2.5 px-3 border-r border-[#c2e7db]/70 whitespace-nowrap">Location / Floor</th>}
+                {visibleColumns.fixedPrice && <th className="py-2.5 px-3 border-r border-[#c2e7db]/70 whitespace-nowrap">Fixed Price (PKR)</th>}
+                {visibleColumns.head && <th className="py-2.5 px-3.5 border-r border-[#c2e7db]/70 whitespace-nowrap">Head / In-charge</th>}
+                {visibleColumns.access && <th className="py-2.5 px-3 border-r border-[#c2e7db]/70 whitespace-nowrap">Operational Access</th>}
+                {visibleColumns.doctors && <th className="py-2.5 px-3 text-center border-r border-[#c2e7db]/70 whitespace-nowrap">Doctors</th>}
+                {visibleColumns.staff && <th className="py-2.5 px-3 text-center border-r border-[#c2e7db]/70 whitespace-nowrap">Staff</th>}
+                {visibleColumns.status && <th className="py-2.5 px-3 text-center border-r border-[#c2e7db]/70 whitespace-nowrap">Status</th>}
+                {visibleColumns.updatedBy && <th className="py-2.5 px-3 border-r border-[#c2e7db]/70 whitespace-nowrap">Updated By</th>}
+                {visibleColumns.updatedDate && <th className="py-2.5 px-3 border-r border-[#c2e7db]/70 whitespace-nowrap">Updated Date</th>}
+                {visibleColumns.actions && <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Actions</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 text-xs">
+            <tbody className="divide-y divide-[#e2eae5] text-xs">
               {paginatedDepartments.map((dept, idx) => (
                 <tr
                   key={dept.id}
-                  className="hover:bg-slate-50/90 transition-colors group border-b border-slate-200"
+                  className={`${
+                    idx % 2 === 0 ? 'bg-white' : 'bg-[#fbfdfc]'
+                  } hover:bg-[#f0f8f4] transition-colors border-b border-[#e2eae5]`}
                 >
                   {/* Sequence # */}
-                  <td className="py-2.5 px-3 text-center border-r border-slate-200 text-slate-500 font-mono text-[11px] bg-slate-50/60 whitespace-nowrap">
+                  <td className="py-2.5 px-3 text-center border-r border-[#e2eae5] text-[#52665e] font-mono text-[11px] whitespace-nowrap">
                     {(currentPage - 1) * pageSize + idx + 1}
                   </td>
 
                   {/* Code */}
                   {visibleColumns.code && (
-                    <td className="py-2.5 px-3.5 font-mono font-bold text-[#08775A] border-r border-slate-200 whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 font-mono font-bold text-[#08775A] border-r border-[#e2eae5] whitespace-nowrap">
                       {dept.code}
                     </td>
                   )}
 
                   {/* Name */}
                   {visibleColumns.name && (
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 whitespace-nowrap">
-                      <span className="font-semibold text-slate-900">{dept.name}</span>
+                    <td className="py-2.5 px-3.5 border-r border-[#e2eae5] whitespace-nowrap">
+                      <span className="font-semibold text-[#111827]">{dept.name}</span>
                     </td>
                   )}
 
                   {/* Type badge */}
                   {visibleColumns.type && (
-                    <td className="py-2.5 px-3 border-r border-slate-200 whitespace-nowrap">
+                    <td className="py-2.5 px-3 border-r border-[#e2eae5] whitespace-nowrap">
                       <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
                         {dept.type}
                       </span>
@@ -783,26 +798,26 @@ export const SuperAdminDepartmentsView: React.FC = () => {
 
                   {/* Floor / Location */}
                   {visibleColumns.floor && (
-                    <td className="py-2.5 px-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-[#52665e] border-r border-[#e2eae5] whitespace-nowrap">
                       {dept.floor || dept.location ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-[#f6faf8] text-[#111827] border border-[#e2eae5]">
                           {dept.floor ? `${dept.floor}${dept.location ? ` - ${dept.location}` : ''}` : dept.location}
                         </span>
                       ) : (
-                        <span className="text-slate-400 text-[10px] italic">Not Set</span>
+                        <span className="text-[#8b9e95] text-[10px] italic">Not Set</span>
                       )}
                     </td>
                   )}
 
                   {/* Fixed Price (PKR) */}
                   {visibleColumns.fixedPrice && (
-                    <td className="py-2.5 px-3 font-semibold text-slate-800 border-r border-slate-200 whitespace-nowrap">
+                    <td className="py-2.5 px-3 font-semibold text-[#111827] border-r border-[#e2eae5] whitespace-nowrap">
                       {dept.fixedPrice !== undefined && dept.fixedPrice !== null ? (
-                        <span className="text-emerald-700 font-mono font-bold">
+                        <span className="text-[#08775A] font-mono font-bold">
                           PKR {Number(dept.fixedPrice).toLocaleString()}
                         </span>
                       ) : (
-                        <span className="text-slate-400 font-normal text-[10px] italic">
+                        <span className="text-[#8b9e95] font-normal text-[10px] italic">
                           Optional / Free
                         </span>
                       )}
@@ -811,18 +826,18 @@ export const SuperAdminDepartmentsView: React.FC = () => {
 
                   {/* Head / In-charge */}
                   {visibleColumns.head && (
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 border-r border-[#e2eae5] whitespace-nowrap">
                       {dept.headName === 'Not Assigned' ? (
-                        <span className="text-slate-400 italic">Not Assigned</span>
+                        <span className="text-[#8b9e95] italic">Not Assigned</span>
                       ) : (
-                        <span className="font-medium text-slate-800">{dept.headName}</span>
+                        <span className="font-medium text-[#111827]">{dept.headName}</span>
                       )}
                     </td>
                   )}
 
                   {/* Operational Access compact tags */}
                   {visibleColumns.access && (
-                    <td className="py-2.5 px-3 border-r border-slate-200 whitespace-nowrap">
+                    <td className="py-2.5 px-3 border-r border-[#e2eae5] whitespace-nowrap">
                       <div className="flex items-center gap-1 flex-nowrap">
                         {dept.opdEnabled && (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
@@ -854,7 +869,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
                           !dept.emergencyEnabled &&
                           !dept.admissionEnabled &&
                           !dept.pharmacyRelated && (
-                            <span className="text-slate-400 text-xs">—</span>
+                            <span className="text-[#8b9e95] text-xs">—</span>
                           )}
                       </div>
                     </td>
@@ -862,50 +877,42 @@ export const SuperAdminDepartmentsView: React.FC = () => {
 
                   {/* Doctors */}
                   {visibleColumns.doctors && (
-                    <td className="py-2.5 px-3 text-center font-bold text-slate-800 border-r border-slate-200 whitespace-nowrap">
-                      {dept.doctorCount} <span className="font-normal text-slate-400 text-[10px]">Doctors</span>
+                    <td className="py-2.5 px-3 text-center font-bold text-[#111827] border-r border-[#e2eae5] whitespace-nowrap">
+                      <span className="font-mono">{dept.doctorCount}</span> <span className="font-normal text-[#8b9e95] text-[10px]">Doctors</span>
                     </td>
                   )}
 
                   {/* Staff */}
                   {visibleColumns.staff && (
-                    <td className="py-2.5 px-3 text-center font-bold text-slate-800 border-r border-slate-200 whitespace-nowrap">
-                      {dept.staffCount} <span className="font-normal text-slate-400 text-[10px]">Staff</span>
+                    <td className="py-2.5 px-3 text-center font-bold text-[#111827] border-r border-[#e2eae5] whitespace-nowrap">
+                      <span className="font-mono">{dept.staffCount}</span> <span className="font-normal text-[#8b9e95] text-[10px]">Staff</span>
                     </td>
                   )}
 
                   {/* Status */}
                   {visibleColumns.status && (
-                    <td className="py-2.5 px-3 text-center border-r border-slate-200 whitespace-nowrap">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          dept.status === 'Active'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-slate-200 text-slate-700'
-                        }`}
-                      >
-                        {dept.status}
-                      </span>
+                    <td className="py-2.5 px-3 text-center border-r border-[#e2eae5] whitespace-nowrap">
+                      <StatusBadge status={dept.status} size="sm" />
                     </td>
                   )}
 
                   {/* Updated By */}
                   {visibleColumns.updatedBy && (
-                    <td className="py-2.5 px-3 text-slate-700 font-medium whitespace-nowrap border-r border-slate-200" title={dept.updatedBy}>
+                    <td className="py-2.5 px-3 text-[#52665e] font-medium whitespace-nowrap border-r border-[#e2eae5]" title={dept.updatedBy}>
                       {dept.updatedBy}
                     </td>
                   )}
 
                   {/* Updated Date */}
                   {visibleColumns.updatedDate && (
-                    <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap border-r border-slate-200">
+                    <td className="py-2.5 px-3 text-[#52665e] font-mono text-[11px] whitespace-nowrap border-r border-[#e2eae5]">
                       {dept.updatedAt.split(',')[0]}
                     </td>
                   )}
 
                   {/* Actions */}
                   {visibleColumns.actions && (
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
                         {/* View Button */}
                         <button
@@ -915,7 +922,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
                             setIsViewDrawerOpen(true);
                           }}
                           title="View Department Details"
-                          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+                          className="h-7 w-7 rounded-lg inline-flex items-center justify-center text-[#52665e] hover:text-[#08775A] hover:bg-[#effaf5] transition-colors cursor-pointer"
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </button>
@@ -928,23 +935,24 @@ export const SuperAdminDepartmentsView: React.FC = () => {
                             setIsAddEditOpen(true);
                           }}
                           title="Edit Department"
-                          className="rounded-lg p-1.5 text-slate-500 hover:bg-[#effaf5] hover:text-[#08775A] transition-colors"
+                          className="h-7 w-7 rounded-lg inline-flex items-center justify-center text-[#52665e] hover:text-[#08775A] hover:bg-[#effaf5] transition-colors cursor-pointer"
                         >
                           <Edit2 className="h-3.5 w-3.5" />
                         </button>
 
                         {/* Activate / Deactivate Toggle */}
-                        <button disabled={dept.isDefaultPharmacy}
+                        <button
+                          disabled={dept.isDefaultPharmacy}
                           type="button"
                           onClick={() => {
                             setSelectedDeptForDeactivate(dept);
                             setIsDeactivateOpen(true);
                           }}
                           title={dept.status === 'Active' ? 'Deactivate Department' : 'Activate Department'}
-                          className={`rounded-lg p-1.5 transition-colors ${
+                          className={`h-7 w-7 rounded-lg inline-flex items-center justify-center transition-colors cursor-pointer ${
                             dept.status === 'Active'
-                              ? 'text-slate-400 hover:bg-amber-50 hover:text-amber-700'
-                              : 'text-[#08775A] hover:bg-emerald-50'
+                              ? 'text-[#52665e] hover:bg-amber-50 hover:text-amber-700'
+                              : 'text-[#08775A] hover:bg-[#effaf5]'
                           }`}
                         >
                           <Power className="h-3.5 w-3.5" />
@@ -954,7 +962,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
                         {isProtectedCoreDepartment(dept) ? (
                           <span
                             title="Default Pharmacy department cannot be deleted"
-                            className="rounded-lg p-1.5 text-slate-300 cursor-not-allowed inline-flex items-center justify-center opacity-60"
+                            className="h-7 w-7 rounded-lg inline-flex items-center justify-center text-slate-300 cursor-not-allowed opacity-60"
                           >
                             <ShieldAlert className="h-3.5 w-3.5 text-slate-400" />
                           </span>
@@ -966,7 +974,7 @@ export const SuperAdminDepartmentsView: React.FC = () => {
                               setIsDeleteOpen(true);
                             }}
                             title="Delete Department (Checked for linked records)"
-                            className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
+                            className="h-7 w-7 rounded-lg inline-flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -979,15 +987,15 @@ export const SuperAdminDepartmentsView: React.FC = () => {
 
               {paginatedDepartments.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="py-12 text-center text-slate-500">
-                    <Building2 className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                    <span className="font-semibold text-xs text-slate-700 block">
+                  <td colSpan={14} className="py-12 text-center text-[#52665e]">
+                    <Building2 className="h-8 w-8 text-[#8b9e95] mx-auto mb-2 opacity-50" />
+                    <span className="font-semibold text-xs text-[#111827] block">
                       No departments match your current search and filter criteria.
                     </span>
                     <button
                       type="button"
                       onClick={handleResetFilters}
-                      className="mt-2 text-xs font-semibold text-[#08775A] hover:underline"
+                      className="mt-2 text-xs font-semibold text-[#08775A] hover:underline cursor-pointer"
                     >
                       Reset All Filters
                     </button>
@@ -998,8 +1006,8 @@ export const SuperAdminDepartmentsView: React.FC = () => {
           </table>
         </div>
 
-        {/* Table Footer with Pagination */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3 text-xs text-slate-600">
+        {/* Table Footer with Pagination (design.md §4.5) */}
+        <div className="bg-[#f6faf8] border-t border-[#e2eae5] px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-[#52665e]">
           <div className="flex items-center gap-2">
             <span>Rows per page:</span>
             <select
@@ -1008,37 +1016,40 @@ export const SuperAdminDepartmentsView: React.FC = () => {
                 setPageSize(Number(e.target.value));
                 setCurrentPage(1);
               }}
-              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+              className="rounded-lg border border-[#c2e7db] bg-white px-2.5 py-1 text-xs text-[#111827] font-medium focus:border-[#08775A] focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 cursor-pointer"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
             </select>
             <span className="ml-2">
-              Showing {(currentPage - 1) * pageSize + 1}–
-              {Math.min(currentPage * pageSize, filteredDepartments.length)} of {filteredDepartments.length}
+              Showing <span className="font-semibold text-[#111827]">{(currentPage - 1) * pageSize + 1}</span>–
+              <span className="font-semibold text-[#111827]">{Math.min(currentPage * pageSize, filteredDepartments.length)}</span> of{' '}
+              <span className="font-semibold text-[#111827]">{filteredDepartments.length}</span>
             </span>
           </div>
 
-          <div className="flex items-center gap-1 self-end sm:self-auto">
+          <div className="flex items-center gap-1.5 self-end sm:self-auto">
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+              className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-lg border border-[#e2eae5] bg-white text-[#52665e] hover:bg-[#effaf5] hover:text-[#08775A] disabled:opacity-40 transition-colors cursor-pointer text-xs font-semibold"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+              <span>Previous</span>
             </button>
-            <span className="px-2 font-medium">
-              Page {currentPage} of {totalPages}
+            <span className="px-2 font-mono text-[11px] font-semibold text-[#111827]">
+              {currentPage} / {totalPages}
             </span>
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+              className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-lg border border-[#e2eae5] bg-white text-[#52665e] hover:bg-[#effaf5] hover:text-[#08775A] disabled:opacity-40 transition-colors cursor-pointer text-xs font-semibold"
             >
-              <ChevronRight className="h-4 w-4" />
+              <span>Next</span>
+              <ChevronRight className="h-3.5 w-3.5 ml-1" />
             </button>
           </div>
         </div>

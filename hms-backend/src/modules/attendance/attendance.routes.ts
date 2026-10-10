@@ -24,5 +24,6 @@ router.post('/bulk-mark', create, validate({ body: s.bulkMarkAttendanceBodySchem
 router.get('/:id', view, validate({ params: s.attendanceIdParamsSchema }), asyncHandler(c.getById));
 router.post('/:id/approve', approve, validate({ params: s.attendanceIdParamsSchema, body: s.approveAttendanceBodySchema }), asyncHandler(c.approve));
 router.post('/:id/correct', edit, validate({ params: s.attendanceIdParamsSchema, body: s.correctAttendanceBodySchema }), asyncHandler(c.correct));
+router.delete('/:id', edit, validate({ params: s.attendanceIdParamsSchema }), asyncHandler(c.deleteRecord));
 
 export default router;

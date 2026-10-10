@@ -1197,7 +1197,7 @@ export const StaffUserModal: React.FC<StaffUserModalProps> = ({ isOpen, onClose,
   const isLast = stepIndex === steps.length - 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs font-montserrat">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
       <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[94vh]">
         {/* Header */}
         <div className="bg-gradient-to-r from-[#0a4636] to-[#08775A] text-white px-5 py-3 flex items-center justify-between">

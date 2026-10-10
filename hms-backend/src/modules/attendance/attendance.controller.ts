@@ -54,4 +54,10 @@ export const attendanceController = {
     const record = await attendanceService.correct(req.params.id as string, req.body as CorrectAttendanceBody, req.user.sub);
     res.json({ data: record });
   },
+
+  async deleteRecord(req: Request, res: Response) {
+    if (!req.user) throw new AuthenticationError();
+    const result = await attendanceService.deleteRecord(req.params.id as string);
+    res.json({ data: result });
+  },
 };

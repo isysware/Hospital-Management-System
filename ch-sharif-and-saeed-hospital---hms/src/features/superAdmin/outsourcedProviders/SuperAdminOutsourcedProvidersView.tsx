@@ -13,6 +13,8 @@ import { Modal } from '../../../components/common/Modal';
 import { ConfirmModal } from '../../../components/common/ConfirmModal';
 import { TextInput, NumberInput, Textarea, MultiSelect, Toggle } from '../../../components/forms/FormControls';
 import { useToast } from '../../../context/ToastContext';
+import { HospitalKpiHeader, KpiItem } from '../../../components/common/HospitalKpiHeader';
+import { generateNextCode } from '../../../utils/codeGenerator';
 
 const EMPTY_FORM: OutsourcedProviderFormValues = {
   code: '',
@@ -91,7 +93,11 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingProvider(null);
-    setFormValues(EMPTY_FORM);
+    const autoCode = generateNextCode(
+      providers.map((p) => p.code),
+      'PRV'
+    );
+    setFormValues({ ...EMPTY_FORM, code: autoCode });
     setFormError(null);
     setIsFormOpen(true);
   };
@@ -162,6 +168,47 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
     }
   };
 
+  const kpis: KpiItem[] = useMemo(() => {
+    const totalProviders = providers.length;
+    const activeProviders = providers.filter((p) => p.isActive).length;
+    const totalLinkedDepts = providers.reduce((sum, p) => sum + p.linkedDepartmentCount, 0);
+    const totalSettlements = providers.reduce((sum, p) => sum + p.settlementCount, 0);
+    return [
+      {
+        category: 'OUTSOURCED SERVICES',
+        title: 'Total Providers',
+        value: totalProviders,
+        icon: Truck,
+        subtitle: 'External labs & diagnostics',
+        tone: 'default',
+      },
+      {
+        category: 'FULFILLMENT STATUS',
+        title: 'Active Providers',
+        value: activeProviders,
+        icon: CheckCircle2,
+        subtitle: 'Active contract partners',
+        tone: 'success',
+      },
+      {
+        category: 'CLINICAL SCOPE',
+        title: 'Linked Departments',
+        value: totalLinkedDepts,
+        icon: Building2,
+        subtitle: 'Departments with outsourced tests',
+        tone: 'info',
+      },
+      {
+        category: 'FINANCIAL SETTLEMENTS',
+        title: 'Logged Settlements',
+        value: totalSettlements,
+        icon: AlertTriangle,
+        subtitle: 'Settlements processed',
+        tone: 'warning',
+      },
+    ];
+  }, [providers]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24 text-slate-500 gap-2 text-sm">
@@ -188,118 +235,156 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-150">
-      {/* Header */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-bold text-slate-900">Outsourced Providers</h1>
+    <div className="space-y-4">
+      {/* Section 4.1 Card Page Header Block */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-xl bg-[#effaf5] text-[#08775A] border border-[#c2e7db] flex items-center justify-center shadow-2xs">
+              <Truck className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-[#123e2b] tracking-tight">Outsourced Providers</h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                  External Diagnostics
+                </span>
+              </div>
+              <p className="text-xs text-[#52665e] mt-0.5">
+                External Lab, Radiology, and Neurology partners linked to outsourced clinical departments
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            External Lab / Neurology / diagnostic providers a Department can be linked to when its fulfillment mode is Outsourced.
-            Settlement against realized collections is tracked under Provider Settlements.
-          </p>
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Provider</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#149E75] hover:bg-[#08775A] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors shrink-0"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>Add Outsourced Provider</span>
-        </button>
       </div>
 
-      {/* Search & Filter */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+      {/* Section 4.2 & Section 9 HospitalKpiHeader */}
+      <HospitalKpiHeader columns="grid-cols-2 sm:grid-cols-4" items={kpis} />
+
+      {/* Section 4.4 Filter Toolbar */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-3 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative flex-1 w-full">
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#52665e]" />
           <input
             type="text"
-            placeholder="Search providers by name, code or representative..."
+            placeholder="Search providers by code, name, or representative..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full text-xs pl-8.5 pr-3 py-2 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#149E75] bg-slate-50/50"
+            className="w-full text-xs pl-8.5 pr-3 py-1.5 border border-[#c2e7db] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] bg-[#fbfdfc] focus:bg-white transition-colors"
           />
         </div>
         <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-          <span className="text-[11px] font-semibold text-slate-500">Filter:</span>
+          <span className="text-xs font-semibold text-[#52665e]">Status:</span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-[#149E75]"
+            className="text-xs px-3 py-1.5 border border-[#c2e7db] rounded-lg bg-[#fbfdfc] focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-[#08775A]"
           >
             <option value="All">All Statuses</option>
             <option value="Active">Active Only</option>
-            <option value="Inactive">Inactive</option>
+            <option value="Inactive">Inactive Only</option>
           </select>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Section 4.5 Data Table */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] shadow-2xs overflow-hidden flex flex-col">
+        {/* Dark Emerald Header Strip */}
+        <div className="bg-[#0e5944] text-white px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Truck className="h-4 w-4 text-[#c2e7db]" />
+            <span className="font-semibold text-xs tracking-wide">Outsourced Diagnostic Partners</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+              {filteredProviders.length} Providers
+            </span>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                <th className="py-2.5 px-4">Code</th>
-                <th className="py-2.5 px-4">Provider Name</th>
-                <th className="py-2.5 px-4">Representative</th>
-                <th className="py-2.5 px-4">Settlement Cycle</th>
-                <th className="py-2.5 px-4 text-center">Linked Departments</th>
-                <th className="py-2.5 px-4 text-center">Settlements</th>
-                <th className="py-2.5 px-4">Status</th>
+              <tr className="bg-[#effaf5] border-b border-[#c2e7db] text-[11px] font-bold text-[#08775A] select-none sticky top-0 z-10">
+                <th className="py-2.5 px-3 text-center border-r border-[#c2e7db]/60 w-12">#</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Code</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Provider Name</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Representative</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Settlement Cycle</th>
+                <th className="py-2.5 px-4 text-center border-r border-[#c2e7db]/60">Linked Depts</th>
+                <th className="py-2.5 px-4 text-center border-r border-[#c2e7db]/60">Settlements</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Status</th>
                 <th className="py-2.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredProviders.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50/80">
-                  <td className="py-2.5 px-4 font-mono font-bold text-slate-900">{p.code}</td>
-                  <td className="py-2.5 px-4 font-bold text-slate-900">{p.name}</td>
-                  <td className="py-2.5 px-4">{p.representativeName || '—'}</td>
-                  <td className="py-2.5 px-4">{p.settlementCycle || '—'}</td>
-                  <td className="py-2.5 px-4 text-center font-semibold">{p.linkedDepartmentCount}</td>
-                  <td className="py-2.5 px-4 text-center font-semibold">{p.settlementCount}</td>
-                  <td className="py-2.5 px-4">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        p.isActive ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {p.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(p)}
-                        className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-[#08775A]"
-                        title="Edit Provider"
+            <tbody className="divide-y divide-[#e2eae5] text-slate-700">
+              {filteredProviders.map((p, idx) => {
+                const isEven = idx % 2 === 0;
+                return (
+                  <tr
+                    key={p.id}
+                    className={`transition-colors border-b border-[#e2eae5] ${
+                      isEven ? 'bg-white' : 'bg-[#fbfdfc]'
+                    } hover:bg-[#e7f6f1]/40`}
+                  >
+                    <td className="py-2.5 px-3 text-center border-r border-[#e2eae5] text-[#52665e] font-mono text-[11px] bg-[#effaf5]/20">
+                      {idx + 1}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono font-bold text-[#123e2b] border-r border-[#e2eae5]">{p.code}</td>
+                    <td className="py-2.5 px-4 font-bold text-[#111827] border-r border-[#e2eae5]">{p.name}</td>
+                    <td className="py-2.5 px-4 border-r border-[#e2eae5]">{p.representativeName || '—'}</td>
+                    <td className="py-2.5 px-4 border-r border-[#e2eae5]">{p.settlementCycle || '—'}</td>
+                    <td className="py-2.5 px-4 text-center font-mono font-bold text-[#08775A] border-r border-[#e2eae5]">{p.linkedDepartmentCount}</td>
+                    <td className="py-2.5 px-4 text-center font-mono font-bold text-slate-800 border-r border-[#e2eae5]">{p.settlementCount}</td>
+                    <td className="py-2.5 px-4 border-r border-[#e2eae5]">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          p.isActive
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
                       >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </button>
-                      {p.isActive && (
+                        {p.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => setStatusTarget(p)}
-                          className="p-1 rounded transition-colors text-slate-400 hover:bg-amber-50 hover:text-amber-700"
-                          title="Deactivate Provider"
+                          onClick={() => handleOpenEdit(p)}
+                          className="p-1 hover:bg-[#effaf5] rounded-md text-[#52665e] hover:text-[#08775A] cursor-pointer transition-colors"
+                          title="Edit Provider"
                         >
-                          <Power className="h-3.5 w-3.5" />
+                          <Edit2 className="h-3.5 w-3.5" />
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {p.isActive && (
+                          <button
+                            type="button"
+                            onClick={() => setStatusTarget(p)}
+                            className="p-1 rounded-md transition-colors text-slate-400 hover:bg-amber-50 hover:text-amber-700 cursor-pointer"
+                            title="Deactivate Provider"
+                          >
+                            <Power className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
 
               {filteredProviders.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
-                    <Truck className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                    <span className="font-semibold text-xs text-slate-700 block">No outsourced providers match your search criteria.</span>
+                  <td colSpan={9} className="py-12 text-center text-[#52665e]">
+                    <Truck className="h-8 w-8 text-[#52665e]/40 mx-auto mb-2" />
+                    <span className="font-semibold text-xs text-[#123e2b] block">No outsourced providers match your search criteria.</span>
                   </td>
                 </tr>
               )}
@@ -322,9 +407,10 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <TextInput
               label="Provider Code"
-              placeholder="e.g. PRV-LAB01 (optional — auto-generated if blank)"
+              placeholder="Auto-generated (e.g. PRV-0001)"
               value={formValues.code}
               onChange={(e) => setFormValues({ ...formValues, code: e.target.value })}
+              hint="Auto-generated sequential code — editable if needed"
             />
             <TextInput
               label="Provider Name"

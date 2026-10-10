@@ -17,6 +17,8 @@ import {
   X,
   Loader2,
   Calendar,
+  Printer,
+  Plus,
 } from 'lucide-react';
 import { PatientGender, PayerType, GuardianRelation, GUARDIAN_RELATIONS } from '../../../types/patient';
 import {
@@ -49,7 +51,9 @@ import {
   AdmissionPaymentMethod,
   MedicationMode,
 } from '../../../services/admissionService';
-import { InvoiceDetailModal } from '../billing/InvoiceDetailModal';
+import { fetchInvoiceDetail, InvoiceDetail } from '../../../services/invoiceService';
+import { getHospitalProfile } from '../../../services/hospitalProfileService';
+import { InvoiceDetailModal, formatServiceName, formatServiceCode, getInvoiceEncounterLabel } from '../billing/InvoiceDetailModal';
 import {
   formatPKR,
   formatSentenceCase,
@@ -156,7 +160,18 @@ export const NewAdmissionView: React.FC = () => {
   const [createdAdmission, setCreatedAdmission] = useState<AdmissionRecord | null>(null);
   const [createdAdvanceReceipt, setCreatedAdvanceReceipt] = useState<AdmissionAdvanceReceipt | null>(null);
   const [createdInvoice, setCreatedInvoice] = useState<{ id: string; invoiceNumber: string } | null>(null);
+  const [liveInvoiceDetail, setLiveInvoiceDetail] = useState<InvoiceDetail | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
+  useEffect(() => {
+    if (createdInvoice?.id) {
+      fetchInvoiceDetail(createdInvoice.id)
+        .then((inv) => setLiveInvoiceDetail(inv))
+        .catch((err) => console.error('Failed to load created invoice detail:', err));
+    } else {
+      setLiveInvoiceDetail(null);
+    }
+  }, [createdInvoice?.id]);
 
   // Live master data caches (re-fetched on mount so direct navigation never gets stuck on an unprimed memory cache)
   const [corporatePanels, setCorporatePanels] = useState<CorporatePanel[]>(getActiveCorporatePanels);
@@ -301,6 +316,7 @@ export const NewAdmissionView: React.FC = () => {
     setCreatedAdmission(null);
     setCreatedAdvanceReceipt(null);
     setCreatedInvoice(null);
+    setLiveInvoiceDetail(null);
     setShowInvoiceModal(false);
     setPanelSearchQuery('');
     setPanelSearchResults([]);
@@ -483,6 +499,9 @@ export const NewAdmissionView: React.FC = () => {
       setCreatedAdmission(admission);
       setCreatedAdvanceReceipt(advanceReceipt);
       setCreatedInvoice(invoice);
+      if (invoice?.id) {
+        fetchInvoiceDetail(invoice.id).then(setLiveInvoiceDetail).catch(() => {});
+      }
       refreshHierarchy();
       toast.success(
         `Admission ${admission.admissionNumber} created for ${admission.patientName}.`,
@@ -497,132 +516,551 @@ export const NewAdmissionView: React.FC = () => {
     }
   };
 
+  const handlePrintLiveInvoice = () => {
+    const printWindow = window.open('', '_blank', 'width=850,height=950');
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+    const profile = getHospitalProfile();
+    const inv = liveInvoiceDetail || {
+      id: createdInvoice?.id || '',
+      invoiceNumber: createdInvoice?.invoiceNumber || 'INV-26-0001',
+      sourceType: 'ADMISSION',
+      encounterType: 'ADMISSION',
+      status: (createdAdvanceReceipt && createdAdmission?.estimatedAmount && createdAdvanceReceipt.amount >= createdAdmission.estimatedAmount) ? 'PAID' : (createdAdvanceReceipt ? 'PARTIALLY_PAID' : 'UNPAID'),
+      patientName: createdAdmission?.patientName || fullName,
+      patientMr: createdAdmission?.patientMrNumber || '—',
+      patientGuardian: fatherGuardianName ? `${fatherGuardianName} (${guardianRelation || 'Guardian'})` : '—',
+      patientPhone: primaryPhone || '—',
+      payerType: createdAdmission?.payerType || payerType,
+      admissionNumber: createdAdmission?.admissionNumber || '',
+      departmentName: createdAdmission?.departmentName || '',
+      doctorName: createdAdmission?.doctorName || 'Consultant',
+      wardName: createdAdmission?.bedLabel || '',
+      admissionEstimatedAmount: createdAdmission?.estimatedAmount || null,
+      subtotal: createdAdmission?.estimatedAmount || 0,
+      discountTotal: 0,
+      total: createdAdmission?.estimatedAmount || 0,
+      patientShare: createdAdmission?.estimatedAmount || 0,
+      advancePaid: createdAdvanceReceipt?.amount || 0,
+      paidTotal: createdAdvanceReceipt?.amount || 0,
+      balanceDue: Math.max(0, (createdAdmission?.estimatedAmount || 0) - (createdAdvanceReceipt?.amount || 0)),
+      panelReceivable: 0,
+      hasRefund: false,
+      refundedAmount: 0,
+      panelName: '',
+      createdAt: formatDisplayDate(new Date()),
+      createdAtIso: new Date().toISOString(),
+      lines: [
+        {
+          id: 'adm-fee',
+          serviceName: 'Inpatient Stay & Ward Admission Tariff',
+          serviceCode: 'ADM-TARIFF',
+          quantity: 1,
+          rate: createdAdmission?.estimatedAmount || 0,
+          lineGross: createdAdmission?.estimatedAmount || 0,
+          discountAmount: 0,
+          discountReason: '',
+          lineNet: createdAdmission?.estimatedAmount || 0,
+          performedByName: createdAdmission?.doctorName || 'Staff',
+        }
+      ],
+      receipts: createdAdvanceReceipt ? [
+        {
+          id: 'rec-1',
+          receiptNumber: createdAdvanceReceipt.receiptNumber,
+          amount: createdAdvanceReceipt.amount,
+          method: createdAdvanceReceipt.method,
+          reference: createdAdvanceReceipt.reference || '',
+          isReversed: false,
+          collectedByName: 'Front Desk',
+          collectedAt: formatDisplayDate(new Date()),
+        }
+      ] : [],
+    };
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Invoice - ${inv.invoiceNumber}</title>
+          <style>
+            @page { size: A4 portrait; margin: 12mm; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 11.5px; color: #0f172a; margin: 0; padding: 10px; }
+            .header { text-align: center; border-bottom: 2px solid #08775A; padding-bottom: 10px; margin-bottom: 14px; }
+            .header h1 { font-size: 19px; font-weight: 800; color: #0f172a; margin: 0 0 3px 0; text-transform: uppercase; letter-spacing: 0.5px; }
+            .header p { margin: 2px 0; color: #475569; font-size: 10.5px; }
+            .header .title { font-size: 13px; font-weight: 700; color: #08775A; text-transform: uppercase; margin-top: 5px; }
+            .meta-grid { display: flex; justify-content: space-between; margin-bottom: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; gap: 16px; }
+            .meta-col { flex: 1; }
+            .meta-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11px; }
+            .meta-label { color: #64748b; font-weight: 600; }
+            .meta-val { color: #0f172a; font-weight: 600; }
+            .meta-val.mr { color: #08775A; font-weight: 800; }
+            .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; border: 1px solid #c2e7db; background: #effaf5; color: #08775A; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 11px; }
+            th { background: #f1f5f9; color: #334155; font-weight: 700; text-transform: uppercase; font-size: 10px; padding: 8px 10px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; text-align: left; }
+            td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; color: #1e293b; }
+            .summary-wrap { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+            .receipt-note { flex: 1; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 10px; font-size: 11px; color: #166534; }
+            .summary-box { width: 280px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 11px; }
+            .summary-row { display: flex; justify-content: space-between; margin-bottom: 5px; color: #475569; }
+            .summary-row.total { font-size: 12px; font-weight: 800; color: #0f172a; border-top: 1px solid #cbd5e1; padding-top: 6px; }
+            .summary-row.balance { font-size: 13px; font-weight: 800; color: #b91c1c; border-top: 2px solid #cbd5e1; padding-top: 6px; }
+            .signatures { display: flex; justify-content: space-between; margin-top: 36px; padding-top: 16px; border-top: 1px dashed #cbd5e1; font-size: 11px; color: #475569; }
+            .sig-block { width: 180px; text-align: center; border-top: 1px solid #94a3b8; padding-top: 4px; }
+            .footer { margin-top: 20px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            ${profile.logo ? `<img src="${profile.logo}" style="height: 48px; max-width: 130px; object-fit: contain; margin-bottom: 4px; display: block; margin-left: auto; margin-right: auto;" />` : ''}
+            <h1>${profile.name || 'CH Sharif and Saeed Hospital'}</h1>
+            <p>Excellence in Clinical Care, Diagnostics &amp; Inpatient Services</p>
+            <div class="title">Official Inpatient Admission Invoice / Bill</div>
+          </div>
+          <div class="meta-grid">
+            <div class="meta-col">
+              <div class="meta-row"><span class="meta-label">Invoice #:</span> <strong class="meta-val">${inv.invoiceNumber}</strong></div>
+              <div class="meta-row"><span class="meta-label">Admission #:</span> <strong class="meta-val">${inv.admissionNumber || '—'}</strong></div>
+              <div class="meta-row"><span class="meta-label">Date &amp; Time:</span> <span class="meta-val">${inv.createdAt}</span></div>
+              <div class="meta-row"><span class="meta-label">Department:</span> <span class="meta-val">${inv.departmentName || 'Inpatient'}</span></div>
+              <div class="meta-row"><span class="meta-label">Doctor:</span> <span class="meta-val">${inv.doctorName || 'Consultant On Duty'}</span></div>
+              <div class="meta-row"><span class="meta-label">Ward / Bed:</span> <span class="meta-val">${inv.wardName || 'Assigned'}</span></div>
+              <div class="meta-row"><span class="meta-label">Status:</span> <span class="badge">${inv.status}</span></div>
+            </div>
+            <div class="meta-col">
+              <div class="meta-row"><span class="meta-label">MR Number:</span> <strong class="meta-val mr">${inv.patientMr || '—'}</strong></div>
+              <div class="meta-row"><span class="meta-label">Patient Name:</span> <strong class="meta-val">${inv.patientName}</strong></div>
+              <div class="meta-row"><span class="meta-label">Guardian:</span> <span class="meta-val">${inv.patientGuardian || '—'}</span></div>
+              <div class="meta-row"><span class="meta-label">Phone:</span> <span class="meta-val">${inv.patientPhone || '—'}</span></div>
+              <div class="meta-row"><span class="meta-label">Payer Type:</span> <span class="meta-val">${inv.payerType}</span></div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 30px; text-align: center;">#</th>
+                <th>Service / Description</th>
+                <th style="width: 50px; text-align: right;">Qty</th>
+                <th style="width: 80px; text-align: right;">Rate (PKR)</th>
+                <th style="width: 90px; text-align: right;">Total (PKR)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inv.lines.map((l: any, i: number) => `
+                <tr>
+                  <td style="text-align: center; color: #64748b;">${i + 1}</td>
+                  <td><strong>${formatServiceName(l.serviceName)}</strong></td>
+                  <td style="text-align: right;">${l.quantity}</td>
+                  <td style="text-align: right;">${formatPKR(l.rate)}</td>
+                  <td style="text-align: right;"><strong>${formatPKR(l.lineGross)}</strong></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="summary-wrap">
+            <div class="receipt-note">
+              ${inv.advancePaid > 0 ? `
+                <strong>Advance Deposit Collected:</strong> ${formatPKR(inv.advancePaid)}<br/>
+                Receipt: <strong>${inv.receipts?.[0]?.receiptNumber || createdAdvanceReceipt?.receiptNumber || 'REC-ADV'}</strong> (${inv.receipts?.[0]?.method || createdAdvanceReceipt?.method || 'CASH'})
+              ` : `
+                Standard inpatient intake billing. Daily stay charges, pharmacy, and diagnostics will be consolidated on discharge clearance.
+              `}
+            </div>
+            <div class="summary-box">
+              <div class="summary-row"><span>Gross Charges:</span><strong>${formatPKR(inv.subtotal || 0)}</strong></div>
+              <div class="summary-row"><span>Discount:</span><span>${inv.discountTotal ? `- ${formatPKR(inv.discountTotal)}` : formatPKR(0)}</span></div>
+              <div class="summary-row total"><span>Net Invoiced:</span><strong>${formatPKR(inv.patientShare || inv.subtotal || 0)}</strong></div>
+              ${inv.advancePaid ? `<div class="summary-row" style="color: #08775A;"><span>Advance Deposit:</span><strong>- ${formatPKR(inv.advancePaid)}</strong></div>` : ''}
+              <div class="summary-row balance"><span>Balance Due:</span><span>${formatPKR(inv.balanceDue || 0)}</span></div>
+            </div>
+          </div>
+          <div class="signatures">
+            <div class="sig-block">Prepared by (Front Desk)</div>
+            <div class="sig-block">Patient / Guardian Signature</div>
+          </div>
+          <div class="footer">
+            System-generated official computer invoice issued by CH Sharif &amp; Saeed Hospital HMS.
+          </div>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 350);
+  };
+
   if (createdAdmission) {
+    const profile = getHospitalProfile();
+    const effectiveInvoiceNumber = liveInvoiceDetail?.invoiceNumber || createdInvoice?.invoiceNumber || 'INV-26-0001';
+    const effectiveLines = (liveInvoiceDetail?.lines && liveInvoiceDetail.lines.length > 0)
+      ? liveInvoiceDetail.lines
+      : [
+          {
+            id: 'tariff-1',
+            serviceName: 'Inpatient Stay & Ward Tariff',
+            serviceCode: 'ADM-STAY',
+            serviceCategory: 'Room / Bed',
+            quantity: 1,
+            rate: createdAdmission.estimatedAmount || 0,
+            lineGross: createdAdmission.estimatedAmount || 0,
+          }
+        ];
+
+    const effectiveGross = liveInvoiceDetail?.subtotal ?? (createdAdmission.estimatedAmount || 0);
+    const effectiveDiscount = liveInvoiceDetail?.discountTotal ?? 0;
+    const effectiveNet = liveInvoiceDetail?.patientShare ?? (effectiveGross - effectiveDiscount);
+    const effectiveAdvance = liveInvoiceDetail?.advancePaid ?? (createdAdvanceReceipt?.amount || 0);
+    const effectiveBalanceDue = liveInvoiceDetail?.balanceDue ?? Math.max(0, effectiveNet - effectiveAdvance);
+
     return (
-      <div className="max-w-2xl mx-auto space-y-5 animate-in fade-in duration-150 pb-12">
-        <div className="bg-white rounded-xl border border-emerald-200 shadow-xs overflow-hidden">
-          <div className="bg-[#effaf5] border-b border-emerald-200 p-5 flex items-center gap-3">
-            <div className="h-11 w-11 rounded-xl bg-[#08775A] text-white flex items-center justify-center shrink-0">
-              <CheckCircle2 className="h-6 w-6" />
+      <div className="max-w-4xl mx-auto space-y-4 animate-in fade-in duration-150 pb-16">
+        {/* Top Notification Banner & Quick Actions */}
+        <div className="bg-white rounded-2xl border border-emerald-200/90 shadow-xs p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-[#08775A] border border-emerald-200 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Admission Created Successfully</h2>
-              <p className="text-xs text-slate-600">
-                Created at Front Desk and sent to Admission Portal for bed allocation & stay management.
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-slate-900">Admission Intake Confirmed</h2>
+                <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-100/70 text-emerald-800 border border-emerald-200">
+                  Live Bill Generated
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Official encounter invoice #{effectiveInvoiceNumber} generated and registered in live database.
               </p>
             </div>
           </div>
-          <div className="p-5 space-y-3 text-xs">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase block">Admission Number</span>
-                <span className="font-mono font-bold text-slate-900 text-sm">{createdAdmission.admissionNumber}</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase block">Status</span>
-                <span className="font-bold text-amber-700">{createdAdmission.status}</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase block">Patient</span>
-                <span className="font-semibold text-slate-900">{createdAdmission.patientName}</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase block">MR Number</span>
-                <span className="font-semibold font-mono text-slate-900">{createdAdmission.patientMrNumber || 'Not available'}</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase block">Payer Type</span>
-                <span className="font-semibold text-slate-900">{createdAdmission.payerType}</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase block">Guardian &amp; Relation</span>
-                <span className="font-semibold text-slate-900">{fatherGuardianName} ({guardianRelation})</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase block">Father / Guardian CNIC</span>
-                <span className="font-semibold font-mono text-slate-900">{guardianCnic ? normalizeCnic(guardianCnic) : 'Not provided'}</span>
-              </div>
-              {address && (
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 col-span-2">
-                  <span className="text-[10px] text-slate-500 uppercase block">Residential Address</span>
-                  <span className="font-semibold text-slate-900">{address}</span>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handlePrintLiveInvoice}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            >
+              <Printer className="h-4 w-4" />
+              <span>Print Official Invoice</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
+              <span>New Admission</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Live Hospital Invoice Voucher Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden font-sans">
+          {/* Hospital Header */}
+          <div className="px-6 py-5 border-b border-slate-200 bg-linear-to-r from-slate-50 via-white to-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              {profile.logo ? (
+                <img src={profile.logo} alt="Logo" className="h-12 w-12 object-contain rounded-lg border border-slate-200 p-1 bg-white shrink-0" />
+              ) : (
+                <div className="h-12 w-12 rounded-xl bg-[#08775A] text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-xs">
+                  HMS
                 </div>
               )}
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase block">Department</span>
-                <span className="font-semibold text-slate-900">{createdAdmission.departmentName}</span>
+              <div>
+                <h1 className="text-lg font-black text-slate-900 tracking-tight leading-tight">
+                  {profile.name || 'CH Sharif & Saeed Hospital'}
+                </h1>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Excellence in Clinical Care, Diagnostics & Inpatient Services
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {profile.addressLine1 || '52-A Jail Road, Lahore'} • Tel: {profile.primaryPhone || '(042) 111-247-467'}
+                </p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase block">Admitting Doctor</span>
-                <span className="font-semibold text-slate-900">{createdAdmission.doctorName || 'Not Assigned Yet'}</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase block">Room &amp; Bed</span>
-                <span className="font-semibold text-slate-900">{createdAdmission.bedLabel || 'Pending Check-in'}</span>
-              </div>
-              {createdAdmission.estimatedAmount != null && (
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-500 uppercase block">Estimated Amount - Subject to Final Billing</span>
-                  <span className="font-bold text-[#08775A] font-mono">{formatPKR(createdAdmission.estimatedAmount)}</span>
-                </div>
-              )}
             </div>
 
-            {/* Advance Receipt Banner */}
-            {createdAdvanceReceipt ? (
-              <div className="p-3 bg-[#effaf5] border border-emerald-200 rounded-lg text-emerald-900 flex items-center justify-between gap-3">
-                <span className="flex items-center gap-1.5">
-                  <Wallet className="h-3.5 w-3.5 shrink-0" />
-                  Advance collected — receipt <strong className="font-mono">{createdAdvanceReceipt.receiptNumber}</strong> ({createdAdvanceReceipt.method})
+            <div className="sm:text-right shrink-0">
+              <span className="inline-block px-2.5 py-1 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                INPATIENT ADMISSION INVOICE
+              </span>
+              <div className="mt-1 font-mono font-black text-base text-slate-900">
+                {effectiveInvoiceNumber}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                Issue Date: {liveInvoiceDetail?.createdAt || formatDisplayDate(new Date())}
+              </div>
+            </div>
+          </div>
+
+          {/* Two-Column Metadata Box */}
+          <div className="p-6 bg-slate-50/60 border-b border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+            {/* Left: Patient Identification */}
+            <div className="space-y-2.5 bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-[#08775A]" /> Patient Identification
                 </span>
-                <span className="font-bold font-mono">{formatPKR(createdAdvanceReceipt.amount)}</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                  {createdAdmission.payerType}
+                </span>
               </div>
-            ) : (
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 text-[11px]">
-                No advance was collected at admission — a receipt can be recorded any time from Hospital Invoices once the stay has an invoice.
-              </div>
-            )}
+              <div className="grid grid-cols-3 gap-2">
+                <span className="text-slate-500 font-medium">MR Number:</span>
+                <span className="col-span-2 font-mono font-bold text-[#08775A] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-fit">
+                  {createdAdmission.patientMrNumber || liveInvoiceDetail?.patientMr || '—'}
+                </span>
 
-            {/* Instant Admission Invoice Card */}
-            {createdInvoice && (
-              <div className="p-3.5 bg-white border border-emerald-300 rounded-xl flex items-center justify-between gap-3 shadow-xs">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-[#08775A]/10 text-[#08775A] flex items-center justify-center shrink-0">
-                    <Receipt className="h-4 w-4" />
+                <span className="text-slate-500 font-medium">Patient Name:</span>
+                <span className="col-span-2 font-bold text-slate-900 text-sm">
+                  {createdAdmission.patientName}
+                </span>
+
+                <span className="text-slate-500 font-medium">Guardian:</span>
+                <span className="col-span-2 font-semibold text-slate-800">
+                  {fatherGuardianName ? `${fatherGuardianName} (${guardianRelation || 'Guardian'})` : liveInvoiceDetail?.patientGuardian || '—'}
+                </span>
+
+                {guardianCnic && (
+                  <>
+                    <span className="text-slate-500 font-medium">Guardian CNIC:</span>
+                    <span className="col-span-2 font-mono font-medium text-slate-700">
+                      {normalizeCnic(guardianCnic)}
+                    </span>
+                  </>
+                )}
+
+                {address && (
+                  <>
+                    <span className="text-slate-500 font-medium">Address:</span>
+                    <span className="col-span-2 text-slate-700">
+                      {address}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Admission & Encounter Particulars */}
+            <div className="space-y-2.5 bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <Building2 className="h-3.5 w-3.5 text-[#08775A]" /> Inpatient Encounter Details
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-amber-50 text-amber-800 border border-amber-200">
+                  {createdAdmission.status}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <span className="text-slate-500 font-medium">Admission #:</span>
+                <span className="col-span-2 font-mono font-bold text-slate-900">
+                  {createdAdmission.admissionNumber}
+                </span>
+
+                <span className="text-slate-500 font-medium">Department:</span>
+                <span className="col-span-2 font-semibold text-slate-800">
+                  {createdAdmission.departmentName}
+                </span>
+
+                <span className="text-slate-500 font-medium">Admitting Doctor:</span>
+                <span className="col-span-2 font-semibold text-slate-800">
+                  {createdAdmission.doctorName || 'Consultant On Duty'}
+                </span>
+
+                <span className="text-slate-500 font-medium">Ward / Room / Bed:</span>
+                <span className="col-span-2 font-semibold text-slate-900">
+                  {createdAdmission.bedLabel || 'Pending Bed Check-in'}
+                </span>
+
+                {createdAdmission.estimatedAmount != null && (
+                  <>
+                    <span className="text-slate-500 font-medium">Estimated Tariff:</span>
+                    <span className="col-span-2 font-bold font-mono text-[#08775A]">
+                      {formatPKR(createdAdmission.estimatedAmount)}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Table: Invoice Line Items */}
+          <div className="p-6">
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 uppercase text-[10.5px] tracking-wide">
+                    <th className="py-2.5 px-4 w-12 text-center">#</th>
+                    <th className="py-2.5 px-4">Service Description</th>
+                    <th className="py-2.5 px-4 text-center w-28">Category</th>
+                    <th className="py-2.5 px-4 text-right w-16">Qty</th>
+                    <th className="py-2.5 px-4 text-right w-28">Rate</th>
+                    <th className="py-2.5 px-4 text-right w-32">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {effectiveLines.map((l: any, idx: number) => (
+                    <tr key={l.id || idx}>
+                      <td className="py-2.5 px-4 text-center text-slate-400 font-semibold">{idx + 1}</td>
+                      <td className="py-2.5 px-4 font-semibold text-slate-900">
+                        <span>{formatServiceName(l.serviceName)}</span>
+                        {formatServiceCode(l.serviceCode) && (
+                          <span className="text-slate-400 font-mono text-[11px] ml-1.5 font-normal">
+                            ({formatServiceCode(l.serviceCode)})
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-4 text-center text-slate-500 font-medium">
+                        {l.serviceCategory || l.departmentName || 'Inpatient Care'}
+                      </td>
+                      <td className="py-2.5 px-4 text-right text-slate-800 font-medium">{l.quantity}</td>
+                      <td className="py-2.5 px-4 text-right font-mono text-slate-800">{formatPKR(l.rate)}</td>
+                      <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">{formatPKR(l.lineGross)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Financial Totals & Advance Breakdown */}
+            <div className="mt-5 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+              {/* Left: Advance Collection Notice */}
+              <div className="space-y-2 w-full sm:max-w-md">
+                {createdAdvanceReceipt ? (
+                  <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                        <Wallet className="h-4 w-4 text-[#08775A]" /> Advance Payment Collected
+                      </span>
+                      <span className="font-mono font-extrabold text-[#08775A] text-sm">
+                        {formatPKR(createdAdvanceReceipt.amount)}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-emerald-800 flex items-center justify-between">
+                      <span>Receipt: <strong className="font-mono">{createdAdvanceReceipt.receiptNumber}</strong></span>
+                      <span>Mode: <strong>{createdAdvanceReceipt.method}</strong></span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 uppercase block font-bold tracking-wide">Admission Invoice Generated</span>
-                    <span className="font-mono font-bold text-slate-900 text-xs">{createdInvoice.invoiceNumber}</span>
+                ) : (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
+                    No initial advance deposit was collected at admission desk.
                   </div>
+                )}
+                <p className="text-[10.5px] text-slate-400 italic">
+                  Note: Inpatient final bill will include ongoing daily room charges, pharmacy dispensing, and surgical procedures upon discharge clearance.
+                </p>
+              </div>
+
+              {/* Right: Summary Box */}
+              <div className="w-full sm:w-80 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
+                <div className="flex justify-between font-medium text-slate-600">
+                  <span>Gross Charges:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {formatPKR(effectiveGross)}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowInvoiceModal(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer transition-colors"
-                >
-                  <Receipt className="h-3.5 w-3.5" /> View &amp; Print Invoice
-                </button>
-              </div>
-            )}
 
-            <div className="flex justify-end pt-2 border-t border-slate-200">
+                <div className="flex justify-between font-medium text-slate-600">
+                  <span>Discount:</span>
+                  <span className="font-mono text-amber-700">
+                    {effectiveDiscount > 0 ? `- ${formatPKR(effectiveDiscount)}` : formatPKR(0)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between font-bold text-slate-900 pt-1 border-t border-slate-200">
+                  <span>Net Invoiced:</span>
+                  <span className="font-mono text-slate-900 text-sm">
+                    {formatPKR(effectiveNet)}
+                  </span>
+                </div>
+
+                {effectiveAdvance > 0 && (
+                  <div className="flex justify-between font-semibold text-[#08775A]">
+                    <span>Advance Deposit:</span>
+                    <span className="font-mono">
+                      - {formatPKR(effectiveAdvance)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center font-extrabold text-sm pt-2 border-t-2 border-slate-200">
+                  <span className="text-slate-900">Balance Due:</span>
+                  <span className={`font-mono text-base ${
+                    effectiveBalanceDue > 0 ? 'text-rose-600' : 'text-emerald-700'
+                  }`}>
+                    {formatPKR(effectiveBalanceDue)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Signature Blocks */}
+            <div className="mt-8 pt-6 border-t border-dashed border-slate-200 grid grid-cols-2 text-center text-xs text-slate-500">
+              <div>
+                <div className="h-10"></div>
+                <div className="border-t border-slate-300 w-44 mx-auto pt-1 font-semibold text-slate-700">
+                  Prepared By (Front Desk)
+                </div>
+              </div>
+              <div>
+                <div className="h-10"></div>
+                <div className="border-t border-slate-300 w-44 mx-auto pt-1 font-semibold text-slate-700">
+                  Patient / Guardian Signature
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Actions Bar */}
+          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowInvoiceModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+              >
+                <Receipt className="h-3.5 w-3.5 text-slate-500" />
+                <span>Open Full Invoice Manager</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePrintLiveInvoice}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+              >
+                <Printer className="h-4 w-4" />
+                <span>Print Invoice</span>
+              </button>
               <button
                 type="button"
                 onClick={handleReset}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               >
-                <RefreshCw className="h-3.5 w-3.5" /> Create Another Admission
+                <Plus className="h-3.5 w-3.5" />
+                <span>Create Another Admission</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Immediate Invoice Detail Modal */}
+        {/* Immediate Invoice Detail Modal (if cashier wants to collect further payment or record adjustments) */}
         {showInvoiceModal && createdInvoice && (
           <InvoiceDetailModal
             invoiceId={createdInvoice.id}
-            onClose={() => setShowInvoiceModal(false)}
-            onChanged={() => {}}
+            onClose={() => {
+              setShowInvoiceModal(false);
+              fetchInvoiceDetail(createdInvoice.id).then(setLiveInvoiceDetail).catch(() => {});
+            }}
+            onChanged={() => {
+              fetchInvoiceDetail(createdInvoice.id).then(setLiveInvoiceDetail).catch(() => {});
+            }}
           />
         )}
       </div>

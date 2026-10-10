@@ -31,6 +31,8 @@ import {
 import { Modal } from '../../../components/common/Modal';
 import { ConfirmModal } from '../../../components/common/ConfirmModal';
 import { TextInput, NumberInput, Textarea, Select } from '../../../components/forms/FormControls';
+import { HospitalKpiHeader } from '../../../components/common/HospitalKpiHeader';
+import { generateNextCode } from '../../../utils/codeGenerator';
 
 
 const BILLING_TERMS_OPTIONS = [
@@ -135,7 +137,11 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingPanel(null);
-    setFormValues(EMPTY_FORM);
+    const autoCode = generateNextCode(
+      panels.map((p) => p.code),
+      'PNL'
+    );
+    setFormValues({ ...EMPTY_FORM, code: autoCode });
     setFormError(null);
     setIsFormOpen(true);
   };
@@ -256,161 +262,215 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-150">
-      {/* Header */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-bold text-slate-900">Corporate Panels</h1>
-            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-              Super Admin Control
-            </span>
+    <div className="space-y-4">
+      {/* Section 4.1 Card Page Header Block */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-xl bg-[#effaf5] text-[#08775A] border border-[#c2e7db] flex items-center justify-center shadow-2xs">
+              <Building2 className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-[#123e2b] tracking-tight">Corporate Panels</h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                  Contract Tariffs Active
+                </span>
+              </div>
+              <p className="text-xs text-[#52665e] mt-0.5">
+                Manage corporate agreements, health insurance policies, credit ceilings, coverage rules and contract tariffs
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Manage corporate agreements, health insurance policies, credit ceilings, and coverage rules and contract tariffs.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#149E75] hover:bg-[#08775A] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors shrink-0"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>Add Corporate Panel</span>
-        </button>
-      </div>
-
-      {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-medium text-slate-500">Total Panels</span>
-          <div className="text-2xl font-black text-slate-900 mt-0.5">{kpis.totalPanels}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-medium text-slate-500">Active Panels</span>
-          <div className="text-2xl font-black text-emerald-700 mt-0.5">{kpis.activePanels}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-medium text-slate-500">Total Credit Ceiling</span>
-          <div className="text-lg font-black text-slate-900 mt-0.5">{formatPKR(kpis.totalCreditLimit)}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-medium text-slate-500">Active Panel Patients</span>
-          <div className="text-2xl font-black text-slate-900 mt-0.5">{kpis.totalActivePatients}</div>
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Corporate Panel</span>
+          </button>
         </div>
       </div>
 
-      {/* Search & Filter */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+      {/* Section 4.2 & Section 9 HospitalKpiHeader */}
+      <HospitalKpiHeader
+        columns="grid-cols-2 sm:grid-cols-4"
+        items={[
+          {
+            category: 'CONTRACT DIRECTORY',
+            title: 'Total Panels',
+            value: kpis.totalPanels,
+            icon: Building2,
+            subtitle: 'Configured corporate agreements',
+            tone: 'default',
+          },
+          {
+            category: 'AUTHORIZED COVER',
+            title: 'Active Panels',
+            value: kpis.activePanels,
+            icon: CheckCircle2,
+            subtitle: 'Available for patient registry',
+            tone: 'success',
+          },
+          {
+            category: 'CREDIT CEILING',
+            title: 'Total Credit Limit',
+            value: formatPKR(kpis.totalCreditLimit),
+            icon: Wallet,
+            subtitle: 'Cumulative institutional credit',
+            tone: 'info',
+          },
+          {
+            category: 'PATIENT MEMBERSHIP',
+            title: 'Covered Patients',
+            value: kpis.totalActivePatients,
+            icon: Phone,
+            subtitle: 'Patients linked to active panels',
+            tone: 'warning',
+          },
+        ]}
+      />
+
+      {/* Section 4.4 Filter Toolbar */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-3 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative flex-1 w-full">
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#52665e]" />
           <input
             type="text"
-            placeholder="Search panels by code or name..."
+            placeholder="Search panels by code or organization name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full text-xs pl-8.5 pr-3 py-2 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#149E75] bg-slate-50/50"
+            className="w-full text-xs pl-8.5 pr-3 py-1.5 border border-[#c2e7db] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] bg-[#fbfdfc] focus:bg-white transition-colors"
           />
         </div>
         <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-          <span className="text-[11px] font-semibold text-slate-500">Filter:</span>
+          <span className="text-xs font-semibold text-[#52665e]">Status:</span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-[#149E75]"
+            className="text-xs px-3 py-1.5 border border-[#c2e7db] rounded-lg bg-[#fbfdfc] focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-[#08775A]"
           >
             <option value="All">All Statuses</option>
             <option value="Active">Active Only</option>
-            <option value="Inactive">Inactive</option>
+            <option value="Inactive">Inactive Only</option>
           </select>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Section 4.5 Data Table */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] shadow-2xs overflow-hidden flex flex-col">
+        {/* Dark Emerald Header Strip */}
+        <div className="bg-[#0e5944] text-white px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-[#c2e7db]" />
+            <span className="font-semibold text-xs tracking-wide">Corporate Panels Registry</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+              {filteredPanels.length} Panels
+            </span>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                <th className="py-2.5 px-4">Panel Code</th>
-                <th className="py-2.5 px-4">Organization / Panel Name</th>
-                <th className="py-2.5 px-4">Category</th>
-                <th className="py-2.5 px-4 text-right">Credit Ceiling</th>
-                <th className="py-2.5 px-4 text-center">Active Patients</th>
-                <th className="py-2.5 px-4 text-center">Coverage Rules</th>
-                <th className="py-2.5 px-4">Status</th>
+              <tr className="bg-[#effaf5] border-b border-[#c2e7db] text-[11px] font-bold text-[#08775A] select-none sticky top-0 z-10">
+                <th className="py-2.5 px-3 text-center border-r border-[#c2e7db]/60 w-12">#</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Panel Code</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Organization / Panel Name</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Category</th>
+                <th className="py-2.5 px-4 text-right border-r border-[#c2e7db]/60">Credit Ceiling</th>
+                <th className="py-2.5 px-4 text-center border-r border-[#c2e7db]/60">Active Patients</th>
+                <th className="py-2.5 px-4 text-center border-r border-[#c2e7db]/60">Coverage Rules</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Status</th>
                 <th className="py-2.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredPanels.map((panel) => (
-                <tr key={panel.id} className="hover:bg-slate-50/80">
-                  <td className="py-2.5 px-4 font-mono font-bold text-slate-900">{panel.code}</td>
-                  <td className="py-2.5 px-4 font-bold text-slate-900">{panel.name}</td>
-                  <td className="py-2.5 px-4">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
-                      {panel.category}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">{formatPKR(panel.creditLimit)}</td>
-                  <td className="py-2.5 px-4 text-center font-semibold">{panel.activePatientsCount}</td>
-                  <td className="py-2.5 px-4 text-center">
-                    <button
-                      type="button"
-                      onClick={() => setDiscountPanel(panel)}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 hover:bg-[#effaf5] text-slate-700 hover:text-[#08775A] font-semibold text-[10px]"
-                    >
-                      <Percent className="h-3 w-3" />
-                      {panel.discountRules.length} Rule{panel.discountRules.length === 1 ? '' : 's'}
-                    </button>
-                  </td>
-                  <td className="py-2.5 px-4">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        panel.status === 'Active' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {panel.status}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1">
+            <tbody className="divide-y divide-[#e2eae5] text-slate-700">
+              {filteredPanels.map((panel, idx) => {
+                const isEven = idx % 2 === 0;
+                return (
+                  <tr
+                    key={panel.id}
+                    className={`transition-colors border-b border-[#e2eae5] ${
+                      isEven ? 'bg-white' : 'bg-[#fbfdfc]'
+                    } hover:bg-[#e7f6f1]/40`}
+                  >
+                    <td className="py-2.5 px-3 text-center border-r border-[#e2eae5] text-[#52665e] font-mono text-[11px] bg-[#effaf5]/20">
+                      {idx + 1}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono font-bold text-[#123e2b] border-r border-[#e2eae5]">{panel.code}</td>
+                    <td className="py-2.5 px-4 font-bold text-[#111827] border-r border-[#e2eae5]">{panel.name}</td>
+                    <td className="py-2.5 px-4 border-r border-[#e2eae5]">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                        {panel.category}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono font-bold text-[#123e2b] border-r border-[#e2eae5]">{formatPKR(panel.creditLimit)}</td>
+                    <td className="py-2.5 px-4 text-center font-mono font-bold text-[#08775A] border-r border-[#e2eae5]">{panel.activePatientsCount}</td>
+                    <td className="py-2.5 px-4 text-center border-r border-[#e2eae5]">
                       <button
                         type="button"
-                        onClick={() => handleOpenEdit(panel)}
-                        className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-[#08775A]"
-                        title="Edit Panel"
+                        onClick={() => setDiscountPanel(panel)}
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-[#effaf5] hover:bg-[#d0efe5] text-[#08775A] border border-[#c2e7db] font-semibold text-[10px] cursor-pointer transition-colors"
                       >
-                        <Edit2 className="h-3.5 w-3.5" />
+                        <Percent className="h-3 w-3" />
+                        {panel.discountRules.length} Rule{panel.discountRules.length === 1 ? '' : 's'}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setStatusTarget(panel)}
-                        className={`p-1 rounded transition-colors ${
-                          panel.status === 'Active' ? 'text-slate-400 hover:bg-amber-50 hover:text-amber-700' : 'text-[#08775A] hover:bg-emerald-50'
+                    </td>
+                    <td className="py-2.5 px-4 border-r border-[#e2eae5]">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          panel.status === 'Active'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
                         }`}
-                        title={panel.status === 'Active' ? 'Deactivate Panel' : 'Activate Panel'}
                       >
-                        <Power className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(panel)}
-                        className="p-1 hover:bg-rose-50 rounded text-slate-400 hover:text-rose-600 transition-colors"
-                        title="Delete Panel"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {panel.status}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(panel)}
+                          className="p-1 hover:bg-[#effaf5] rounded-md text-[#52665e] hover:text-[#08775A] cursor-pointer transition-colors"
+                          title="Edit Panel"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStatusTarget(panel)}
+                          className={`p-1 rounded-md transition-colors cursor-pointer ${
+                            panel.status === 'Active'
+                              ? 'text-slate-400 hover:bg-amber-50 hover:text-amber-700'
+                              : 'text-[#08775A] hover:bg-[#effaf5]'
+                          }`}
+                          title={panel.status === 'Active' ? 'Deactivate Panel' : 'Activate Panel'}
+                        >
+                          <Power className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(panel)}
+                          className="p-1 hover:bg-rose-50 rounded-md text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                          title="Delete Panel"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
 
               {filteredPanels.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
-                    <Building2 className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                    <span className="font-semibold text-xs text-slate-700 block">No corporate panels match your search criteria.</span>
+                  <td colSpan={9} className="py-12 text-center text-[#52665e]">
+                    <Building2 className="h-8 w-8 text-[#52665e]/40 mx-auto mb-2" />
+                    <span className="font-semibold text-xs text-[#123e2b] block">No corporate panels match your search criteria.</span>
                   </td>
                 </tr>
               )}
@@ -494,10 +554,10 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
               />
               <TextInput
                 label="Panel Code"
-                placeholder="e.g. PNL-SLI (leave blank to auto-generate)"
+                placeholder="Auto-generated (e.g. PNL-0001)"
                 value={formValues.code}
                 onChange={(e) => setFormValues({ ...formValues, code: e.target.value })}
-                hint="Unique short identifier for reports and vouchers"
+                hint="Auto-generated sequential code — editable if needed"
               />
               <TextInput
                 label="Member Identity Field Label"

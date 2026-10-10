@@ -326,3 +326,12 @@ body {
 .Toastify__progress-bar--info {
   background: rgba(255, 255, 255, 0.42) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Global Table Headers: Strictly Single Line (No Wrapping / Uper-Necha)
+   Horizontal scrolling is enabled smoothly rather than breaking column titles
+   ═══════════════════════════════════════════════════════════════════════ */
+table thead th,
+table thead tr {
+  white-space: nowrap !important;
+}

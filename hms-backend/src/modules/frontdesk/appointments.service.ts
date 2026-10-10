@@ -1,4 +1,4 @@
-import { assertSelectableService } from '@/shared/serviceClassification';
+import { assertSelectableService, isCoreEncounterService } from '@/shared/serviceClassification';
 import { Decimal } from '@prisma/client/runtime/library';
 import { commissionService } from '@/modules/commission/commission.service';
 import type { Prisma } from '@prisma/client';
@@ -16,7 +16,7 @@ import type {
   CheckInAppointmentBody,
 } from './appointments.schemas';
 
-import { generateInvoiceNumber, generateReceiptNumber, generateMrNumber } from '@/shared/idGenerator';
+import { generateInvoiceNumber, generateReceiptNumber, generateMrNumber, generateQueueToken } from '@/shared/idGenerator';
 
 export const appointmentsService = {
   async bookAppointment(body: BookAppointmentBody, actorId: string) {
@@ -45,7 +45,14 @@ export const appointmentsService = {
       const serviceRate = body.serviceRateId ? await tx.serviceRate.findUnique({
         include: { department: { include: { outsourcedProvider: true } } }, where: { id: body.serviceRateId },
       }) : null;
-      if (serviceRate) assertSelectableService(serviceRate, body);
+      if (serviceRate) {
+        assertSelectableService(
+          serviceRate,
+          serviceRate.isDefaultEncounterService || isCoreEncounterService(serviceRate)
+            ? { providerType: 'INTERNAL' }
+            : body
+        );
+      }
       if (body.serviceRateId && !serviceRate) throw new NotFoundError('Service not found');
       const doctor = !serviceRate && body.doctorStaffId ? await tx.staff.findUnique({ where: { id: body.doctorStaffId } }) : null;
       if (!serviceRate && (!doctor?.isActive || doctor.category !== 'Doctor' || doctor.consultationFee == null)) throw new ValidationError('Select an active doctor with a configured consultation fee');
@@ -149,9 +156,11 @@ export const appointmentsService = {
 
     if (query.search) {
       where.OR = [
+        { queueNumber: { contains: query.search, mode: 'insensitive' } },
         { panelPatient: { fullName: { contains: query.search, mode: 'insensitive' } } },
         { panelPatient: { mrNumber: { contains: query.search, mode: 'insensitive' } } },
         { selfPayEncounter: { fullName: { contains: query.search, mode: 'insensitive' } } },
+        { selfPayEncounter: { mrNumber: { contains: query.search, mode: 'insensitive' } } },
       ];
     }
 
@@ -173,6 +182,9 @@ export const appointmentsService = {
           select: {
             id: true,
             invoiceNumber: true,
+            queueNumber: true,
+            queueSequence: true,
+            queueDate: true,
             total: true,
             paidTotal: true,
             patientShare: true,
@@ -224,7 +236,12 @@ export const appointmentsService = {
 
     if (body.serviceRateId) {
       const service = await prisma.serviceRate.findUnique({ where: { id: body.serviceRateId }, include: { department: { include: { outsourcedProvider: true } } } });
-      assertSelectableService(service, { departmentId: body.departmentId ?? existing.departmentId, providerType: 'INTERNAL' });
+      assertSelectableService(
+        service,
+        service?.isDefaultEncounterService || isCoreEncounterService(service)
+          ? { providerType: 'INTERNAL' }
+          : { departmentId: body.departmentId ?? existing.departmentId, providerType: 'INTERNAL' }
+      );
     }
     return prisma.appointment.update({
       where: { id },
@@ -346,6 +363,9 @@ export const appointmentsService = {
       if (appointment.panelPatient) assertMembershipEligible(appointment.panelPatient);
       let invoice = appointment.hospitalInvoices[0];
 
+      const encType = body.encounterType ?? 'OPD';
+      const queueToken = await generateQueueToken(encType, tx);
+
       if (!invoice) {
         const rate = appointment.serviceRate?.standardRate ?? appointment.doctor?.consultationFee;
         if (rate == null) throw new ValidationError('Configure the doctor visit fee before check-in');
@@ -387,7 +407,10 @@ export const appointmentsService = {
           data: {
             invoiceNumber,
             sourceType: 'APPOINTMENT',
-            encounterType: body.encounterType ?? 'OPD',
+            encounterType: encType,
+            queueNumber: queueToken?.queueNumber ?? null,
+            queueSequence: queueToken?.queueSequence ?? null,
+            queueDate: queueToken?.queueDate ?? null,
             appointmentId: appointment.id,
             departmentId: appointment.departmentId,
             panelPatientId: appointment.panelPatientId,
@@ -440,6 +463,9 @@ export const appointmentsService = {
         data: {
           status: 'CHECKED_IN',
           notes: body.notes ? `${appointment.notes ?? ''} | Check-in: ${body.notes}` : appointment.notes,
+          queueNumber: queueToken?.queueNumber ?? null,
+          queueSequence: queueToken?.queueSequence ?? null,
+          queueDate: queueToken?.queueDate ?? null,
         },
         include: {
           doctor: true,

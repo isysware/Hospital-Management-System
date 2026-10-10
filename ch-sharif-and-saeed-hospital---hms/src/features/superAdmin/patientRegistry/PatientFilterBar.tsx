@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, RotateCcw, Filter, ShieldCheck } from 'lucide-react';
+import { Search, RotateCcw, Filter, Users } from 'lucide-react';
 import {
   PatientFilterState,
   PATIENT_GENDERS,
@@ -33,22 +33,22 @@ export const PatientFilterBar: React.FC<PatientFilterBarProps> = ({
     filters.status !== 'ALL';
 
   return (
-    <div className="bg-white border border-[#e2eae5] rounded-xl p-4 shadow-xs mb-5">
+    <div className="bg-white border border-[#e2eae5] rounded-xl p-4 shadow-2xs mb-4 space-y-3">
       <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
         {/* Search input */}
         <div className="relative flex-1 min-w-[260px]">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#52665e] pointer-events-none" />
           <input
             type="text"
             value={filters.searchTerm}
             onChange={(e) => onFilterChange('searchTerm', e.target.value)}
-            placeholder="Search by MR Number, Patient Name, CNIC, Phone, Panel Member ID..."
-            className="w-full pl-9.5 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden focus:bg-white focus:border-[#08775A] focus:ring-1 focus:ring-[#08775A] transition-colors"
+            placeholder="Search by MR Number, Patient Name, CNIC, Phone, Panel ID..."
+            className="w-full pl-9 pr-8 py-1.5 bg-[#fbfdfc] border border-[#c2e7db] rounded-lg text-xs text-[#123e2b] placeholder-slate-400 focus:outline-hidden focus:bg-white focus:border-[#08775A] focus:ring-1 focus:ring-[#08775A] transition-colors"
           />
           {filters.searchTerm && (
             <button
               onClick={() => onFilterChange('searchTerm', '')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 px-1.5 py-0.5 rounded-sm"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 px-1.5 py-0.5 rounded-sm cursor-pointer"
               title="Clear search"
             >
               ✕
@@ -57,12 +57,12 @@ export const PatientFilterBar: React.FC<PatientFilterBarProps> = ({
         </div>
 
         {/* Filters Group */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-center">
           {/* Gender */}
           <select
             value={filters.gender}
             onChange={(e) => onFilterChange('gender', e.target.value as any)}
-            className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-hidden focus:border-[#08775A] focus:ring-1 focus:ring-[#08775A]"
+            className="px-2.5 py-1.5 bg-[#fbfdfc] border border-[#c2e7db] rounded-lg text-xs font-medium text-slate-700 focus:outline-hidden focus:border-[#08775A] focus:ring-1 focus:ring-[#08775A]"
             title="Filter by Gender"
           >
             <option value="ALL">Gender: All</option>
@@ -77,7 +77,7 @@ export const PatientFilterBar: React.FC<PatientFilterBarProps> = ({
           <select
             value={filters.payerType}
             onChange={(e) => onFilterChange('payerType', e.target.value as any)}
-            className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-hidden focus:border-[#08775A] focus:ring-1 focus:ring-[#08775A]"
+            className="px-2.5 py-1.5 bg-[#fbfdfc] border border-[#c2e7db] rounded-lg text-xs font-medium text-slate-700 focus:outline-hidden focus:border-[#08775A] focus:ring-1 focus:ring-[#08775A]"
             title="Filter by Payer Type"
           >
             <option value="ALL">Payer: All</option>
@@ -93,13 +93,13 @@ export const PatientFilterBar: React.FC<PatientFilterBarProps> = ({
             value={filters.panelId}
             onChange={(e) => onFilterChange('panelId', e.target.value)}
             disabled={filters.payerType === 'Self Pay'}
-            className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-hidden focus:border-[#08775A] focus:ring-1 focus:ring-[#08775A] disabled:opacity-50 disabled:bg-slate-100"
+            className="px-2.5 py-1.5 bg-[#fbfdfc] border border-[#c2e7db] rounded-lg text-xs font-medium text-slate-700 focus:outline-hidden focus:border-[#08775A] focus:ring-1 focus:ring-[#08775A] disabled:opacity-50 disabled:bg-slate-100"
             title="Filter by Panel"
           >
             <option value="ALL">Panel: All</option>
             {activePanels.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.code} ({p.name.slice(0, 20)}...)
+                {p.name}
               </option>
             ))}
           </select>
@@ -108,7 +108,7 @@ export const PatientFilterBar: React.FC<PatientFilterBarProps> = ({
           <select
             value={filters.status}
             onChange={(e) => onFilterChange('status', e.target.value as any)}
-            className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-hidden focus:border-[#08775A] focus:ring-1 focus:ring-[#08775A]"
+            className="px-2.5 py-1.5 bg-[#fbfdfc] border border-[#c2e7db] rounded-lg text-xs font-medium text-slate-700 focus:outline-hidden focus:border-[#08775A] focus:ring-1 focus:ring-[#08775A]"
             title="Filter by Status"
           >
             <option value="ALL">Status: All</option>
@@ -119,25 +119,33 @@ export const PatientFilterBar: React.FC<PatientFilterBarProps> = ({
             ))}
           </select>
         </div>
+      </div>
 
-        {/* Reset Filters & Results Indicator */}
-        <div className="flex items-center justify-between lg:justify-end gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
-          <div className="text-xs text-slate-500 whitespace-nowrap">
-            Showing <strong className="text-slate-900 font-semibold">{filteredCount}</strong> of{' '}
-            <span>{totalCount}</span>
-          </div>
-
+      {/* Filter Status Bar with Reset */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#e2eae5] text-xs">
+        <div className="flex items-center gap-2 text-[#52665e]">
+          <Filter className="h-3.5 w-3.5 text-[#08775A]" />
+          <span>
+            Showing <strong className="text-[#123e2b]">{filteredCount}</strong> of{' '}
+            <strong className="text-[#123e2b]">{totalCount}</strong> patients in registry
+          </span>
           {isFiltered && (
-            <button
-              onClick={onResetFilters}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-slate-200 hover:border-red-200 cursor-pointer"
-              title="Reset all search queries and filters"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset</span>
-            </button>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+              Filtered
+            </span>
           )}
         </div>
+
+        {isFiltered && (
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#08775A] hover:text-[#065f46] hover:bg-[#effaf5] rounded-md transition-colors cursor-pointer border border-transparent hover:border-[#c2e7db]"
+          >
+            <RotateCcw className="h-3 w-3" />
+            <span>Reset Filters</span>
+          </button>
+        )}
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import {
   Banknote,
   AlertTriangle,
   ChevronRight,
+  RotateCw,
 } from 'lucide-react';
 import {
   previewPayrollRun,
@@ -30,6 +31,7 @@ import { useToast } from '../../../context/ToastContext';
 import { formatPKR } from '../../../utils/formatters';
 import { formatDisplayDate } from '../../../utils/dateConstants';
 import { Select, TextInput } from '../../../components/forms/FormControls';
+import { HospitalKpiHeader, KpiItem } from '../../../components/common/HospitalKpiHeader';
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -44,7 +46,7 @@ const STATUS_STYLES: Record<string, string> = {
   GENERATED: 'bg-amber-50 text-amber-800 border-amber-200',
   APPROVED: 'bg-blue-50 text-blue-700 border-blue-200',
   PARTIALLY_PAID: 'bg-purple-50 text-purple-700 border-purple-200',
-  PAID: 'bg-[#e7f6f1] text-[#0e7d5a] border-[#c2e7db]',
+  PAID: 'bg-[#e7f6f1] text-[#08775A] border-[#c2e7db]',
 };
 
 const PERIOD_TYPE_OPTIONS = [
@@ -56,20 +58,19 @@ const PERIOD_TYPE_OPTIONS = [
 const basisLabel = (v: string) => SALARY_BASIS_OPTIONS.find((o) => o.value === v)?.label || v;
 const periodLabel = (start: string, end: string) => `${formatDisplayDate(new Date(start))} – ${formatDisplayDate(new Date(end))}`;
 
-// Same bordered-grid look as the reporting tables (GenericReportView).
-const TH = 'py-3 px-4 border-r border-slate-300 last:border-r-0 whitespace-nowrap';
-const TD = 'py-3 px-4 border-r border-slate-200 last:border-r-0 whitespace-nowrap text-slate-800';
-const TD_NUM = 'py-3 px-3 text-center border-r border-slate-200 text-slate-500 text-xs bg-slate-50/60 w-14';
-const AMT = 'text-right tabular-nums font-semibold';
-const ROW = 'hover:bg-slate-50/90 transition-colors border-b border-slate-200 last:border-b-0';
+// Table layout helpers
+const TH = 'py-2.5 px-3.5 border-r border-[#c2e7db]/60 last:border-r-0 whitespace-nowrap text-[11px] font-bold text-[#08775A] uppercase tracking-wider';
+const TD = 'py-2.5 px-3.5 border-r border-[#e2eae5] last:border-r-0 whitespace-nowrap text-xs text-slate-700';
+const TD_NUM = 'py-2.5 px-3 text-center border-r border-[#e2eae5] text-[#52665e] font-mono text-[11px] bg-[#effaf5]/20 w-12';
+const AMT = 'text-right font-mono font-bold tabular-nums';
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => (
-  <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border ${STATUS_STYLES[status] ?? STATUS_STYLES.DRAFT}`}>
+  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${STATUS_STYLES[status] ?? STATUS_STYLES.DRAFT}`}>
     {status.replace('_', ' ')}
   </span>
 );
 
-/** Green title banner + bordered table, the same pattern as the Front Desk reports. */
+/** Section 4.5 Data Table Wrapper with Dark Emerald Header Strip */
 const TableSection: React.FC<{
   icon: React.ElementType;
   title: string;
@@ -79,64 +80,61 @@ const TableSection: React.FC<{
   foot?: React.ReactNode;
   children: React.ReactNode;
 }> = ({ icon: Icon, title, note, actions, head, foot, children }) => (
-  <div className="space-y-3">
-    <div className="bg-gradient-to-r from-[#0a4636] to-[#08775A] text-white px-4 py-2.5 rounded-lg flex items-center justify-between gap-3 shadow-xs">
-      <div className="flex items-center gap-2.5 font-bold text-sm tracking-wide">
-        <div className="h-6 w-6 rounded bg-white/15 flex items-center justify-center">
-          <Icon className="h-3.5 w-3.5" />
-        </div>
-        <span>{title}</span>
+  <div className="bg-white rounded-xl border border-[#e2eae5] shadow-2xs overflow-hidden flex flex-col">
+    {/* Dark Emerald Header Strip */}
+    <div className="bg-[#0e5944] text-white px-4 py-2.5 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4 text-[#c2e7db]" />
+        <span className="font-semibold text-xs tracking-wide">{title}</span>
+        {note && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">{note}</span>}
       </div>
       <div className="flex items-center gap-2">
-        {note && <span className="text-xs text-emerald-100 font-medium bg-white/10 px-2.5 py-0.5 rounded-md">{note}</span>}
         {actions}
       </div>
     </div>
-    <div className="bg-white rounded-lg border border-slate-300 shadow-xs overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm border-collapse">
-          <thead>
-            <tr className="bg-[#f1f5f9] border-b border-slate-300 text-slate-800 text-xs font-bold uppercase tracking-wider">
-              <th className={`${TH} w-14 text-center`}>#</th>
-              {head}
-            </tr>
-          </thead>
-          <tbody className="text-slate-700">{children}</tbody>
-          {foot && (
-            <tfoot>
-              <tr className="bg-[#f1f5f9] border-t-2 border-slate-300 font-bold text-slate-900">{foot}</tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-xs border-collapse">
+        <thead>
+          <tr className="bg-[#effaf5] border-b border-[#c2e7db] select-none sticky top-0 z-10">
+            <th className={`${TH} w-12 text-center`}>#</th>
+            {head}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[#e2eae5] text-slate-700">{children}</tbody>
+        {foot && (
+          <tfoot>
+            <tr className="bg-[#fbfdfc] border-t-2 border-[#c2e7db] font-bold text-[#123e2b]">{foot}</tr>
+          </tfoot>
+        )}
+      </table>
     </div>
   </div>
 );
 
 const EmptyRow: React.FC<{ colSpan: number; children: React.ReactNode }> = ({ colSpan, children }) => (
   <tr>
-    <td colSpan={colSpan} className="py-12 text-center text-slate-400">
+    <td colSpan={colSpan} className="py-12 text-center text-[#52665e] text-xs">
       {children}
     </td>
   </tr>
 );
 
 const TotalLabel = () => (
-  <td className="py-3 px-3 text-center border-r border-slate-300 text-[11px] uppercase tracking-wider text-slate-600">Total</td>
+  <td className="py-2.5 px-3 text-center border-r border-[#c2e7db] text-[11px] font-bold uppercase tracking-wider text-[#08775A] bg-[#effaf5]/30">Total</td>
 );
 
 const SkippedList: React.FC<{ skipped: { staffId: string; fullName: string; employeeId?: string; reason: string }[] }> = ({ skipped }) =>
   skipped.length === 0 ? null : (
-    <div className="bg-amber-50 border border-amber-200 rounded-lg overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-amber-200 flex items-center gap-2 text-sm font-bold text-amber-800">
-        <AlertTriangle className="h-4 w-4" /> Skipped Staff ({skipped.length})
+    <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden shadow-2xs">
+      <div className="px-4 py-2.5 border-b border-amber-200 flex items-center gap-2 text-xs font-bold text-amber-800">
+        <AlertTriangle className="h-4 w-4" /> Skipped Staff Profile Check ({skipped.length})
       </div>
-      <table className="w-full text-left text-sm">
+      <table className="w-full text-left text-xs">
         <tbody>
           {skipped.map((s) => (
             <tr key={s.staffId} className="border-b border-amber-100 last:border-b-0">
               <td className="py-2 px-4 font-semibold text-amber-900 whitespace-nowrap">
-                {s.fullName} {s.employeeId && <span className="font-normal text-amber-700">({s.employeeId})</span>}
+                {s.fullName} {s.employeeId && <span className="font-normal text-amber-700 font-mono">({s.employeeId})</span>}
               </td>
               <td className="py-2 px-4 text-amber-800 w-full">{s.reason}</td>
             </tr>
@@ -156,35 +154,67 @@ export const SuperAdminPayrollView: React.FC = () => {
     fetchDepartments().then(setDepartments).catch(() => {});
   }, []);
 
-  const tabClass = (active: boolean) =>
-    `inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-      active ? 'bg-[#08775A] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
-    }`;
-
   return (
-    <div className="space-y-4 animate-in fade-in duration-150 font-montserrat">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-lg bg-[#e7f6f1] text-[#08775A] flex items-center justify-center">
+    <div className="space-y-4">
+      {/* Section 4.1 Card Page Header Block */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl bg-[#effaf5] text-[#08775A] border border-[#c2e7db] flex items-center justify-center shadow-2xs">
             <Wallet className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Salary Payroll</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Attendance-driven payroll from each staff member's Salary Profile and approved attendance.</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-[#123e2b] tracking-tight">Salary Payroll Engine</h1>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                Financial Cycle Active
+              </span>
+            </div>
+            <p className="text-xs text-[#52665e] mt-0.5">
+              Attendance-driven payroll calculated from staff salary profiles and approved duty attendances
+            </p>
           </div>
         </div>
-        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-xs">
-          <button onClick={() => { setTab('generate'); setSelectedRunId(null); }} className={tabClass(tab === 'generate')}>
-            <PlayCircle className="h-3.5 w-3.5" /> Generate Run
+
+        {/* Tab Switcher */}
+        <div className="inline-flex rounded-xl border border-[#c2e7db] bg-[#effaf5]/50 p-1">
+          <button
+            onClick={() => {
+              setTab('generate');
+              setSelectedRunId(null);
+            }}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+              tab === 'generate'
+                ? 'bg-white text-[#08775A] shadow-2xs border border-[#c2e7db]'
+                : 'text-[#52665e] hover:text-[#123e2b]'
+            }`}
+          >
+            <PlayCircle className="h-3.5 w-3.5" />
+            <span>Generate Run</span>
           </button>
-          <button onClick={() => setTab('runs')} className={tabClass(tab === 'runs')}>
-            <History className="h-3.5 w-3.5" /> Runs &amp; Payments
+          <button
+            onClick={() => setTab('runs')}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+              tab === 'runs'
+                ? 'bg-white text-[#08775A] shadow-2xs border border-[#c2e7db]'
+                : 'text-[#52665e] hover:text-[#123e2b]'
+            }`}
+          >
+            <History className="h-3.5 w-3.5" />
+            <span>Runs &amp; Disbursements</span>
           </button>
         </div>
       </div>
 
       {tab === 'generate' ? (
-        <GenerateTab departments={departments} toast={toast} onGenerated={(id) => { setSelectedRunId(id); setTab('runs'); }} />
+        <GenerateTab
+          departments={departments}
+          toast={toast}
+          onGenerated={(id) => {
+            setSelectedRunId(id);
+            setTab('runs');
+          }}
+        />
       ) : (
         <RunsTab toast={toast} selectedRunId={selectedRunId} setSelectedRunId={setSelectedRunId} />
       )}
@@ -192,7 +222,11 @@ export const SuperAdminPayrollView: React.FC = () => {
   );
 };
 
-const GenerateTab: React.FC<{ departments: Department[]; toast: ReturnType<typeof useToast>; onGenerated: (id: string) => void }> = ({ departments, toast, onGenerated }) => {
+const GenerateTab: React.FC<{
+  departments: Department[];
+  toast: ReturnType<typeof useToast>;
+  onGenerated: (id: string) => void;
+}> = ({ departments, toast, onGenerated }) => {
   const [periodType, setPeriodType] = useState<PayrollPeriodType>('MONTHLY');
   const [periodStart, setPeriodStart] = useState(firstOfMonthISO());
   const [periodEnd, setPeriodEnd] = useState(todayISO());
@@ -200,21 +234,30 @@ const GenerateTab: React.FC<{ departments: Department[]; toast: ReturnType<typeo
   const [category, setCategory] = useState('');
   const [staffId, setStaffId] = useState('');
   const [staff, setStaff] = useState<Awaited<ReturnType<typeof fetchStaffUsers>>>([]);
-  useEffect(() => { fetchStaffUsers().then(setStaff).catch(() => toast.error('Unable to load staff filters.')); }, []);
+  useEffect(() => {
+    fetchStaffUsers()
+      .then(setStaff)
+      .catch(() => toast.error('Unable to load staff directory.'));
+  }, []);
   const [preview, setPreview] = useState<PayrollPreview | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const filters: PayrollFilters = useMemo(() => ({
-    periodType,
-    periodStart,
-    periodEnd,
-    departmentId: departmentId || undefined,
-    category: category || undefined,
-    staffId: staffId || undefined,
-  }), [periodType, periodStart, periodEnd, departmentId, category, staffId]);
+  const filters: PayrollFilters = useMemo(
+    () => ({
+      periodType,
+      periodStart,
+      periodEnd,
+      departmentId: departmentId || undefined,
+      category: category || undefined,
+      staffId: staffId || undefined,
+    }),
+    [periodType, periodStart, periodEnd, departmentId, category, staffId]
+  );
 
-  useEffect(() => { setPreview(null); }, [filters]);
+  useEffect(() => {
+    setPreview(null);
+  }, [filters]);
 
   const handlePreview = async () => {
     setIsPreviewing(true);
@@ -236,7 +279,10 @@ const GenerateTab: React.FC<{ departments: Department[]; toast: ReturnType<typeo
     setIsGenerating(true);
     try {
       const run = await generatePayrollRun(filters);
-      toast.success(`Payroll run generated for ${run.staffCount} staff member${run.staffCount === 1 ? '' : 's'}.`, 'Run Generated');
+      toast.success(
+        `Payroll run generated for ${run.staffCount} staff member${run.staffCount === 1 ? '' : 's'}.`,
+        'Run Generated'
+      );
       onGenerated(run.id);
     } catch (err: any) {
       toast.error(err?.response?.data?.error?.message || err?.message || 'Failed to generate payroll run.', 'Generate Error');
@@ -245,27 +291,139 @@ const GenerateTab: React.FC<{ departments: Department[]; toast: ReturnType<typeo
     }
   };
 
-  const sum = (key: 'periodBaseAmount' | 'attendanceDeductions' | 'allowances' | 'grossAmount' | 'tax' | 'otherDeductions' | 'netAmount') =>
-    (preview?.eligible ?? []).reduce((s, r) => s + Number(r[key]), 0);
+  const sum = (
+    key:
+      | 'periodBaseAmount'
+      | 'attendanceDeductions'
+      | 'allowances'
+      | 'grossAmount'
+      | 'tax'
+      | 'otherDeductions'
+      | 'netAmount'
+  ) => (preview?.eligible ?? []).reduce((s, r) => s + Number(r[key]), 0);
+
+  const kpis: KpiItem[] = useMemo(() => {
+    if (!preview) {
+      return [
+        {
+          category: 'PAYROLL CYCLE',
+          title: 'Period Scope',
+          value: periodType,
+          icon: ClipboardList,
+          subtitle: `${periodStart} to ${periodEnd}`,
+          tone: 'default',
+        },
+        {
+          category: 'ELIGIBILITY POOL',
+          title: 'Total Active Staff',
+          value: staff.length,
+          icon: Wallet,
+          subtitle: 'Staff with salary profile',
+          tone: 'info',
+        },
+        {
+          category: 'STATUS',
+          title: 'Run Status',
+          value: 'Draft / Uncomputed',
+          icon: PlayCircle,
+          subtitle: 'Click Preview to compute',
+          tone: 'warning',
+        },
+        {
+          category: 'NET ESTIMATE',
+          title: 'Payable Amount',
+          value: 'PKR 0',
+          icon: Banknote,
+          subtitle: 'Awaiting calculation',
+          tone: 'default',
+        },
+      ];
+    }
+
+    return [
+      {
+        category: 'CALCULATION AUDIT',
+        title: 'Eligible Staff',
+        value: preview.staffCount,
+        icon: ClipboardList,
+        subtitle: `${preview.skipped.length} skipped`,
+        tone: 'default',
+      },
+      {
+        category: 'EARNINGS ACCRUAL',
+        title: 'Gross Base Pay',
+        value: formatPKR(sum('periodBaseAmount')),
+        icon: Wallet,
+        subtitle: 'Before attendance deductions',
+        tone: 'info',
+      },
+      {
+        category: 'STATUTORY & LEAVE DEDUCTIONS',
+        title: 'Total Deductions',
+        value: formatPKR(sum('attendanceDeductions') + sum('tax') + sum('otherDeductions')),
+        icon: AlertTriangle,
+        subtitle: 'Attendance, taxes & other',
+        tone: 'warning',
+      },
+      {
+        category: 'FINAL DISBURSEMENT',
+        title: 'Net Payable Sum',
+        value: formatPKR(Number(preview.totalAmount)),
+        icon: Banknote,
+        subtitle: 'Total payroll disbursement',
+        tone: 'success',
+      },
+    ];
+  }, [preview, periodType, periodStart, periodEnd, staff.length]);
 
   return (
     <div className="space-y-4">
-      <Select label="Staff / Doctor" value={staffId} options={[{ value: '', label: 'All staff' }, ...staff.map(s => ({ value: s.id, label: s.fullName }))]} onChange={e => setStaffId(e.target.value)} />
-      {/* Filter bar — one landscape row on wide screens (5 equal filters + buttons), wraps on smaller ones */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs grid grid-cols-2 md:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto] items-end gap-3">
+      {/* KPI Header */}
+      <HospitalKpiHeader items={kpis} columns="grid-cols-2 lg:grid-cols-4" />
+
+      {/* Filter Toolbar Section 4.4 */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-4 shadow-2xs grid grid-cols-2 md:grid-cols-3 xl:grid-cols-[repeat(6,minmax(0,1fr))_auto] items-end gap-3">
         <div className="min-w-0">
-          <Select label="Period Type" options={PERIOD_TYPE_OPTIONS} value={periodType} onChange={(e) => setPeriodType(e.target.value as PayrollPeriodType)} />
+          <Select
+            label="Staff / Doctor"
+            value={staffId}
+            options={[{ value: '', label: 'All staff' }, ...staff.map((s) => ({ value: s.id, label: s.fullName }))]}
+            onChange={(e) => setStaffId(e.target.value)}
+          />
         </div>
         <div className="min-w-0">
-          <TextInput label="From" lang="en-GB" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+          <Select
+            label="Period Type"
+            options={PERIOD_TYPE_OPTIONS}
+            value={periodType}
+            onChange={(e) => setPeriodType(e.target.value as PayrollPeriodType)}
+          />
         </div>
         <div className="min-w-0">
-          <TextInput label="To" lang="en-GB" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+          <TextInput
+            label="From"
+            lang="en-GB"
+            type="date"
+            value={periodStart}
+            onChange={(e) => setPeriodStart(e.target.value)}
+          />
+        </div>
+        <div className="min-w-0">
+          <TextInput
+            label="To"
+            lang="en-GB"
+            type="date"
+            value={periodEnd}
+            onChange={(e) => setPeriodEnd(e.target.value)}
+          />
         </div>
         <div className="min-w-0">
           <Select
             label="Department"
-            options={[{ value: '', label: 'All Departments' }, ...departments.filter((d) => d.status === 'Active').map((d) => ({ value: d.id, label: d.name }))]}
+            options={[
+              { value: '', label: 'All Departments' },
+              ...departments.filter((d) => d.status === 'Active').map((d) => ({ value: d.id, label: d.name })),
+            ]}
             value={departmentId}
             onChange={(e) => setDepartmentId(e.target.value)}
           />
@@ -283,7 +441,7 @@ const GenerateTab: React.FC<{ departments: Department[]; toast: ReturnType<typeo
             type="button"
             onClick={handlePreview}
             disabled={isPreviewing}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-[#08775A] bg-[#e7f6f1] hover:bg-[#d0efe5] border border-[#c2e7db] rounded-lg cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#08775A] bg-[#e7f6f1] hover:bg-[#d0efe5] border border-[#c2e7db] rounded-lg cursor-pointer disabled:opacity-50 transition-colors shadow-2xs"
           >
             {isPreviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ClipboardList className="h-3.5 w-3.5" />}
             Preview
@@ -292,39 +450,39 @@ const GenerateTab: React.FC<{ departments: Department[]; toast: ReturnType<typeo
             type="button"
             onClick={handleGenerate}
             disabled={!preview || preview.eligible.length === 0 || isGenerating}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg shadow-xs cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg shadow-2xs cursor-pointer disabled:opacity-50 transition-colors"
           >
             {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
-            Generate Payroll Run
+            Generate Run
           </button>
         </div>
       </div>
 
       {isPreviewing ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-10 flex items-center justify-center gap-2 text-slate-400 shadow-xs">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-xs">Calculating payroll…</span>
+        <div className="bg-white rounded-xl border border-[#e2eae5] p-12 flex items-center justify-center gap-2 text-[#52665e] shadow-2xs">
+          <Loader2 className="h-5 w-5 animate-spin text-[#08775A]" />
+          <span className="text-xs font-medium">Computing attendance deduction formulas and allowances…</span>
         </div>
       ) : !preview ? (
-        <div className="bg-white rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-400">
-          Choose a period and press <span className="font-semibold text-slate-600">Preview</span> to see each staff member's salary before generating.
+        <div className="bg-white rounded-xl border border-dashed border-[#c2e7db] p-12 text-center text-xs text-[#52665e] shadow-2xs">
+          Select date parameters and click <span className="font-bold text-[#123e2b]">Preview</span> to view salary computation before generating the official run.
         </div>
       ) : (
         <>
           <TableSection
             icon={ClipboardList}
-            title="Payroll Preview"
+            title="Payroll Computation Preview"
             note={`${preview.staffCount} eligible · ${preview.skipped.length} skipped`}
             head={
               <>
-                <th className={TH}>Staff</th>
+                <th className={TH}>Staff Member</th>
                 <th className={TH}>Emp ID</th>
                 <th className={TH}>Salary Type</th>
-                <th className={`${TH} text-center`}>Period Sched. Days</th>
+                <th className={`${TH} text-center`}>Sched. Days</th>
                 <th className={`${TH} text-center`}>Present Days</th>
                 <th className={`${TH} text-right`}>Daily Rate</th>
                 <th className={`${TH} text-right`}>Period Base</th>
-                <th className={`${TH} text-right`}>Attendance Ded.</th>
+                <th className={`${TH} text-right`}>Att. Ded.</th>
                 <th className={`${TH} text-right`}>Allowance</th>
                 <th className={`${TH} text-right`}>Gross</th>
                 <th className={`${TH} text-right`}>Tax</th>
@@ -336,46 +494,49 @@ const GenerateTab: React.FC<{ departments: Department[]; toast: ReturnType<typeo
               preview.eligible.length > 0 ? (
                 <>
                   <TotalLabel />
-                  <td className={TD} colSpan={6} />
+                  <td className={TD} colSpan={5} />
                   <td className={`${TD} ${AMT}`}>{formatPKR(sum('periodBaseAmount'))}</td>
                   <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(sum('attendanceDeductions'))})</td>
                   <td className={`${TD} ${AMT}`}>{formatPKR(sum('allowances'))}</td>
                   <td className={`${TD} ${AMT}`}>{formatPKR(sum('grossAmount'))}</td>
                   <td className={`${TD} ${AMT} text-amber-700`}>({formatPKR(sum('tax'))})</td>
                   <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(sum('otherDeductions'))})</td>
-                  <td className={`${TD} ${AMT} text-[15px] text-[#08775A]`}>{formatPKR(Number(preview.totalAmount))}</td>
+                  <td className={`${TD} ${AMT} text-sm text-[#08775A]`}>{formatPKR(Number(preview.totalAmount))}</td>
                 </>
               ) : undefined
             }
           >
             {preview.eligible.length === 0 ? (
-              <EmptyRow colSpan={14}>No eligible staff for this period.</EmptyRow>
+              <EmptyRow colSpan={14}>No eligible staff members found for this period.</EmptyRow>
             ) : (
-              preview.eligible.map((r, i) => (
-                <tr key={r.staffId} className={ROW}>
-                  <td className={TD_NUM}>{i + 1}</td>
-                  <td className={`${TD} font-semibold text-slate-900`}>{r.fullName}</td>
-                  <td className={`${TD} font-semibold text-[#08775A]`}>{r.employeeId}</td>
-                  <td className={TD}>
-                    {basisLabel(r.salaryBasis)}
-                    {r.salaryBasis.startsWith('MONTHLY') && r.monthlyBaseAmount != null && (
-                      <div className="text-xs font-normal text-slate-500">
-                        {formatPKR(Number(r.monthlyBaseAmount))}/month (÷ {r.monthlyScheduledDays} sched. days)
-                      </div>
-                    )}
-                  </td>
-                  <td className={`${TD} text-center tabular-nums`}>{r.scheduledPayableDays}</td>
-                  <td className={`${TD} text-center tabular-nums`}>{r.attendanceEquivalentDays}</td>
-                  <td className={`${TD} ${AMT}`}>{formatPKR(Number(r.dailyRate))}</td>
-                  <td className={`${TD} ${AMT}`}>{formatPKR(Number(r.periodBaseAmount))}</td>
-                  <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(Number(r.attendanceDeductions))})</td>
-                  <td className={`${TD} ${AMT}`}>{formatPKR(Number(r.allowances))}</td>
-                  <td className={`${TD} ${AMT}`}>{formatPKR(Number(r.grossAmount))}</td>
-                  <td className={`${TD} ${AMT} text-amber-700`}>({formatPKR(Number(r.tax))})</td>
-                  <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(Number(r.otherDeductions))})</td>
-                  <td className={`${TD} ${AMT} font-bold text-[15px] text-[#08775A]`}>{formatPKR(Number(r.netAmount))}</td>
-                </tr>
-              ))
+              preview.eligible.map((r, i) => {
+                const isEven = i % 2 === 0;
+                return (
+                  <tr key={r.staffId} className={`transition-colors ${isEven ? 'bg-white' : 'bg-[#fbfdfc]'} hover:bg-[#e7f6f1]/40 border-b border-[#e2eae5]`}>
+                    <td className={TD_NUM}>{i + 1}</td>
+                    <td className={`${TD} font-semibold text-[#123e2b]`}>{r.fullName}</td>
+                    <td className={`${TD} font-mono font-bold text-[#08775A]`}>{r.employeeId}</td>
+                    <td className={TD}>
+                      {basisLabel(r.salaryBasis)}
+                      {r.salaryBasis.startsWith('MONTHLY') && r.monthlyBaseAmount != null && (
+                        <div className="text-[10px] text-[#52665e] font-mono">
+                          {formatPKR(Number(r.monthlyBaseAmount))}/mo (÷ {r.monthlyScheduledDays} days)
+                        </div>
+                      )}
+                    </td>
+                    <td className={`${TD} text-center font-mono`}>{r.scheduledPayableDays}</td>
+                    <td className={`${TD} text-center font-mono font-semibold text-[#08775A]`}>{r.attendanceEquivalentDays}</td>
+                    <td className={`${TD} ${AMT}`}>{formatPKR(Number(r.dailyRate))}</td>
+                    <td className={`${TD} ${AMT}`}>{formatPKR(Number(r.periodBaseAmount))}</td>
+                    <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(Number(r.attendanceDeductions))})</td>
+                    <td className={`${TD} ${AMT}`}>{formatPKR(Number(r.allowances))}</td>
+                    <td className={`${TD} ${AMT}`}>{formatPKR(Number(r.grossAmount))}</td>
+                    <td className={`${TD} ${AMT} text-amber-700`}>({formatPKR(Number(r.tax))})</td>
+                    <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(Number(r.otherDeductions))})</td>
+                    <td className={`${TD} ${AMT} text-sm text-[#08775A]`}>{formatPKR(Number(r.netAmount))}</td>
+                  </tr>
+                );
+              })
             )}
           </TableSection>
 
@@ -430,7 +591,7 @@ const RunsTab: React.FC<{
     if (!detail) return;
     try {
       await approvePayrollRun(detail.id);
-      toast.success('Payroll run approved — slips are now payable.');
+      toast.success('Payroll run approved — salary slips are now payable.');
       setDetail(await getPayrollRun(detail.id));
       await loadRuns();
     } catch (err: any) {
@@ -452,7 +613,11 @@ const RunsTab: React.FC<{
     if (!payingSlip || payAmount === '' || Number(payAmount) <= 0) return;
     setIsSubmitting(true);
     try {
-      await paySalarySlip(payingSlip.id, { amount: Number(payAmount), method: payMethod, reference: payReference || undefined });
+      await paySalarySlip(payingSlip.id, {
+        amount: Number(payAmount),
+        method: payMethod,
+        reference: payReference || undefined,
+      });
       toast.success(`Payment recorded for ${payingSlip.staff.fullName}.`);
       setPayingSlip(null);
       if (detail) setDetail(await getPayrollRun(detail.id));
@@ -478,33 +643,85 @@ const RunsTab: React.FC<{
         paid: t.paid + paid,
       };
     },
-    { base: 0, ded: 0, allow: 0, tax: 0, other: 0, net: 0, paid: 0 },
+    { base: 0, ded: 0, allow: 0, tax: 0, other: 0, net: 0, paid: 0 }
   );
+
+  const kpis: KpiItem[] = useMemo(() => {
+    const approvedRuns = runs.filter((r) => (r.status as string) === 'APPROVED' || (r.status as string) === 'PAID' || (r.status as string) === 'PARTIALLY_PAID').length;
+    return [
+      {
+        category: 'FINANCIAL RUNS',
+        title: 'Total Generated',
+        value: runs.length,
+        icon: History,
+        subtitle: 'All periods logged',
+        tone: 'default',
+      },
+      {
+        category: 'TOTAL OUTLAY',
+        title: 'Gross Net Disbursed',
+        value: formatPKR(runsTotal),
+        icon: Banknote,
+        subtitle: 'Cumulative payroll cycles',
+        tone: 'success',
+      },
+      {
+        category: 'APPROVAL COMPLIANCE',
+        title: 'Approved Runs',
+        value: approvedRuns,
+        icon: CheckCircle2,
+        subtitle: `${runs.length - approvedRuns} pending approval`,
+        tone: 'info',
+      },
+      {
+        category: 'ACTIVE SELECTION',
+        title: 'Selected Run Detail',
+        value: detail ? `${detail.staffCount} Slips` : 'None Selected',
+        icon: Wallet,
+        subtitle: detail ? periodLabel(detail.periodStart, detail.periodEnd) : 'Click run to inspect',
+        tone: detail ? 'warning' : 'default',
+      },
+    ];
+  }, [runs, runsTotal, detail]);
 
   return (
     <div className="space-y-4">
+      {/* KPI Header */}
+      <HospitalKpiHeader items={kpis} columns="grid-cols-2 lg:grid-cols-4" />
+
       {/* Runs list */}
       {loadError ? (
-        <div className="bg-white rounded-xl border border-rose-200 p-6 text-center text-xs text-rose-700 shadow-xs">
+        <div className="bg-white rounded-xl border border-rose-200 p-6 text-center text-xs text-rose-700 shadow-2xs">
           {loadError}{' '}
-          <button type="button" onClick={loadRuns} className="font-semibold text-[#08775A] hover:underline">Retry</button>
+          <button type="button" onClick={loadRuns} className="font-semibold text-[#08775A] hover:underline cursor-pointer">
+            Retry
+          </button>
         </div>
       ) : isLoading ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-10 flex items-center justify-center gap-2 text-slate-400 shadow-xs">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-xs">Loading payroll runs…</span>
+        <div className="bg-white rounded-xl border border-[#e2eae5] p-12 flex items-center justify-center gap-2 text-[#52665e] shadow-2xs">
+          <Loader2 className="h-5 w-5 animate-spin text-[#08775A]" />
+          <span className="text-xs">Loading payroll runs from database…</span>
         </div>
       ) : (
         <TableSection
           icon={History}
-          title="Payroll Runs"
+          title="Historical Payroll Runs"
           note={`${runs.length} run${runs.length === 1 ? '' : 's'}`}
+          actions={
+            <button
+              onClick={loadRuns}
+              className="p-1 hover:bg-white/10 rounded text-[#effaf5] hover:text-white transition-colors cursor-pointer"
+              title="Refresh"
+            >
+              <RotateCw className="h-3.5 w-3.5" />
+            </button>
+          }
           head={
             <>
               <th className={TH}>Period</th>
               <th className={TH}>Type</th>
               <th className={TH}>Department / Category</th>
-              <th className={`${TH} text-center`}>Staff</th>
+              <th className={`${TH} text-center`}>Staff Count</th>
               <th className={TH}>Generated By</th>
               <th className={TH}>Status</th>
               <th className={`${TH} text-right`}>Total Net</th>
@@ -515,8 +732,8 @@ const RunsTab: React.FC<{
             runs.length > 0 ? (
               <>
                 <TotalLabel />
-                <td className={TD} colSpan={6} />
-                <td className={`${TD} ${AMT} text-[15px]`}>{formatPKR(runsTotal)}</td>
+                <td className={TD} colSpan={5} />
+                <td className={`${TD} ${AMT} text-sm text-[#08775A]`}>{formatPKR(runsTotal)}</td>
                 <td className={TD} />
               </>
             ) : undefined
@@ -527,19 +744,28 @@ const RunsTab: React.FC<{
           ) : (
             runs.map((r, i) => {
               const active = selectedRunId === r.id;
+              const isEven = i % 2 === 0;
               return (
-                <tr key={r.id} className={`${ROW} cursor-pointer ${active ? 'bg-[#effaf5]' : ''}`} onClick={() => setSelectedRunId(r.id)}>
+                <tr
+                  key={r.id}
+                  className={`transition-colors cursor-pointer border-b border-[#e2eae5] ${
+                    active ? 'bg-[#effaf5]' : isEven ? 'bg-white' : 'bg-[#fbfdfc]'
+                  } hover:bg-[#e7f6f1]/40`}
+                  onClick={() => setSelectedRunId(r.id)}
+                >
                   <td className={TD_NUM}>{i + 1}</td>
-                  <td className={`${TD} font-semibold text-slate-900`}>{periodLabel(r.periodStart, r.periodEnd)}</td>
+                  <td className={`${TD} font-semibold font-mono text-[#123e2b]`}>{periodLabel(r.periodStart, r.periodEnd)}</td>
                   <td className={TD}>{r.periodType}</td>
-                  <td className={`${TD} text-slate-500`}>{[r.department?.name, r.category].filter(Boolean).join(' · ') || 'All'}</td>
-                  <td className={`${TD} text-center tabular-nums`}>{r.staffCount}</td>
-                  <td className={`${TD} text-slate-500`}>{r.generatedByUser?.username || 'System'}</td>
-                  <td className={TD}><StatusBadge status={r.status} /></td>
-                  <td className={`${TD} ${AMT} font-bold`}>{formatPKR(Number(r.totalAmount))}</td>
+                  <td className={`${TD} text-[#52665e]`}>{[r.department?.name, r.category].filter(Boolean).join(' · ') || 'All Departments'}</td>
+                  <td className={`${TD} text-center font-mono font-bold text-[#08775A]`}>{r.staffCount}</td>
+                  <td className={`${TD} text-[#52665e]`}>{r.generatedByUser?.username || 'System'}</td>
+                  <td className={TD}>
+                    <StatusBadge status={r.status} />
+                  </td>
+                  <td className={`${TD} ${AMT} text-sm text-[#123e2b]`}>{formatPKR(Number(r.totalAmount))}</td>
                   <td className={`${TD} text-center`}>
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${active ? 'text-[#08775A]' : 'text-slate-500'}`}>
-                      {active ? 'Viewing' : 'View'} <ChevronRight className="h-3.5 w-3.5" />
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${active ? 'text-[#08775A]' : 'text-[#52665e]'}`}>
+                      {active ? 'Viewing' : 'Inspect'} <ChevronRight className="h-3.5 w-3.5" />
                     </span>
                   </td>
                 </tr>
@@ -554,29 +780,29 @@ const RunsTab: React.FC<{
         <>
           <TableSection
             icon={Banknote}
-            title={`Salary Slips — ${periodLabel(detail.periodStart, detail.periodEnd)}`}
-            note={`${detail.periodType} · by ${detail.generatedByUser?.username || 'System'}`}
+            title={`Salary Slips Registry — ${periodLabel(detail.periodStart, detail.periodEnd)}`}
+            note={`${detail.periodType} · ${detail.lines.length} Slips`}
             actions={
               detail.status === 'GENERATED' ? (
                 <button
                   type="button"
                   onClick={handleApprove}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-[#08775A] bg-white hover:bg-emerald-50 rounded-md cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-[#08775A] bg-white hover:bg-[#effaf5] rounded-md cursor-pointer transition-colors"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" /> Approve Run
                 </button>
               ) : (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-white">
-                  <CheckCircle2 className="h-4 w-4" /> Approved
+                  <CheckCircle2 className="h-4 w-4 text-[#c2e7db]" /> Approved Run
                 </span>
               )
             }
             head={
               <>
-                <th className={TH}>Staff</th>
+                <th className={TH}>Staff Member</th>
                 <th className={TH}>Emp ID</th>
                 <th className={`${TH} text-right`}>Base Salary</th>
-                <th className={`${TH} text-right`}>Attendance Ded.</th>
+                <th className={`${TH} text-right`}>Att. Ded.</th>
                 <th className={`${TH} text-right`}>Allowance</th>
                 <th className={`${TH} text-right`}>Tax</th>
                 <th className={`${TH} text-right`}>Other Ded.</th>
@@ -591,13 +817,13 @@ const RunsTab: React.FC<{
               detail.lines.length > 0 ? (
                 <>
                   <TotalLabel />
-                  <td className={TD} colSpan={2} />
+                  <td className={TD} colSpan={1} />
                   <td className={`${TD} ${AMT}`}>{formatPKR(slipTotals.base)}</td>
                   <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(slipTotals.ded)})</td>
                   <td className={`${TD} ${AMT}`}>{formatPKR(slipTotals.allow)}</td>
                   <td className={`${TD} ${AMT} text-amber-700`}>({formatPKR(slipTotals.tax)})</td>
                   <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(slipTotals.other)})</td>
-                  <td className={`${TD} ${AMT} text-[15px] text-[#08775A]`}>{formatPKR(slipTotals.net)}</td>
+                  <td className={`${TD} ${AMT} text-sm text-[#08775A]`}>{formatPKR(slipTotals.net)}</td>
                   <td className={`${TD} ${AMT}`}>{formatPKR(slipTotals.paid)}</td>
                   <td className={`${TD} ${AMT} text-rose-700`}>{formatPKR(slipTotals.net - slipTotals.paid)}</td>
                   <td className={TD} colSpan={2} />
@@ -612,35 +838,61 @@ const RunsTab: React.FC<{
                 const paid = paidOf(slip);
                 const balance = payableOf(slip) - paid;
                 const canPay = slip.status === 'APPROVED' || slip.status === 'PARTIALLY_PAID';
+                const isEven = i % 2 === 0;
                 return (
-                  <tr key={slip.id} className={ROW}>
+                  <tr key={slip.id} className={`transition-colors border-b border-[#e2eae5] ${isEven ? 'bg-white' : 'bg-[#fbfdfc]'} hover:bg-[#e7f6f1]/40`}>
                     <td className={TD_NUM}>{i + 1}</td>
-                    <td className={`${TD} font-semibold text-slate-900`}>{slip.staff.fullName}
-                      {!!slip.correctionEntries?.length && <details className="text-xs font-normal"><summary>Adjustments: {formatPKR(Number(slip.balance?.adjustments ?? 0))}</summary>{slip.correctionEntries.map(c => <div key={c.id}>{formatPKR(Number(c.amount))} ? {c.reason} ? {c.createdAt.slice(0, 10)}</div>)}</details>}
-                      {Number(slip.balance?.overpaid ?? 0) > 0 && <div className="text-xs text-rose-700">Recoverable: {formatPKR(Number(slip.balance?.overpaid))}</div>}
+                    <td className={`${TD} font-semibold text-[#123e2b]`}>
+                      {slip.staff.fullName}
+                      {!!slip.correctionEntries?.length && (
+                        <details className="text-[10px] font-normal text-[#52665e] mt-0.5">
+                          <summary className="cursor-pointer text-[#08775A]">
+                            Adjustments: {formatPKR(Number(slip.balance?.adjustments ?? 0))}
+                          </summary>
+                          {slip.correctionEntries.map((c) => (
+                            <div key={c.id}>
+                              {formatPKR(Number(c.amount))} · {c.reason} · {c.createdAt.slice(0, 10)}
+                            </div>
+                          ))}
+                        </details>
+                      )}
+                      {Number(slip.balance?.overpaid ?? 0) > 0 && (
+                        <div className="text-[10px] text-rose-700 font-bold">
+                          Recoverable: {formatPKR(Number(slip.balance?.overpaid))}
+                        </div>
+                      )}
                     </td>
-                    <td className={`${TD} font-semibold text-[#08775A]`}>{slip.staff.employeeId}</td>
+                    <td className={`${TD} font-mono font-bold text-[#08775A]`}>{slip.staff.employeeId}</td>
                     <td className={`${TD} ${AMT}`}>{formatPKR(Number(slip.baseAmount))}</td>
                     <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(Number(slip.attendanceDeductions))})</td>
                     <td className={`${TD} ${AMT}`}>{formatPKR(Number(slip.allowances))}</td>
                     <td className={`${TD} ${AMT} text-amber-700`}>({formatPKR(Number(slip.componentBreakdown?.tax ?? 0))})</td>
                     <td className={`${TD} ${AMT} text-rose-700`}>({formatPKR(Number(slip.otherDeductions))})</td>
-                    <td className={`${TD} ${AMT} font-bold text-[15px] text-[#08775A]`}>{formatPKR(payableOf(slip))}</td>
+                    <td className={`${TD} ${AMT} text-sm text-[#08775A]`}>{formatPKR(payableOf(slip))}</td>
                     <td className={`${TD} ${AMT}`}>{formatPKR(paid)}</td>
-                    <td className={`${TD} ${AMT} ${balance > 0 ? 'text-rose-700' : 'text-slate-400'}`}>{formatPKR(balance)}</td>
-                    <td className={TD}><StatusBadge status={slip.status} /></td>
+                    <td className={`${TD} ${AMT} ${balance > 0 ? 'text-rose-700' : 'text-[#52665e]'}`}>{formatPKR(balance)}</td>
+                    <td className={TD}>
+                      <StatusBadge status={slip.status} />
+                    </td>
                     <td className={`${TD} text-center`}>
-                      {['APPROVED', 'PARTIALLY_PAID', 'PAID'].includes(slip.status) && <button onClick={() => setAdjustingSlip(slip)} className="mr-2 text-xs text-[#08775A] underline">Adjust / Reverse</button>}
+                      {['APPROVED', 'PARTIALLY_PAID', 'PAID'].includes(slip.status) && (
+                        <button
+                          onClick={() => setAdjustingSlip(slip)}
+                          className="mr-2 text-xs font-semibold text-[#08775A] hover:underline cursor-pointer"
+                        >
+                          Adjust
+                        </button>
+                      )}
                       {canPay ? (
                         <button
                           type="button"
                           onClick={() => openPay(slip)}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-md cursor-pointer"
+                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg cursor-pointer transition-colors shadow-2xs"
                         >
                           <Banknote className="h-3.5 w-3.5" /> Pay
                         </button>
                       ) : (
-                        <span className="text-xs text-slate-400">{slip.status === 'PAID' ? 'Paid' : 'Approve first'}</span>
+                        <span className="text-xs text-slate-400">{slip.status === 'PAID' ? 'Settled' : 'Approve run first'}</span>
                       )}
                     </td>
                   </tr>
@@ -653,31 +905,44 @@ const RunsTab: React.FC<{
         </>
       )}
 
-      {adjustingSlip && <FinancialAdjustmentModal title={`Salary correction ? ${adjustingSlip.staff.fullName}`} onClose={() => setAdjustingSlip(null)} onSave={async (amount, reason) => {
-        await adjustSalarySlip(adjustingSlip.id, amount, reason);
-        if (selectedRunId) setDetail(await getPayrollRun(selectedRunId));
-        await loadRuns();
-      }} />}
+      {adjustingSlip && (
+        <FinancialAdjustmentModal
+          title={`Salary correction · ${adjustingSlip.staff.fullName}`}
+          onClose={() => setAdjustingSlip(null)}
+          onSave={async (amount, reason) => {
+            await adjustSalarySlip(adjustingSlip.id, amount, reason);
+            if (selectedRunId) setDetail(await getPayrollRun(selectedRunId));
+            await loadRuns();
+          }}
+        />
+      )}
+
       {payingSlip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden font-montserrat">
-            <div className="bg-gradient-to-r from-[#0a4636] to-[#08775A] text-white px-5 py-3">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-[#e2eae5] overflow-hidden">
+            <div className="bg-[#0e5944] text-white px-5 py-3">
               <h3 className="font-bold text-sm">Record Salary Payment</h3>
-              <p className="text-xs text-emerald-100">{payingSlip.staff.fullName} ({payingSlip.staff.employeeId})</p>
+              <p className="text-xs text-[#effaf5]">
+                {payingSlip.staff.fullName} ({payingSlip.staff.employeeId})
+              </p>
             </div>
-            <table className="w-full text-sm border-b border-slate-200">
+            <table className="w-full text-xs border-b border-[#e2eae5]">
               <tbody>
-                <tr className="border-b border-slate-100">
-                  <td className="py-2 px-5 text-slate-500">Net Payable</td>
-                  <td className="py-2 px-5 text-right font-semibold tabular-nums">{formatPKR(payableOf(payingSlip))}</td>
+                <tr className="border-b border-[#e2eae5]">
+                  <td className="py-2 px-5 text-[#52665e]">Net Payable</td>
+                  <td className="py-2 px-5 text-right font-mono font-bold text-[#123e2b]">
+                    {formatPKR(payableOf(payingSlip))}
+                  </td>
                 </tr>
-                <tr className="border-b border-slate-100">
-                  <td className="py-2 px-5 text-slate-500">Already Paid</td>
-                  <td className="py-2 px-5 text-right font-semibold tabular-nums">{formatPKR(paidOf(payingSlip))}</td>
+                <tr className="border-b border-[#e2eae5]">
+                  <td className="py-2 px-5 text-[#52665e]">Already Paid</td>
+                  <td className="py-2 px-5 text-right font-mono font-bold text-[#123e2b]">
+                    {formatPKR(paidOf(payingSlip))}
+                  </td>
                 </tr>
-                <tr className="bg-slate-50">
-                  <td className="py-2 px-5 font-bold text-slate-800">Balance</td>
-                  <td className="py-2 px-5 text-right font-bold tabular-nums text-rose-700">
+                <tr className="bg-[#effaf5]/50">
+                  <td className="py-2 px-5 font-bold text-[#123e2b]">Balance Outstanding</td>
+                  <td className="py-2 px-5 text-right font-mono font-bold text-rose-700">
                     {formatPKR(payableOf(payingSlip) - paidOf(payingSlip))}
                   </td>
                 </tr>
@@ -694,23 +959,37 @@ const RunsTab: React.FC<{
                 onChange={(e) => setPayAmount(e.target.value === '' ? '' : Number(e.target.value))}
               />
               <Select
-                label="Method"
+                label="Payment Method"
                 options={[
-                  { value: 'CASH', label: 'Cash' },
-                  { value: 'CARD', label: 'Card' },
                   { value: 'BANK', label: 'Bank Transfer' },
-                  { value: 'ONLINE', label: 'Online' },
+                  { value: 'CASH', label: 'Cash Disbursement' },
+                  { value: 'CARD', label: 'Debit / Corporate Card' },
+                  { value: 'ONLINE', label: 'Online Gateway' },
                 ]}
                 value={payMethod}
                 onChange={(e) => setPayMethod(e.target.value)}
               />
-              <TextInput label="Reference (optional)" type="text" value={payReference} onChange={(e) => setPayReference(e.target.value)} />
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button type="button" onClick={() => setPayingSlip(null)} className="px-3.5 py-2 text-xs font-medium text-slate-600 border border-slate-300 hover:bg-slate-100 rounded-lg cursor-pointer">
+              <TextInput
+                label="Reference / Cheque No. (Optional)"
+                type="text"
+                value={payReference}
+                onChange={(e) => setPayReference(e.target.value)}
+              />
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#e2eae5]">
+                <button
+                  type="button"
+                  onClick={() => setPayingSlip(null)}
+                  className="px-3.5 py-2 text-xs font-medium text-[#52665e] border border-[#c2e7db] hover:bg-slate-50 rounded-lg cursor-pointer"
+                >
                   Cancel
                 </button>
-                <button type="button" disabled={isSubmitting} onClick={submitPay} className="px-4 py-2 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg cursor-pointer disabled:opacity-50">
-                  {isSubmitting ? 'Saving…' : 'Record Payment'}
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={submitPay}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg cursor-pointer disabled:opacity-50 transition-colors shadow-2xs"
+                >
+                  {isSubmitting ? 'Recording…' : 'Record Payment'}
                 </button>
               </div>
             </div>

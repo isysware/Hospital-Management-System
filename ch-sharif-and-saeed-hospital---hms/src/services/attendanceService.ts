@@ -89,3 +89,8 @@ export async function correctAttendance(
   const res = await apiClient.post<{ data: AttendanceRecord }>(`/attendance/${id}/correct`, body);
   return res.data.data;
 }
+
+export async function deleteAttendance(id: string): Promise<{ success: boolean }> {
+  const res = await apiClient.delete<{ data: { success: boolean } }>(`/attendance/${id}`);
+  return res.data.data;
+}

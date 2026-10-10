@@ -19,6 +19,7 @@ import { VALID_DEPARTMENT_TYPES } from '../../../services/departmentService';
 import { getActiveOutsourcedProviders } from '../../../services/outsourcedProviderService';
 import { FloorService } from '../../../services/floorService';
 import { useToast } from '../../../context/ToastContext';
+import { generateNextCode } from '../../../utils/codeGenerator';
 
 interface AddEditDepartmentModalProps {
   isOpen: boolean;
@@ -99,8 +100,12 @@ export const AddEditDepartmentModal: React.FC<AddEditDepartmentModalProps> = ({
         status: departmentToEdit.status,
       });
     } else {
+      const autoCode = generateNextCode(
+        existingDepartments.map((d) => d.code),
+        'DEP'
+      );
       setFormData({
-        code: '',
+        code: autoCode,
         name: '',
         type: 'Clinical',
         description: '',
@@ -122,7 +127,7 @@ export const AddEditDepartmentModal: React.FC<AddEditDepartmentModalProps> = ({
     setErrors({});
     setHeadSearch('');
     setIsHeadDropdownOpen(false);
-  }, [departmentToEdit, isOpen]);
+  }, [departmentToEdit, isOpen, existingDepartments]);
 
   const filteredHeads = useMemo(() => {
     if (!headSearch.trim()) return headOptions;
@@ -239,9 +244,14 @@ export const AddEditDepartmentModal: React.FC<AddEditDepartmentModalProps> = ({
           {/* Section 1: Basic Identifiers */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Department Code
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Department Code
+                </label>
+                <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                  Auto-generated
+                </span>
+              </div>
               <input
                 type="text"
                 value={formData.code}
@@ -249,7 +259,7 @@ export const AddEditDepartmentModal: React.FC<AddEditDepartmentModalProps> = ({
                   setFormData({ ...formData, code: e.target.value.toUpperCase() });
                   if (errors.code) setErrors({ ...errors, code: '' });
                 }}
-                placeholder="e.g. DEP-MED (optional — leave blank to auto-generate)"
+                placeholder="Auto-generated (e.g. DEP-0001)"
                 className={`w-full rounded-lg border px-3 py-2 text-xs font-mono font-bold uppercase transition-colors focus:outline-hidden focus:ring-2 ${
                   errors.code
                     ? 'border-rose-300 bg-rose-50/30 text-rose-900 focus:ring-rose-200'
@@ -259,7 +269,7 @@ export const AddEditDepartmentModal: React.FC<AddEditDepartmentModalProps> = ({
               {errors.code ? (
                 <p className="mt-1 text-[11px] font-medium text-rose-600">{errors.code}</p>
               ) : (
-                <p className="mt-1 text-[10px] text-slate-400">Unique uppercase code — leave blank to auto-generate</p>
+                <p className="mt-1 text-[10px] text-slate-400">Pre-filled automatically — editable if needed</p>
               )}
             </div>
 

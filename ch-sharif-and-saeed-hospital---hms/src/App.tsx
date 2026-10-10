@@ -18,9 +18,10 @@ import { ModulePlaceholderView } from './features/shared/ModulePlaceholderView';
 import { PortalArchitectureShowcase } from './features/shared/PortalArchitectureShowcase';
 import { DesignSystemShowcase } from './features/shared/DesignSystemShowcase';
 import { PORTAL_CONFIGS, PORTAL_NAVIGATION_MAP } from './constants/portalNavigations';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
-const MONTSERRAT_PORTALS: string[] = ['super-admin', 'admin', 'inventory'];
-const INTER_PORTALS: string[] = ['front-desk', 'admission'];
+const MONTSERRAT_PORTALS: string[] = ['inventory'];
+const INTER_PORTALS: string[] = ['super-admin', 'admin', 'front-desk', 'admission'];
 
 const MainPortalRouter: React.FC = () => {
   const { isAuthenticated, currentUser, activePortal } = useAuth();
@@ -154,66 +155,68 @@ const MainPortalRouter: React.FC = () => {
   // Render the authorized portal view inside the scoped PortalLayout
   return (
     <PortalLayout>
-      {/* Route: Architecture Matrix & Overview (Super Admin Only) */}
-      {currentModule === 'matrix' || currentModule === 'architecture' || currentModule === 'portals' ? (
-        <PortalArchitectureShowcase />
-      ) : currentModule === 'showcase' || currentModule === 'design' ? (
-        <DesignSystemShowcase />
-      ) : currentModule === 'dashboard' ? (
-        // Dedicated, independent role-based dashboards (EXACTLY 5 HMS PORTALS):
-        currentPortal === 'super-admin' ? (
-          <SuperAdminDashboard onNavigateToModule={(mod) => navigate(`/super-admin/${mod}`)} />
-        ) : currentPortal === 'admin' ? (
-          <AdminDashboard />
+      <ErrorBoundary>
+        {/* Route: Architecture Matrix & Overview (Super Admin Only) */}
+        {currentModule === 'matrix' || currentModule === 'architecture' || currentModule === 'portals' ? (
+          <PortalArchitectureShowcase />
+        ) : currentModule === 'showcase' || currentModule === 'design' ? (
+          <DesignSystemShowcase />
+        ) : currentModule === 'dashboard' ? (
+          // Dedicated, independent role-based dashboards (EXACTLY 5 HMS PORTALS):
+          currentPortal === 'super-admin' ? (
+            <SuperAdminDashboard onNavigateToModule={(mod) => navigate(`/super-admin/${mod}`)} />
+          ) : currentPortal === 'admin' ? (
+            <AdminDashboard />
+          ) : currentPortal === 'front-desk' ? (
+            <FrontDeskDashboard />
+          ) : currentPortal === 'admission' ? (
+            <AdmissionDashboard />
+          ) : currentPortal === 'inventory' ? (
+            <InventoryDashboard />
+          ) : (
+            <SuperAdminDashboard />
+          )
+        ) : currentPortal === 'super-admin' || currentPortal === 'admin' ? (
+          // Dedicated Super Admin & Admin shared hospital management views
+          <SuperAdminModuleView
+            moduleId={currentModule}
+            moduleName={currentModuleName}
+            groupTitle={currentGroupTitle}
+          />
         ) : currentPortal === 'front-desk' ? (
-          <FrontDeskDashboard />
+          // Front Desk — every nav item is real (v7.2 §3.3, Panel Billing shipped last)
+          <FrontDeskModuleView
+            moduleId={currentModule}
+            moduleName={currentModuleName}
+            groupTitle={currentGroupTitle}
+          />
         ) : currentPortal === 'admission' ? (
-          <AdmissionDashboard />
+          // Admission — every nav item is real; Doctor Discharge Authorization
+          // (v7.2 §2.4) and the High-Cost Medicine gate (§2.6) are still on
+          // the pre-v7.2 mechanism, a deliberately separate next pass.
+          <AdmissionModuleView
+            moduleId={currentModule}
+            moduleName={currentModuleName}
+            groupTitle={currentGroupTitle}
+          />
         ) : currentPortal === 'inventory' ? (
-          <InventoryDashboard />
+          // Inventory — only `dashboard` is real so far (inventory.md §9 steps
+          // 11-14 build the rest); everything else still falls through to
+          // ModulePlaceholderView inside InventoryModuleView itself.
+          <InventoryModuleView
+            moduleId={currentModule}
+            moduleName={currentModuleName}
+            groupTitle={currentGroupTitle}
+          />
         ) : (
-          <SuperAdminDashboard />
-        )
-      ) : currentPortal === 'super-admin' || currentPortal === 'admin' ? (
-        // Dedicated Super Admin & Admin shared hospital management views
-        <SuperAdminModuleView
-          moduleId={currentModule}
-          moduleName={currentModuleName}
-          groupTitle={currentGroupTitle}
-        />
-      ) : currentPortal === 'front-desk' ? (
-        // Front Desk — every nav item is real (v7.2 §3.3, Panel Billing shipped last)
-        <FrontDeskModuleView
-          moduleId={currentModule}
-          moduleName={currentModuleName}
-          groupTitle={currentGroupTitle}
-        />
-      ) : currentPortal === 'admission' ? (
-        // Admission — every nav item is real; Doctor Discharge Authorization
-        // (v7.2 §2.4) and the High-Cost Medicine gate (§2.6) are still on
-        // the pre-v7.2 mechanism, a deliberately separate next pass.
-        <AdmissionModuleView
-          moduleId={currentModule}
-          moduleName={currentModuleName}
-          groupTitle={currentGroupTitle}
-        />
-      ) : currentPortal === 'inventory' ? (
-        // Inventory — only `dashboard` is real so far (inventory.md §9 steps
-        // 11-14 build the rest); everything else still falls through to
-        // ModulePlaceholderView inside InventoryModuleView itself.
-        <InventoryModuleView
-          moduleId={currentModule}
-          moduleName={currentModuleName}
-          groupTitle={currentGroupTitle}
-        />
-      ) : (
-        // Any sub-module within other portals' scoped navigation
-        <ModulePlaceholderView
-          moduleId={currentModule}
-          moduleName={currentModuleName}
-          groupTitle={currentGroupTitle}
-        />
-      )}
+          // Any sub-module within other portals' scoped navigation
+          <ModulePlaceholderView
+            moduleId={currentModule}
+            moduleName={currentModuleName}
+            groupTitle={currentGroupTitle}
+          />
+        )}
+      </ErrorBoundary>
     </PortalLayout>
   );
 };

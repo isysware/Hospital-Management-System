@@ -6,6 +6,7 @@ import {
   VALID_ROOM_TYPES,
 } from '../../../services/wardsRoomsBedsService';
 import { useToast } from '../../../context/ToastContext';
+import { generateNextCode } from '../../../utils/codeGenerator';
 
 interface RoomModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface RoomModalProps {
   room?: Room | null;
   wards: Ward[];
   beds?: Bed[];
+  rooms?: Room[];
 }
 
 export const RoomModal: React.FC<RoomModalProps> = ({
@@ -23,6 +25,7 @@ export const RoomModal: React.FC<RoomModalProps> = ({
   room,
   wards,
   beds = [],
+  rooms = [],
 }) => {
   const toast = useToast();
   const isEditing = !!room;
@@ -58,8 +61,9 @@ export const RoomModal: React.FC<RoomModalProps> = ({
       setCodeError(null);
       setErrors({});
     } else {
+      const autoCode = generateNextCode((rooms || []).map((r) => r.code), 'RM');
       setFormValues({
-        code: '',
+        code: autoCode,
         roomNumber: '',
         name: '',
         wardId: wards.find((w) => w.status === 'Active')?.id || wards[0]?.id || '',
@@ -72,7 +76,7 @@ export const RoomModal: React.FC<RoomModalProps> = ({
       setCodeError(null);
       setErrors({});
     }
-  }, [room, isOpen, wards]);
+  }, [room, isOpen, wards, rooms]);
 
   if (!isOpen) return null;
 
@@ -163,15 +167,20 @@ export const RoomModal: React.FC<RoomModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Room Code */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Room Code
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Room Code
+                </label>
+                <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                  Auto-generated
+                </span>
+              </div>
               <input
                 id="room-form-code"
                 type="text"
                 value={formValues.code}
                 onChange={(e) => handleCodeChange(e.target.value)}
-                placeholder="e.g. RM-MED-101 (optional — auto-generated if blank)"
+                placeholder="Auto-generated (e.g. RM-0001)"
                 className={`w-full px-3 py-2 text-xs font-mono font-medium rounded-lg border bg-white focus:outline-hidden focus:ring-2 transition-colors ${
                   codeError || errors.code
                     ? 'border-rose-300 focus:ring-rose-200 focus:border-rose-500'

@@ -1402,6 +1402,10 @@ model Appointment {
   // queryable (see `checkInAppointment`'s allocation step).
   paymentReceipts  PaymentReceipt[]
 
+  queueNumber        String?           @map("queue_number")
+  queueSequence      Int?              @map("queue_sequence")
+  queueDate          DateTime?         @map("queue_date") @db.Date
+
   createdAt     DateTime    @default(now()) @map("created_at")
   createdById   String?     @map("created_by")
   createdByUser PortalUser? @relation("AppointmentCreatedBy", fields: [createdById], references: [id])
@@ -1409,6 +1413,7 @@ model Appointment {
 
   @@index([doctorStaffId])
   @@index([departmentId])
+  @@index([queueNumber])
   @@map("appointments")
 }
 
@@ -1456,6 +1461,11 @@ model HospitalInvoice {
   authorizationLimit      Decimal?  @map("authorization_limit") @db.Decimal(14, 2)
   authorizationValidUntil DateTime? @map("authorization_valid_until")
 
+  // Queue / Token Number System (OPD, Emergency, Observation — NOT IPD)
+  queueNumber    String?   @map("queue_number")
+  queueSequence  Int?      @map("queue_sequence")
+  queueDate      DateTime? @map("queue_date") @db.Date
+
   subtotal        Decimal       @default(0) @db.Decimal(14, 2)
   discountTotal   Decimal       @default(0) @map("discount_total") @db.Decimal(14, 2)
   total           Decimal       @default(0) @db.Decimal(14, 2)
@@ -1482,7 +1492,21 @@ model HospitalInvoice {
   @@index([selfPayEncounterId])
   @@index([admissionRecordId])
   @@index([corporatePanelId])
+  @@index([queueDate, encounterType])
+  @@index([queueNumber])
+  @@unique([encounterType, queueDate, queueSequence])
   @@map("hospital_invoices")
+}
+
+model DailyQueueSequence {
+  id            String        @id @default(uuid())
+  encounterType EncounterType @map("encounter_type")
+  date          DateTime      @db.Date
+  lastSequence  Int           @default(0) @map("last_sequence")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  @@unique([encounterType, date])
+  @@map("daily_queue_sequences")
 }
 
 /// = §6.8 `invoice_lines`. `rateSnapshot` is frozen at billing time — later

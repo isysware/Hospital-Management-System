@@ -239,7 +239,8 @@ export const PanelBillingWorkspace: React.FC<PanelBillingWorkspaceProps> = ({ ti
   const exportColumns: ExportColumn<PanelStatementInvoiceRow>[] = [
     { header: 'Date', cell: (r) => formatDateDDMMYYYY(r.createdAt) },
     { header: 'Invoice #', cell: (r) => r.invoiceNumber },
-    { header: 'Patient', cell: (r) => `${r.patientName} (${r.patientMrNumber})` },
+    { header: 'MR #', cell: (r) => r.patientMrNumber || '—' },
+    { header: 'Patient Name', cell: (r) => r.patientName },
     { header: 'Member ID', cell: (r) => r.panelMemberId || '—' },
     { header: 'Department', cell: (r) => r.departmentName },
     { header: 'Total Bill', align: 'right', cell: (r) => formatPKR(r.total), excelValue: (r) => r.total },
@@ -276,7 +277,7 @@ export const PanelBillingWorkspace: React.FC<PanelBillingWorkspaceProps> = ({ ti
     }`;
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-150 font-montserrat">
+    <div className="space-y-4 animate-in fade-in duration-150">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -434,7 +435,8 @@ export const PanelBillingWorkspace: React.FC<PanelBillingWorkspaceProps> = ({ ti
                     <>
                       <th className={TH}>Date</th>
                       <th className={TH}>Invoice #</th>
-                      <th className={TH}>Patient</th>
+                      <th className={TH}>MR #</th>
+                      <th className={TH}>Patient Name</th>
                       <th className={TH}>Source / Department</th>
                       <th className={`${TH} text-right`}>Total Bill</th>
                       <th className={`${TH} text-right bg-purple-50/60`}>Patient Share</th>
@@ -451,7 +453,7 @@ export const PanelBillingWorkspace: React.FC<PanelBillingWorkspaceProps> = ({ ti
                     rows.length > 0 ? (
                       <>
                         <TotalLabel />
-                        <td className={TD} colSpan={4} />
+                        <td className={TD} colSpan={5} />
                         <td className={`${TD} ${AMT}`}>{formatPKR(totals.total)}</td>
                         <td className={`${TD} ${AMT}`}>{formatPKR(totals.patientShare)}</td>
                         <td className={`${TD} ${AMT} text-emerald-700`}>{formatPKR(totals.patientPaid)}</td>
@@ -465,7 +467,7 @@ export const PanelBillingWorkspace: React.FC<PanelBillingWorkspaceProps> = ({ ti
                   }
                 >
                   {rows.length === 0 ? (
-                    <EmptyRow colSpan={14}>{hasFilters ? 'No invoices match these filters.' : 'No panel invoices for this company yet.'}</EmptyRow>
+                    <EmptyRow colSpan={15}>{hasFilters ? 'No invoices match these filters.' : 'No panel invoices for this company yet.'}</EmptyRow>
                   ) : (
                     rows.map((r, i) => {
                       const st = rowStatus(r);
@@ -478,12 +480,14 @@ export const PanelBillingWorkspace: React.FC<PanelBillingWorkspaceProps> = ({ ti
                               {r.invoiceNumber}
                             </button>
                           </td>
+                          <td className={`${TD} font-mono text-xs font-semibold text-[#08775A]`}>
+                            {r.patientMrNumber || '—'}
+                          </td>
                           <td className={TD}>
                             <div className="font-semibold text-slate-900">{r.patientName}</div>
-                            <div className="text-[11px] text-slate-500">
-                              MR {r.patientMrNumber}
-                              {r.panelMemberId ? ` · Member ${r.panelMemberId}` : ''}
-                            </div>
+                            {r.panelMemberId ? (
+                              <div className="text-[11px] text-slate-500">Member {r.panelMemberId}</div>
+                            ) : null}
                           </td>
                           <td className={TD}>
                             <div>{SOURCE_LABEL[r.sourceType] ?? r.sourceType}</div>

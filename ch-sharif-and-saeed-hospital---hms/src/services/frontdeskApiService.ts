@@ -78,6 +78,9 @@ export interface AppointmentRecord {
   invoicePaid: number;
   patientShare: number;
   panelReceivable: number;
+  queueNumber?: string | null;
+  queueSequence?: number | null;
+  queueDate?: string | null;
 
   /** Parsed out of the `notes` free-text convention `appointments.service.ts` appends to (best-effort display only). */
   cancellationReason: string;
@@ -126,7 +129,10 @@ function toAppointmentRecord(raw: Record<string, any>): AppointmentRecord {
     patientId: raw.panelPatientId || raw.selfPayEncounterId || '',
     patientName: patient?.fullName || 'Unknown',
     patientPhone: patient?.phone || '',
-    patientMrNumber: isPanel ? patient?.mrNumber || '' : '',
+    patientMrNumber: patient?.mrNumber || '',
+    queueNumber: raw.queueNumber || invoice?.queueNumber || null,
+    queueSequence: raw.queueSequence || invoice?.queueSequence || null,
+    queueDate: raw.queueDate || invoice?.queueDate ? String(raw.queueDate || invoice?.queueDate).slice(0, 10) : null,
     panelId: raw.panelPatient?.corporatePanel?.id || '',
     panelName: raw.panelPatient?.corporatePanel?.organizationName || '',
     panelMembershipActive: isPanel ? patient?.status === 'ACTIVE' : true,
@@ -290,7 +296,7 @@ export const appointmentsApiService = {
     }
   },
 
-  async checkInAppointment(id: string, payload: CheckInAppointmentPayload): Promise<{ appointment: AppointmentRecord; invoiceId: string | null }> {
+  async checkInAppointment(id: string, payload: CheckInAppointmentPayload): Promise<{ appointment: AppointmentRecord; invoiceId: string | null; queueNumber: string | null }> {
     try {
       const res = await apiClient.post<{ data: { appointment: Record<string, any>; invoice: Record<string, any> } }>(
         `/appointments/${id}/check-in`,
@@ -299,6 +305,7 @@ export const appointmentsApiService = {
       return {
         appointment: toAppointmentRecord(res.data.data.appointment),
         invoiceId: res.data.data.invoice?.id || null,
+        queueNumber: res.data.data.invoice?.queueNumber || res.data.data.appointment?.queueNumber || null,
       };
     } catch (err) {
       throw new Error(toErrorMessage(err));

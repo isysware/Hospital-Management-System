@@ -139,66 +139,87 @@ export const PharmacySettlementsView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-bold text-slate-900">Pharmacy Settlement Release</h1>
-            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80">
-              Super Admin / Admin only
-            </span>
+    <div className="space-y-4 animate-in fade-in duration-150">
+      {/* 1. Page Header Block (design.md §4.1) */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl bg-[#effaf5] text-[#08775A] border border-[#c2e7db] flex items-center justify-center shadow-2xs">
+            <Landmark className="h-5 w-5" />
           </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-            Money the Front Desk collected from admitted patients for admission-linked (HMS_LINKED) Pharmacy dispenses. Pharmacy requests it
-            back here; releasing a payment actually moves money and notifies Pharmacy's own system.
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-[#123e2b] tracking-tight">Pharmacy Settlement Release</h1>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                Inter-Entity Bridge
+              </span>
+            </div>
+            <p className="text-xs text-[#52665e] mt-0.5 max-w-2xl">
+              Money the Front Desk collected from admitted patients for admission-linked (HMS_LINKED) Pharmacy dispenses.
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={load}
             disabled={isLoading}
-            className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-2 text-xs font-semibold text-[#52665e] hover:text-[#111827] bg-white hover:bg-[#f6f8f7] border border-[#e2eae5] rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin text-[#08775A]' : 'text-slate-500'}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin text-[#08775A]' : 'text-[#52665e]'}`} />
             <span>Refresh</span>
           </button>
-          <div className="shrink-0 text-right">
-            <div className="text-[11px] font-semibold text-slate-500 uppercase">Total Pending Release</div>
-            <div className="text-lg font-bold text-amber-800">{formatPKR(totalPendingAmount)}</div>
+          <div className="shrink-0 text-right bg-[#effaf5] border border-[#c2e7db] px-3.5 py-1.5 rounded-xl">
+            <div className="text-[10px] font-bold text-[#08775A] uppercase tracking-wider">Pending Release</div>
+            <div className="text-base font-bold text-[#123e2b] font-mono">{formatPKR(totalPendingAmount)}</div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-slate-500">Show:</span>
+      {/* Filter toolbar */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-3 shadow-2xs flex items-center gap-2">
+        <span className="text-[11px] font-bold text-[#52665e] uppercase tracking-wider">Status:</span>
         {(['PENDING', 'SETTLED', 'All'] as const).map((f) => (
           <button
             key={f}
             type="button"
             onClick={() => setStatusFilter(f)}
-            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
-              statusFilter === f ? 'bg-[#08775A] text-white border-[#08775A]' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer font-semibold ${
+              statusFilter === f
+                ? 'bg-[#08775A] text-white border-[#08775A] shadow-xs'
+                : 'bg-white text-[#52665e] border-[#e2eae5] hover:bg-[#effaf5] hover:text-[#08775A]'
             }`}
           >
-            {f === 'PENDING' ? 'Pending' : f === 'SETTLED' ? 'Settled' : 'All'}
+            {f === 'PENDING' ? 'Pending Release' : f === 'SETTLED' ? 'Settled' : 'All Requests'}
           </button>
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Data Table */}
+      <div className="bg-white border border-[#e2eae5] rounded-xl shadow-2xs overflow-hidden">
+        {/* Dark Emerald Header Strip */}
+        <div className="bg-[#0e5944] text-white px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Landmark className="h-4 w-4 text-[#c2e7db]" />
+            <span className="font-semibold text-xs tracking-wide">Pharmacy Inter-Entity Settlement Ledgers</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+              {filtered.length} Claims
+            </span>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                <th className="py-2.5 px-4">Settlement / Invoice</th>
-                <th className="py-2.5 px-4">Patient / Admission</th>
-                <th className="py-2.5 px-4 text-right">Requested</th>
-                <th className="py-2.5 px-4 text-right">Released</th>
-                <th className="py-2.5 px-4 text-right">Remaining</th>
-                <th className="py-2.5 px-4">Status</th>
-                <th className="py-2.5 px-4">Requested At</th>
-                <th className="py-2.5 px-4 text-center">Action</th>
+              <tr className="bg-[#effaf5] border-b border-[#c2e7db] text-[11px] font-bold text-[#08775A] select-none sticky top-0 z-10">
+                <th className="py-2.5 px-3.5 border-r border-[#c2e7db]/60">Settlement / Invoice</th>
+                <th className="py-2.5 px-3.5 border-r border-[#c2e7db]/60">Patient / Admission</th>
+                <th className="py-2.5 px-3.5 text-right border-r border-[#c2e7db]/60">Requested</th>
+                <th className="py-2.5 px-3.5 text-right border-r border-[#c2e7db]/60">Released</th>
+                <th className="py-2.5 px-3.5 text-right border-r border-[#c2e7db]/60">Remaining</th>
+                <th className="py-2.5 px-3.5 border-r border-[#c2e7db]/60">Status</th>
+                <th className="py-2.5 px-3.5 border-r border-[#c2e7db]/60">Requested At</th>
+                <th className="py-2.5 px-3.5 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">

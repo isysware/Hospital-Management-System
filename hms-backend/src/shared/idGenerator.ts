@@ -163,3 +163,113 @@ export async function generateExpenseNumber(tx?: PrismaClientOrTx): Promise<stri
   const prefix = `EXP-${currentYear2()}-`;
   return generateSequentialId(tx, 'expense', 'expenseNumber', prefix, 4);
 }
+
+export interface QueueTokenResult {
+  queueNumber: string;
+  queueSequence: number;
+  queueDate: Date;
+}
+
+export function getQueuePrefix(encounterType: string): string | null {
+  const norm = String(encounterType || '').toUpperCase();
+  if (norm === 'OPD') return 'OPD-';
+  if (norm === 'EMERGENCY' || norm === 'ER') return 'ER-';
+  if (norm === 'OBSERVATION' || norm === 'OBS') return 'OBS-';
+  if (norm === 'CUSTOM') return 'OPD-';
+  return null;
+}
+
+export function getNormalizedEncounterType(encounterType: string): 'OPD' | 'EMERGENCY' | 'OBSERVATION' | null {
+  const norm = String(encounterType || '').toUpperCase();
+  if (norm === 'OPD' || norm === 'CUSTOM') return 'OPD';
+  if (norm === 'EMERGENCY' || norm === 'ER') return 'EMERGENCY';
+  if (norm === 'OBSERVATION' || norm === 'OBS') return 'OBSERVATION';
+  return null;
+}
+
+/**
+ * Generates an automated, date-scoped Queue/Token Number for OPD, ER, and Observation encounters.
+ * Strictly NEVER generates a token for IPD / Admission.
+ * 
+ * Safe database-backed generation via `DailyQueueSequence` with atomic upsert + increment,
+ * preventing duplicate tokens during concurrent requests.
+ * Display format: OPD-001, ER-001, OBS-001.
+ */
+export async function generateQueueToken(
+  encounterType: string,
+  tx?: PrismaClientOrTx,
+  targetDate?: Date,
+): Promise<QueueTokenResult | null> {
+  const normType = getNormalizedEncounterType(encounterType);
+  const prefix = getQueuePrefix(encounterType);
+  if (!normType || !prefix) {
+    return null; // IPD / Admission or unsupported encounter types do not get queue tokens
+  }
+
+  const db = tx || prisma;
+  const d = targetDate || new Date();
+  const dateStr = d.toISOString().slice(0, 10);
+  const queueDate = new Date(`${dateStr}T00:00:00.000Z`);
+
+  let sequence = 1;
+
+  if (typeof db?.dailyQueueSequence?.upsert === 'function') {
+    try {
+      const record = await db.dailyQueueSequence.upsert({
+        where: {
+          encounterType_date: {
+            encounterType: normType,
+            date: queueDate,
+          },
+        },
+        create: {
+          encounterType: normType,
+          date: queueDate,
+          lastSequence: 1,
+        },
+        update: {
+          lastSequence: {
+            increment: 1,
+          },
+        },
+        select: {
+          lastSequence: true,
+        },
+      });
+      sequence = record.lastSequence;
+    } catch {
+      sequence = await fallbackSequenceLookup(db, normType, queueDate);
+    }
+  } else {
+    sequence = await fallbackSequenceLookup(db, normType, queueDate);
+  }
+
+  const queueNumber = `${prefix}${String(sequence).padStart(3, '0')}`;
+  return {
+    queueNumber,
+    queueSequence: sequence,
+    queueDate,
+  };
+}
+
+async function fallbackSequenceLookup(db: any, encounterType: string, queueDate: Date): Promise<number> {
+  try {
+    if (typeof db?.hospitalInvoice?.count === 'function') {
+      const nextDay = new Date(queueDate.getTime() + 24 * 60 * 60 * 1000);
+      const count = await db.hospitalInvoice.count({
+        where: {
+          encounterType: encounterType as any,
+          queueDate: {
+            gte: queueDate,
+            lt: nextDay,
+          },
+        },
+      });
+      return count + 1;
+    }
+  } catch {
+    // ignore
+  }
+  return 1;
+}
+

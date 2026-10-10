@@ -1,20 +1,59 @@
 import { AdmissionLedgerButton } from './AdmissionLedgerButton';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pill, Eye } from 'lucide-react';
+import {
+  Pill,
+  Eye,
+  Search,
+  RotateCcw,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
+  Users,
+  Clock,
+  Layers,
+} from 'lucide-react';
 import { formatDateTimeDDMMYYYY } from '../../utils/formatters';
-import { Select, TextInput } from '../../components/forms/FormControls';
 import { LoadingState, ErrorState, EmptyState } from '../../components/common/StateViews';
 import { pharmacyApiService } from '../../services/pharmacyApiService';
 import { AdmissionDetailModal } from './AdmissionDetailModal';
+import { HospitalKpiHeader, KpiItem } from '../../components/common/HospitalKpiHeader';
 
-const STATUS_BADGE: Record<string, string> = {
-  REQUESTED: 'bg-blue-100 text-blue-700',
-  AUTHORIZATION_REQUIRED: 'bg-amber-100 text-amber-800',
-  ACCEPTED: 'bg-indigo-100 text-indigo-700',
-  PARTIALLY_FULFILLED: 'bg-indigo-100 text-indigo-700',
-  FULFILLED: 'bg-emerald-100 text-emerald-800',
-  REJECTED: 'bg-rose-100 text-rose-700',
-  INTEGRATION_ERROR: 'bg-red-100 text-red-700',
+const STATUS_BADGE: Record<string, { badge: string; dot: string; label: string }> = {
+  REQUESTED: {
+    badge: 'bg-blue-50 text-blue-700 border-blue-200',
+    dot: 'bg-blue-500',
+    label: 'Requested',
+  },
+  AUTHORIZATION_REQUIRED: {
+    badge: 'bg-amber-50 text-amber-800 border-amber-200',
+    dot: 'bg-amber-500',
+    label: 'Auth Required',
+  },
+  ACCEPTED: {
+    badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    dot: 'bg-indigo-500',
+    label: 'Accepted',
+  },
+  PARTIALLY_FULFILLED: {
+    badge: 'bg-sky-50 text-sky-700 border-sky-200',
+    dot: 'bg-sky-500',
+    label: 'Partially Fulfilled',
+  },
+  FULFILLED: {
+    badge: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+    dot: 'bg-emerald-500',
+    label: 'Fulfilled',
+  },
+  REJECTED: {
+    badge: 'bg-rose-50 text-rose-700 border-rose-200',
+    dot: 'bg-rose-500',
+    label: 'Rejected',
+  },
+  INTEGRATION_ERROR: {
+    badge: 'bg-red-50 text-red-700 border-red-200',
+    dot: 'bg-red-500',
+    label: 'Integration Error',
+  },
 };
 
 interface PharmacyRequestRow {
@@ -48,33 +87,32 @@ function toRow(raw: any): PharmacyRequestRow {
 }
 
 const STATUS_OPTIONS = [
-  { label: 'REQUESTED', value: 'REQUESTED' },
-  { label: 'AUTHORIZATION REQUIRED', value: 'AUTHORIZATION_REQUIRED' },
-  { label: 'ACCEPTED', value: 'ACCEPTED' },
-  { label: 'PARTIALLY FULFILLED', value: 'PARTIALLY_FULFILLED' },
-  { label: 'FULFILLED', value: 'FULFILLED' },
-  { label: 'REJECTED', value: 'REJECTED' },
-  { label: 'INTEGRATION ERROR', value: 'INTEGRATION_ERROR' },
+  { label: 'All Statuses', value: '' },
+  { label: 'Requested', value: 'REQUESTED' },
+  { label: 'Authorization Required', value: 'AUTHORIZATION_REQUIRED' },
+  { label: 'Accepted', value: 'ACCEPTED' },
+  { label: 'Partially Fulfilled', value: 'PARTIALLY_FULFILLED' },
+  { label: 'Fulfilled', value: 'FULFILLED' },
+  { label: 'Rejected', value: 'REJECTED' },
+  { label: 'Integration Error', value: 'INTEGRATION_ERROR' },
 ];
 
 /**
- * Hospital-Managed medicine requests raised from active admissions — a
- * consolidated, real feed over `/pharmacy-bridge/requests` (the same data
- * the standalone Pharmacy side works from), read-only here since Admission
- * never dispenses (`pharmacy-bridge:create` isn't in the ADMISSION role's
- * permission set). Every row opens the admission's own Pharmacy tab for
- * detail / high-cost authorization.
+ * Hospital-Managed medicine requests raised from active admissions — live
+ * feed backed by `/pharmacy-bridge/requests` database endpoint.
  */
 export const PharmacyRequestsView: React.FC = () => {
   const [rows, setRows] = useState<PharmacyRequestRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  const load = async () => {
-    setIsLoading(true);
+  const load = async (isManual = false) => {
+    if (isManual) setIsRefreshing(true);
+    else setIsLoading(true);
     setLoadError(null);
     try {
       const raw = await pharmacyApiService.getInpatientRequests(statusFilter || undefined);
@@ -83,6 +121,7 @@ export const PharmacyRequestsView: React.FC = () => {
       setLoadError(err?.message || 'Failed to load pharmacy requests.');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -99,100 +138,245 @@ export const PharmacyRequestsView: React.FC = () => {
         r.patientName.toLowerCase().includes(q) ||
         r.admissionNumber.toLowerCase().includes(q) ||
         r.medicineRequestNumber.toLowerCase().includes(q) ||
-        r.medicines.toLowerCase().includes(q),
+        r.medicines.toLowerCase().includes(q)
     );
   }, [rows, searchTerm]);
 
   const pendingAuthCount = useMemo(() => rows.filter((r) => r.status === 'AUTHORIZATION_REQUIRED').length, [rows]);
+  const fulfilledCount = useMemo(() => rows.filter((r) => r.status === 'FULFILLED').length, [rows]);
+  const activeAdmissionsCount = useMemo(() => {
+    const set = new Set(rows.map((r) => r.admissionId).filter(Boolean));
+    return set.size;
+  }, [rows]);
+
+  const kpiItems: KpiItem[] = [
+    {
+      title: 'Total Pharmacy Requests',
+      value: rows.length,
+      icon: Pill,
+      subtitle: `${activeAdmissionsCount} Inpatients Requesting`,
+      accentColor: '#08775A',
+    },
+    {
+      title: 'Authorization Required',
+      value: pendingAuthCount,
+      icon: AlertTriangle,
+      subtitle: 'High-Cost Medicine Gate',
+      accentColor: '#f59e0b',
+    },
+    {
+      title: 'Fulfilled Dispenses',
+      value: fulfilledCount,
+      icon: CheckCircle2,
+      subtitle: 'Dispensed to Inpatient Care',
+      accentColor: '#16a34a',
+    },
+    {
+      title: 'Active Inpatient Cases',
+      value: activeAdmissionsCount,
+      icon: Users,
+      subtitle: 'With Hospital Dispensing',
+      accentColor: '#0284c7',
+    },
+  ];
+
+  const hasActiveFilters = searchTerm.trim() !== '' || statusFilter !== '';
 
   return (
     <div className="space-y-5 animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex items-center gap-2.5">
-        <div className="h-9 w-9 rounded-xl bg-[#effaf5] text-[#08775A] flex items-center justify-center">
-          <Pill className="h-5 w-5" />
+      {/* Page Header Block (§4.1) */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl bg-[#effaf5] border border-[#c2e7db] text-[#08775A] flex items-center justify-center font-bold shadow-2xs">
+            <Pill className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Pharmacy Requests</h1>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                Live Inpatient Feed
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Live hospital-managed medicine request queue from inpatient admissions to central pharmacy.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Pharmacy Requests</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Every Hospital-Managed medicine request raised from an active admission.</p>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => load(true)}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl border border-slate-200 text-xs font-semibold shadow-2xs transition-colors"
+            title="Refresh Requests"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-[#08775A]' : 'text-slate-500'}`} />
+            Refresh
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-          <span className="text-[10px] text-slate-500 uppercase font-bold block">Total Requests</span>
-          <span className="text-lg font-bold text-slate-900">{rows.length}</span>
-        </div>
-        <div className="bg-white rounded-xl border border-amber-200 p-4 shadow-xs">
-          <span className="text-[10px] text-amber-700 uppercase font-bold block">Authorization Required</span>
-          <span className="text-lg font-bold text-amber-800">{pendingAuthCount}</span>
-        </div>
-      </div>
+      {/* Hospital KPI Telemetry (§4.2) */}
+      <HospitalKpiHeader items={kpiItems} />
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Select
-            label="Status"
-            placeholder="All Statuses"
-            options={STATUS_OPTIONS}
+      {/* Filter Toolbar (§4.4) */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-0">
+          <div className="relative w-64 sm:w-80">
+            <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search patient, admission #, request #, medicine…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#08775A] bg-slate-50/50"
+            />
+          </div>
+
+          <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-          />
-          <TextInput
-            label="Search"
-            placeholder="Patient, admission #, medicine…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+            className="px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#08775A] bg-white text-slate-700 font-semibold"
+          >
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
+
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm('');
+              setStatusFilter('');
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-800 bg-rose-50/60 rounded-lg hover:bg-rose-50 transition-colors"
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> Reset Filters
+          </button>
+        )}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Data Table Container (§4.5) */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.03)] overflow-hidden">
+        {/* Dark Emerald Header Strip */}
+        <div className="bg-[#0e5944] px-5 py-3.5 flex items-center justify-between text-white">
+          <div className="flex items-center gap-2.5">
+            <Pill className="h-4 w-4 text-emerald-300" />
+            <h2 className="text-sm font-bold text-white tracking-wide">Inpatient Pharmacy Request Queue</h2>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-950/70 text-emerald-200 border border-emerald-700/50 text-xs font-mono font-bold">
+              {filtered.length} Request{filtered.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <span className="text-[11px] text-emerald-200/80 font-medium hidden sm:inline">
+            Directly synced with central Inpatient Pharmacy Dispensary
+          </span>
+        </div>
+
         {isLoading ? (
-          <LoadingState message="Loading pharmacy requests…" />
+          <div className="p-12">
+            <LoadingState message="Loading inpatient pharmacy requests…" />
+          </div>
         ) : loadError ? (
-          <ErrorState message={loadError} onRetry={load} />
+          <div className="p-8">
+            <ErrorState message={loadError} onRetry={() => load()} />
+          </div>
         ) : filtered.length === 0 ? (
-          <EmptyState title="No pharmacy requests" description="Requests raised from Hospital-Managed admissions will appear here." />
+          <div className="p-10">
+            <EmptyState
+              title="No pharmacy requests found"
+              description="Requests raised from Hospital-Managed admissions will appear in this queue."
+            />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-[#effaf5] border-b border-[#c2e7db] sticky top-0 z-10">
                 <tr>
-                  {['Request #', 'Admission #', 'Patient', 'Bed', 'Medicines', 'Status', 'Requested By', 'Requested At', 'Actions'].map((h) => (
-                    <th key={h} className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">{h}</th>
-                  ))}
+                  <th className="text-left px-3.5 py-3 font-bold text-[#08775A] whitespace-nowrap">Request #</th>
+                  <th className="text-left px-3.5 py-3 font-bold text-[#08775A] whitespace-nowrap">Admission #</th>
+                  <th className="text-left px-3.5 py-3 font-bold text-[#08775A] whitespace-nowrap">Patient</th>
+                  <th className="text-left px-3.5 py-3 font-bold text-[#08775A] whitespace-nowrap">Bed</th>
+                  <th className="text-left px-3.5 py-3 font-bold text-[#08775A]">Medicines</th>
+                  <th className="text-center px-3.5 py-3 font-bold text-[#08775A] whitespace-nowrap">Status</th>
+                  <th className="text-left px-3.5 py-3 font-bold text-[#08775A] whitespace-nowrap">Requested By</th>
+                  <th className="text-left px-3.5 py-3 font-bold text-[#08775A] whitespace-nowrap">Requested At</th>
+                  <th className="text-right px-4 py-3 font-bold text-[#08775A] whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50/60">
-                    <td className="px-3 py-2.5 whitespace-nowrap font-semibold text-slate-900">{r.medicineRequestNumber.replace(/^REQ-\d{2}-/, 'REQ-')}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-slate-600 font-medium">{r.admissionNumber}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap font-semibold text-slate-900">{r.patientName}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-slate-600">{r.bedLabel}</td>
-                    <td className="px-3 py-2.5 text-slate-600 max-w-xs truncate" title={r.medicines}>{r.medicines}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${STATUS_BADGE[r.status] || 'bg-slate-100 text-slate-600'}`}>
-                        {r.status.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-slate-500">{r.requestedByLabel}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-slate-400">{r.requestedAt}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <button type="button" title="Open Admission" onClick={() => setDetailId(r.admissionId)} className="p-1.5 rounded-md text-[#08775A] hover:bg-[#effaf5]">
-                        <Eye className="h-3.5 w-3.5" />
-                      </button>
-                        <AdmissionLedgerButton admissionId={r.admissionId} />
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((r, idx) => {
+                  const conf = STATUS_BADGE[r.status] || {
+                    badge: 'bg-slate-100 text-slate-700 border-slate-200',
+                    dot: 'bg-slate-400',
+                    label: r.status.replace(/_/g, ' '),
+                  };
+
+                  return (
+                    <tr
+                      key={r.id}
+                      className={`transition-colors hover:bg-[#e7f6f1]/40 ${
+                        idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'
+                      }`}
+                    >
+                      <td className="px-3.5 py-3 whitespace-nowrap font-mono font-bold text-slate-900">
+                        {r.medicineRequestNumber.replace(/^REQ-\d{2}-/, 'REQ-')}
+                      </td>
+                      <td className="px-3.5 py-3 whitespace-nowrap font-mono text-slate-600 font-semibold">
+                        {r.admissionNumber}
+                      </td>
+                      <td className="px-3.5 py-3 whitespace-nowrap font-bold text-slate-900">{r.patientName}</td>
+                      <td className="px-3.5 py-3 whitespace-nowrap font-medium text-slate-700">{r.bedLabel}</td>
+                      <td className="px-3.5 py-3 text-slate-700 max-w-xs truncate" title={r.medicines}>
+                        {r.medicines}
+                      </td>
+                      <td className="px-3.5 py-3 whitespace-nowrap text-center">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${conf.badge}`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${conf.dot}`} />
+                          {conf.label}
+                        </span>
+                      </td>
+                      <td className="px-3.5 py-3 whitespace-nowrap text-slate-600 font-medium">{r.requestedByLabel}</td>
+                      <td className="px-3.5 py-3 whitespace-nowrap font-mono text-slate-400 text-[11px]">
+                        {r.requestedAt}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            title="Open Admission Detail"
+                            onClick={() => setDetailId(r.admissionId)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors"
+                          >
+                            <Eye className="h-3 w-3" /> View
+                          </button>
+                          <AdmissionLedgerButton admissionId={r.admissionId} />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {detailId && <AdmissionDetailModal admissionId={detailId} initialTab="pharmacy" onClose={() => setDetailId(null)} onChanged={load} />}
+      {detailId && (
+        <AdmissionDetailModal
+          admissionId={detailId}
+          initialTab="pharmacy"
+          onClose={() => setDetailId(null)}
+          onChanged={() => load()}
+        />
+      )}
     </div>
   );
 };

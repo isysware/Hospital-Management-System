@@ -245,7 +245,8 @@ export const AppointmentsView: React.FC = () => {
         ? 'OBSERVATION'
         : 'OPD';
       const result = await appointmentsApiService.checkInAppointment(a.id, { encounterType: encType });
-      toast.success(`${a.patientName} checked in — invoice created.`);
+      const tokenMsg = result.queueNumber ? ` Token: ${result.queueNumber} —` : '';
+      toast.success(`${a.patientName} checked in —${tokenMsg} invoice created.`);
       await load();
       if (result.invoiceId) setInvoiceModalId(result.invoiceId);
     } catch (err: any) {
@@ -486,8 +487,20 @@ export const AppointmentsView: React.FC = () => {
                         <div className="text-[10px] text-slate-400 font-mono">{a.slotDate}</div>
                       </td>
                       <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap">
-                        <div className="font-semibold text-slate-900">{a.patientName}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-900">{a.patientName}</span>
+                          {a.queueNumber && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              {a.queueNumber}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
+                          {a.patientMrNumber && (
+                            <span className="text-[10px] font-mono font-semibold text-[#08775A]">
+                              {a.patientMrNumber}
+                            </span>
+                          )}
                           {a.payerType === 'Corporate / Panel' ? (
                             <PanelBadge />
                           ) : (

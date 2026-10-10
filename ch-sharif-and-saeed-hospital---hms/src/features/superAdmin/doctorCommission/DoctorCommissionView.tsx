@@ -24,6 +24,7 @@ import { getHospitalCurrentDate, formatDateISO } from '../../../utils/dateConsta
 import { Modal } from '../../../components/common/Modal';
 import { TextInput, NumberInput, Select } from '../../../components/forms/FormControls';
 import { useToast } from '../../../context/ToastContext';
+import { HospitalKpiHeader, KpiItem } from '../../../components/common/HospitalKpiHeader';
 
 const emptyForm = (): CommissionRuleFormValues => ({
   staffId: '',
@@ -190,6 +191,47 @@ export const DoctorCommissionView: React.FC = () => {
     }
   };
 
+  const totalAccrued = accruals.reduce((sum, a) => sum + a.commissionAmount, 0);
+  const totalPaid = accruals.reduce((sum, a) => sum + a.paidTotal, 0);
+  const totalRemainingAccruals = accruals.reduce((sum, a) => sum + a.remaining, 0);
+
+  const kpis: KpiItem[] = useMemo(() => {
+    return [
+      {
+        category: 'TARIFF GOVERNANCE',
+        title: 'Active Rules',
+        value: rules.length,
+        icon: Coins,
+        subtitle: 'Configured doctor fee shares',
+        tone: 'default',
+      },
+      {
+        category: 'ELIGIBLE CLINICIANS',
+        title: 'Active Doctors',
+        value: doctors.length,
+        icon: ShieldCheck,
+        subtitle: 'Available for clinical assignments',
+        tone: 'info',
+      },
+      {
+        category: 'EARNED REVENUE',
+        title: 'Accrued Commission',
+        value: formatPKR(totalAccrued),
+        icon: Banknote,
+        subtitle: 'Billed patient share',
+        tone: 'warning',
+      },
+      {
+        category: 'PAYOUT SETTLEMENT',
+        title: 'Settled Payouts',
+        value: formatPKR(totalPaid),
+        icon: CheckCircle2,
+        subtitle: `Remaining: ${formatPKR(totalRemainingAccruals)}`,
+        tone: 'success',
+      },
+    ];
+  }, [rules.length, doctors.length, totalAccrued, totalPaid, totalRemainingAccruals]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24 text-slate-500 gap-2 text-sm">
@@ -212,35 +254,50 @@ export const DoctorCommissionView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-bold text-slate-900">Doctor Commission</h1>
+    <div className="space-y-4">
+      {/* Section 4.1 Card Page Header Block */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-xl bg-[#effaf5] text-[#08775A] border border-[#c2e7db] flex items-center justify-center shadow-2xs">
+              <Coins className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-[#123e2b] tracking-tight">Doctor Commission Engine</h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                  Rule-Engine Active
+                </span>
+              </div>
+              <p className="text-xs text-[#52665e] mt-0.5 max-w-2xl">
+                Fixed &amp; percentage commission rules per doctor/service, Gross/Net calculations, and independent Commission Tax
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-            Fixed/% commission rules per doctor (optionally per service), Gross/Net basis, and Commission Tax — a stream fully
-            independent of Salary Tax. Net-basis commission uses the eligible service amount after discount.
-          </p>
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            disabled={doctors.length === 0}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors shrink-0 disabled:opacity-50 cursor-pointer"
+            title={doctors.length === 0 ? 'No active doctors found in Staff Users' : undefined}
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Commission Rule</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          disabled={doctors.length === 0}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#149E75] hover:bg-[#08775A] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors shrink-0 disabled:opacity-50"
-          title={doctors.length === 0 ? 'No active doctors found in Staff Users' : undefined}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>Add Commission Rule</span>
-        </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-slate-500">Doctor:</span>
+      {/* Section 4.2 & Section 9 HospitalKpiHeader */}
+      <HospitalKpiHeader columns="grid-cols-2 sm:grid-cols-4" items={kpis} />
+
+      {/* Section 4.4 Filter Toolbar */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-3 shadow-2xs flex items-center gap-2">
+        <span className="text-xs font-semibold text-[#52665e]">Doctor Filter:</span>
         <select
           value={doctorFilter}
           onChange={(e) => setDoctorFilter(e.target.value)}
-          className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-[#149E75]"
+          className="text-xs px-3 py-1.5 border border-[#c2e7db] rounded-lg bg-[#fbfdfc] focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-[#08775A]"
         >
           <option value="All">All Doctors</option>
           {doctors.map((d) => (
@@ -251,48 +308,74 @@ export const DoctorCommissionView: React.FC = () => {
         </select>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Section 4.5 Data Table (Commission Rules) */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] shadow-2xs overflow-hidden flex flex-col">
+        {/* Dark Emerald Header Strip */}
+        <div className="bg-[#0e5944] text-white px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Coins className="h-4 w-4 text-[#c2e7db]" />
+            <span className="font-semibold text-xs tracking-wide">Doctor Commission Rule Matrix</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+              {filteredRules.length} Rules
+            </span>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                <th className="py-2.5 px-4">Doctor</th>
-                <th className="py-2.5 px-4">Service</th>
-                <th className="py-2.5 px-4">Rule</th>
-                <th className="py-2.5 px-4">Basis</th>
-                <th className="py-2.5 px-4">Commission Tax</th>
-                <th className="py-2.5 px-4">Effective From</th>
+              <tr className="bg-[#effaf5] border-b border-[#c2e7db] text-[11px] font-bold text-[#08775A] select-none sticky top-0 z-10">
+                <th className="py-2.5 px-3 text-center border-r border-[#c2e7db]/60 w-12">#</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Doctor</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Service Scope</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Rule Rate</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Basis</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Commission Tax</th>
+                <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Effective From</th>
                 <th className="py-2.5 px-4">Effective To</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredRules.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-50/80">
-                  <td className="py-2.5 px-4 font-bold text-slate-900">{r.doctorName}</td>
-                  <td className="py-2.5 px-4">{r.serviceName || <span className="text-slate-400 italic">All Services (default)</span>}</td>
-                  <td className="py-2.5 px-4 font-mono font-semibold">
-                    {r.ruleType === 'PERCENTAGE' ? `${r.rate}%` : formatPKR(r.rate)}
-                  </td>
-                  <td className="py-2.5 px-4">{r.basis === 'GROSS' ? 'Gross' : 'Net'}</td>
-                  <td className="py-2.5 px-4">
-                    {r.commissionTaxMethod ? (
-                      <span className="text-amber-700 font-semibold">
-                        {r.commissionTaxMethod === 'PERCENTAGE' ? `${r.commissionTaxValue}%` : formatPKR(r.commissionTaxValue || 0)}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">None</span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-4">{r.effectiveFrom}</td>
-                  <td className="py-2.5 px-4">{r.effectiveTo || <span className="text-emerald-600 font-semibold">Current</span>}</td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-[#e2eae5] text-slate-700">
+              {filteredRules.map((r, idx) => {
+                const isEven = idx % 2 === 0;
+                return (
+                  <tr
+                    key={r.id}
+                    className={`transition-colors border-b border-[#e2eae5] ${
+                      isEven ? 'bg-white' : 'bg-[#fbfdfc]'
+                    } hover:bg-[#e7f6f1]/40`}
+                  >
+                    <td className="py-2.5 px-3 text-center border-r border-[#e2eae5] text-[#52665e] font-mono text-[11px] bg-[#effaf5]/20">
+                      {idx + 1}
+                    </td>
+                    <td className="py-2.5 px-4 font-bold text-[#123e2b] border-r border-[#e2eae5]">{r.doctorName}</td>
+                    <td className="py-2.5 px-4 border-r border-[#e2eae5]">{r.serviceName || <span className="text-[#52665e] italic">All Assigned Services (default)</span>}</td>
+                    <td className="py-2.5 px-4 font-mono font-bold text-[#08775A] border-r border-[#e2eae5]">
+                      {r.ruleType === 'PERCENTAGE' ? `${r.rate}%` : formatPKR(r.rate)}
+                    </td>
+                    <td className="py-2.5 px-4 border-r border-[#e2eae5] font-semibold">{r.basis === 'GROSS' ? 'Gross' : 'Net (Post-Discount)'}</td>
+                    <td className="py-2.5 px-4 border-r border-[#e2eae5]">
+                      {r.commissionTaxMethod ? (
+                        <span className="text-amber-700 font-mono font-bold">
+                          {r.commissionTaxMethod === 'PERCENTAGE' ? `${r.commissionTaxValue}%` : formatPKR(r.commissionTaxValue || 0)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">None</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono border-r border-[#e2eae5]">{r.effectiveFrom}</td>
+                    <td className="py-2.5 px-4 font-mono">
+                      {r.effectiveTo || <span className="text-[#08775A] font-semibold font-sans">Active / Current</span>}
+                    </td>
+                  </tr>
+                );
+              })}
 
               {filteredRules.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
-                    <Coins className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                    <span className="font-semibold text-xs text-slate-700 block">No commission rules configured yet.</span>
+                  <td colSpan={8} className="py-12 text-center text-[#52665e]">
+                    <Coins className="h-8 w-8 text-[#52665e]/40 mx-auto mb-2" />
+                    <span className="font-semibold text-xs text-[#123e2b] block">No commission rules configured yet.</span>
                   </td>
                 </tr>
               )}
@@ -301,70 +384,135 @@ export const DoctorCommissionView: React.FC = () => {
         </div>
       </div>
 
-      <CommissionRunsPanel doctors={doctors.map(d => ({ id: d.id, name: d.fullName }))} services={services.map(s => ({ id: s.id, name: s.name }))} ledgerVersion={ledgerVersion} onChanged={loadAccruals} />
+      <CommissionRunsPanel
+        doctors={doctors.map((d) => ({ id: d.id, name: d.fullName }))}
+        services={services.map((s) => ({ id: s.id, name: s.name }))}
+        ledgerVersion={ledgerVersion}
+        onChanged={loadAccruals}
+      />
 
-      {/* Commission Accruals & Payments (staff.md §14/§20) — created automatically at billing time
-          from the rules above; never a manual entry. Approve locks it, Pay records a real CommissionPayout. */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-          <Banknote className="h-4 w-4 text-[#08775A]" />
-          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Commission Accruals &amp; Payments</h3>
+      {/* Section 4.5 Data Table (Commission Accruals & Payouts) */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] shadow-2xs overflow-hidden flex flex-col">
+        {/* Dark Emerald Header Strip */}
+        <div className="bg-[#0e5944] text-white px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Banknote className="h-4 w-4 text-[#c2e7db]" />
+            <span className="font-semibold text-xs tracking-wide">Commission Accruals &amp; Disbursements Ledger</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+              {accruals.filter((a) => doctorFilter === 'All' || a.staffId === doctorFilter).length} Accruals
+            </span>
+          </div>
         </div>
-        {accrualError && <div role="alert" className="p-3 text-rose-700 text-xs">{accrualError} <button onClick={loadAccruals}>Retry</button></div>}
+
+        {accrualError && (
+          <div role="alert" className="p-3 text-rose-700 text-xs bg-rose-50 border-b border-rose-200">
+            {accrualError} <button onClick={loadAccruals} className="font-semibold underline ml-1 cursor-pointer">Retry</button>
+          </div>
+        )}
+
         {isLoadingAccruals ? (
-          <div className="flex items-center justify-center py-10 text-slate-500 gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+          <div className="flex items-center justify-center py-10 text-[#52665e] gap-2 text-sm">
+            <Loader2 className="h-4 w-4 animate-spin text-[#08775A]" /> Loading accruals…
+          </div>
         ) : accruals.length === 0 ? (
-          <div className="py-10 text-center text-slate-500 text-xs">No commission has accrued yet — it's created automatically when a billed service line matches a rule above.</div>
+          <div className="py-10 text-center text-[#52665e] text-xs">
+            No commission has accrued yet — accruals are generated automatically when a billed invoice matches configured rules.
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                  <th className="py-2.5 px-4">Doctor</th>
-                  <th className="py-2.5 px-4">Service</th>
-                  <th className="py-2.5 px-4">Accrued</th>
-                  <th className="py-2.5 px-4">Status</th>
-                  <th className="py-2.5 px-4 text-right">Action</th>
+                <tr className="bg-[#effaf5] border-b border-[#c2e7db] text-[11px] font-bold text-[#08775A] select-none sticky top-0 z-10">
+                  <th className="py-2.5 px-3 text-center border-r border-[#c2e7db]/60 w-12">#</th>
+                  <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Doctor</th>
+                  <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Service</th>
+                  <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Accrual Breakdown</th>
+                  <th className="py-2.5 px-4 border-r border-[#c2e7db]/60">Status</th>
+                  <th className="py-2.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {accruals.filter(a => doctorFilter === 'All' || a.staffId === doctorFilter).map((a) => (
-                  <tr key={a.id} className="hover:bg-slate-50/80">
-                    <td className="py-2.5 px-4 font-bold text-slate-900">{a.doctorName}</td>
-                    <td className="py-2.5 px-4">{a.serviceName || '—'}</td>
-                    <td className="py-2.5 px-4 font-mono">
-                      {formatPKR(a.commissionAmount)}
-                      {a.paidTotal > 0 && <div className="text-[10px] text-slate-400 font-normal">Paid: {formatPKR(a.paidTotal)}</div>}
-                      {a.reversedTotal > 0 && <div className="text-[10px] text-red-500 font-normal">Reversed: {formatPKR(a.reversedTotal)}</div>}
-                      <div className="text-xs font-normal">Tax: {formatPKR(a.tax)} · Payable: {formatPKR(a.payable)} · Remaining: {formatPKR(a.remaining)}</div>
-                      {a.overpaid > 0 && <div className="text-rose-700">Overpaid / recoverable: {formatPKR(a.overpaid)}</div>}
-                      {!!a.corrections.length && <details><summary>Adjustment history</summary>{a.corrections.map((c, i) => <div key={i}>{formatPKR(Number(c.amount))} · {c.reason} · {c.createdAt.slice(0, 10)}</div>)}</details>}
-                    </td>
-                    <td className="py-2.5 px-4">
-                      <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
-                        a.status === 'PAID' ? 'bg-[#e7f6f1] text-[#0e7d5a] border-[#c2e7db]'
-                        : a.status === 'PARTIALLY_PAID' ? 'bg-purple-50 text-purple-700 border-purple-200'
-                        : a.status === 'APPROVED' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                        : 'bg-amber-50 text-amber-800 border-amber-200'
-                      }`}>
-                        {a.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-4 text-right">
-                      {a.status === 'ACCRUED' && (
-                        <button type="button" onClick={() => handleApproveAccrual(a.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-[#149E75] hover:bg-[#08775A] rounded-md cursor-pointer">
-                          <ShieldCheck className="h-3 w-3" /> Approve
-                        </button>
-                      )}
-                      {(a.status === 'APPROVED' || a.status === 'PARTIALLY_PAID') && a.remaining > 0 && (
-                        <button type="button" onClick={() => openPay(a)} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-[#149E75] hover:bg-[#08775A] rounded-md cursor-pointer">
-                          <Banknote className="h-3 w-3" /> Pay
-                        </button>
-                      )}
-                      {['APPROVED', 'PARTIALLY_PAID', 'PAID'].includes(a.status) && <button className="ml-2 text-xs text-[#08775A] underline" onClick={() => setAdjusting(a)}>Adjust / Reverse</button>}
-                    </td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-[#e2eae5] text-slate-700">
+                {accruals
+                  .filter((a) => doctorFilter === 'All' || a.staffId === doctorFilter)
+                  .map((a, idx) => {
+                    const isEven = idx % 2 === 0;
+                    return (
+                      <tr
+                        key={a.id}
+                        className={`transition-colors border-b border-[#e2eae5] ${
+                          isEven ? 'bg-white' : 'bg-[#fbfdfc]'
+                        } hover:bg-[#e7f6f1]/40`}
+                      >
+                        <td className="py-2.5 px-3 text-center border-r border-[#e2eae5] text-[#52665e] font-mono text-[11px] bg-[#effaf5]/20">
+                          {idx + 1}
+                        </td>
+                        <td className="py-2.5 px-4 font-bold text-[#123e2b] border-r border-[#e2eae5]">{a.doctorName}</td>
+                        <td className="py-2.5 px-4 border-r border-[#e2eae5]">{a.serviceName || '—'}</td>
+                        <td className="py-2.5 px-4 font-mono border-r border-[#e2eae5]">
+                          <div className="font-bold text-[#123e2b]">{formatPKR(a.commissionAmount)}</div>
+                          <div className="text-[10px] text-[#52665e] font-normal mt-0.5">
+                            Tax: {formatPKR(a.tax)} · Payable: <strong className="text-[#08775A]">{formatPKR(a.payable)}</strong> · Remaining: <strong className="text-rose-700">{formatPKR(a.remaining)}</strong>
+                          </div>
+                          {a.paidTotal > 0 && <div className="text-[10px] text-[#08775A]">Disbursed: {formatPKR(a.paidTotal)}</div>}
+                          {a.reversedTotal > 0 && <div className="text-[10px] text-rose-600">Reversed: {formatPKR(a.reversedTotal)}</div>}
+                          {a.overpaid > 0 && <div className="text-[10px] text-rose-700 font-bold">Overpaid: {formatPKR(a.overpaid)}</div>}
+                          {!!a.corrections.length && (
+                            <details className="text-[10px] text-[#52665e] mt-0.5">
+                              <summary className="cursor-pointer text-[#08775A]">Adjustment history ({a.corrections.length})</summary>
+                              {a.corrections.map((c, i) => (
+                                <div key={i}>
+                                  {formatPKR(Number(c.amount))} · {c.reason} · {c.createdAt.slice(0, 10)}
+                                </div>
+                              ))}
+                            </details>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-4 border-r border-[#e2eae5]">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              a.status === 'PAID'
+                                ? 'bg-[#e7f6f1] text-[#08775A] border-[#c2e7db]'
+                                : a.status === 'PARTIALLY_PAID'
+                                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                : a.status === 'APPROVED'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-amber-50 text-amber-800 border-amber-200'
+                            }`}
+                          >
+                            {a.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                          {a.status === 'ACCRUED' && (
+                            <button
+                              type="button"
+                              onClick={() => handleApproveAccrual(a.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg cursor-pointer shadow-2xs transition-colors"
+                            >
+                              <ShieldCheck className="h-3.5 w-3.5" /> Approve
+                            </button>
+                          )}
+                          {(a.status === 'APPROVED' || a.status === 'PARTIALLY_PAID') && a.remaining > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => openPay(a)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg cursor-pointer shadow-2xs transition-colors"
+                            >
+                              <Banknote className="h-3.5 w-3.5" /> Pay
+                            </button>
+                          )}
+                          {['APPROVED', 'PARTIALLY_PAID', 'PAID'].includes(a.status) && (
+                            <button
+                              className="ml-2 text-xs font-semibold text-[#08775A] hover:underline cursor-pointer"
+                              onClick={() => setAdjusting(a)}
+                            >
+                              Adjust
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>

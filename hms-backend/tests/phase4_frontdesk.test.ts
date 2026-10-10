@@ -445,6 +445,44 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
       ).rejects.toThrow('Service does not belong to the selected department');
     });
 
+    it('accepts booking with default encounter service (OPD) under any clinical department', async () => {
+      const defaultServiceRateId = 'srv-default-opd';
+      (prisma.serviceRate.findUnique as any).mockResolvedValue({
+        id: defaultServiceRateId,
+        billingSource: 'HOSPITAL_SERVICE',
+        providerType: 'INTERNAL',
+        selectable: true,
+        isDefaultEncounterService: true,
+        encounterType: 'OPD',
+        isActive: true,
+        standardRate: new Decimal(1000),
+        departmentId: null,
+      });
+
+      const appointmentId = 'apt-default-opd-001';
+      (prisma.appointment.create as any).mockResolvedValue({
+        id: appointmentId,
+        status: 'SCHEDULED',
+        slotAt: new Date(),
+        departmentId: 'dept-picu',
+        doctorStaffId,
+        serviceRateId: defaultServiceRateId,
+      });
+
+      const result = await appointmentsService.bookAppointment(
+        {
+          departmentId: 'dept-picu',
+          doctorStaffId,
+          serviceRateId: defaultServiceRateId,
+          slotAt: new Date(),
+          newSelfPayPatient: { fullName: 'Huzaifa Patient' },
+        },
+        cashierId,
+      );
+
+      expect(result.appointment.id).toBe(appointmentId);
+    });
+
     it('reschedules appointment and updates status to RESCHEDULED', async () => {
       (prisma.appointment.findUnique as any).mockResolvedValue({
         id: 'apt-001',

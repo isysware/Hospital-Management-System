@@ -174,58 +174,64 @@ export const SuperAdminStaffUsersView: React.FC = () => {
   return (
     <div className="space-y-6">
 
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 rounded-xl bg-[#e7f6f1] text-[#129b70] flex items-center justify-center">
+      {/* Section 4.1 Card Page Header Block */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-xl bg-[#e7f6f1] text-[#08775A] border border-[#c2e7db] flex items-center justify-center shadow-2xs">
               <Users className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-[#111827] tracking-tight">
-                Staff Users Management
-              </h1>
-              <p className="text-xs text-[#52665e]">
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-[#123e2b] tracking-tight">
+                  Staff Users Management
+                </h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#e7f6f1] text-[#08775A] border border-[#c2e7db]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                  Live Registry
+                </span>
+              </div>
+              <p className="text-xs text-[#52665e] mt-0.5">
                 Executive management of clinical, operational, and administrative hospital staff & workstation access
               </p>
             </div>
           </div>
-        </div>
 
-        {/* Action Header Buttons */}
-        <div className="flex items-center flex-wrap gap-2.5">
-          <button
-            onClick={refreshData}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#52665e] hover:text-[#111827] bg-white border border-[#e2eae5] hover:bg-[#f6f8f7] rounded-lg transition-colors cursor-pointer shadow-xs"
-            title="Refresh staff records"
-          >
-            <RotateCw className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
+          {/* Action Header Buttons */}
+          <div className="flex items-center flex-wrap gap-2">
+            <button
+              onClick={refreshData}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#52665e] hover:text-[#111827] bg-white border border-[#e2eae5] hover:bg-[#f6f8f7] rounded-lg transition-colors cursor-pointer shadow-2xs"
+              title="Refresh staff records"
+            >
+              <RotateCw className="h-3.5 w-3.5 text-[#08775A]" />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
 
-          <button
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#0e7d5a] bg-[#e7f6f1] hover:bg-[#d0efe5] border border-[#c2e7db] rounded-lg transition-colors cursor-pointer shadow-xs"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5 text-[#129b70]" />
-            <span>Import Excel</span>
-          </button>
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#08775A] bg-[#e7f6f1] hover:bg-[#d0efe5] border border-[#c2e7db] rounded-lg transition-colors cursor-pointer shadow-2xs"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-[#08775A]" />
+              <span>Import Excel</span>
+            </button>
 
-          <button
-            onClick={() => setIsExportModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#52665e] hover:text-[#111827] bg-white border border-[#e2eae5] hover:bg-[#f6f8f7] rounded-lg transition-colors cursor-pointer shadow-xs"
-          >
-            <Download className="h-3.5 w-3.5 text-[#129b70]" />
-            <span>Export Directory</span>
-          </button>
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#52665e] hover:text-[#111827] bg-white border border-[#e2eae5] hover:bg-[#f6f8f7] rounded-lg transition-colors cursor-pointer shadow-2xs"
+            >
+              <Download className="h-3.5 w-3.5 text-[#08775A]" />
+              <span>Export Directory</span>
+            </button>
 
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#129b70] hover:bg-[#0e7d5a] rounded-lg transition-colors cursor-pointer shadow-xs"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Staff User</span>
-          </button>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg transition-colors cursor-pointer shadow-2xs"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Staff User</span>
+            </button>
+          </div>
         </div>
       </div>
 

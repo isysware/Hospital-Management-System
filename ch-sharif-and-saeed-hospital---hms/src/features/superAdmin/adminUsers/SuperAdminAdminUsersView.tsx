@@ -227,35 +227,35 @@ export const SuperAdminAdminUsersView: React.FC = () => {
   }
 
   return (
-    <div id="superadmin-admin-users-view" className="space-y-4">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+    <div id="superadmin-admin-users-view" className="space-y-4 animate-in fade-in duration-200">
+      {/* 1. Page Header Block (design.md §4.1) */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-base font-bold text-slate-900 tracking-tight">
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-xl font-bold text-[#111827]">
               Admin Users Management
             </h1>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
-              <Shield className="h-3 w-3" />
-              Role & Root Protection
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db] inline-flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#129b70]" />
+              Role &amp; Root Governance
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Executive hospital administration, role assignments, and governance credentials
+          <p className="text-xs text-[#52665e] max-w-2xl leading-relaxed">
+            Executive hospital administration, security role assignments, system credentials, and protected institutional accounts.
           </p>
         </div>
 
         {/* Global Module Actions */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Export Directory */}
           <button
             id="admin-users-export-btn"
             type="button"
             onClick={() => setIsExportModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#f6faf8] text-[#52665e] hover:text-[#111827] border border-[#e2eae5] text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
           >
-            <FileDown className="h-3.5 w-3.5 text-slate-600" />
-            <span>Export</span>
+            <FileDown className="h-3.5 w-3.5 text-slate-500" />
+            <span>Export Options...</span>
           </button>
 
           {/* Import Admins */}
@@ -263,9 +263,9 @@ export const SuperAdminAdminUsersView: React.FC = () => {
             id="admin-users-import-btn"
             type="button"
             onClick={() => setIsImportModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#08775A] bg-[#effaf5] hover:bg-[#c2e7db]/40 border border-[#c2e7db] rounded-xl transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#f6faf8] text-[#52665e] hover:text-[#111827] border border-[#e2eae5] text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
           >
-            <Upload className="h-3.5 w-3.5" />
+            <Upload className="h-3.5 w-3.5 text-emerald-600" />
             <span>Import Admins</span>
           </button>
 
@@ -274,18 +274,18 @@ export const SuperAdminAdminUsersView: React.FC = () => {
             id="admin-users-add-btn"
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#08775A] hover:bg-[#065e46] rounded-xl shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#129b70] hover:bg-[#0e7d5a] text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
           >
-            <UserPlus className="h-3.5 w-3.5" />
+            <UserPlus className="h-4 w-4" />
             <span>Add Admin User</span>
           </button>
         </div>
       </div>
 
-      {/* KPI Bar */}
+      {/* 2. KPI Summary Bar (design.md §4.2) */}
       <AdminUsersKPIBar users={users} />
 
-      {/* Filter Bar */}
+      {/* 3. Search & Filter Bar (design.md §4.4) */}
       <AdminUsersFilterBar
         filters={filters}
         onFilterChange={setFilters}
@@ -294,7 +294,7 @@ export const SuperAdminAdminUsersView: React.FC = () => {
         filteredCount={filteredUsers.length}
       />
 
-      {/* Main Table */}
+      {/* 4. Master Table (design.md §4.5) */}
       <AdminUsersTable
         users={filteredUsers}
         currentUser={currentUser}
@@ -306,6 +306,9 @@ export const SuperAdminAdminUsersView: React.FC = () => {
         }
         onDelete={(u) => setDeleteTarget(u)}
         onRefresh={refreshUsers}
+        onExportExcel={() => setIsExportModalOpen(true)}
+        onExportPDF={() => setIsDossierModalOpen(true)}
+        onPrint={() => window.print()}
       />
 
       {/* Add / Edit Admin User Modal */}

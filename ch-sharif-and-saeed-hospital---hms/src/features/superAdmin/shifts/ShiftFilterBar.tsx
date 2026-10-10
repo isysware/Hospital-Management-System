@@ -28,19 +28,19 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
     filters.status !== 'ALL';
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+    <div className="bg-white rounded-xl border border-[#e2eae5] p-4 shadow-2xs space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5">
         {/* 1. Search Box */}
         <div className="lg:col-span-4 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#52665e]" />
           <input
             type="text"
             value={filters.searchTerm}
             onChange={(e) =>
               onFilterChange({ ...filters, searchTerm: e.target.value })
             }
-            placeholder="Search code, name, department..."
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] focus:border-[#08775A] transition-colors"
+            placeholder="Search shift code, title, department..."
+            className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#fbfdfc] hover:bg-white focus:bg-white border border-[#c2e7db] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] focus:border-[#08775A] transition-colors"
           />
         </div>
 
@@ -51,7 +51,7 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
             onChange={(e) =>
               onFilterChange({ ...filters, departmentId: e.target.value })
             }
-            className="w-full px-2.5 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] focus:border-[#08775A] transition-colors text-slate-700"
+            className="w-full px-2.5 py-1.5 text-xs bg-[#fbfdfc] hover:bg-white focus:bg-white border border-[#c2e7db] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] focus:border-[#08775A] transition-colors text-slate-700"
           >
             <option value="ALL">All Departments</option>
             {departments.map((d) => (
@@ -72,13 +72,13 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
                 shiftType: e.target.value as 'ALL' | ShiftType,
               })
             }
-            className="w-full px-2.5 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] focus:border-[#08775A] transition-colors text-slate-700"
+            className="w-full px-2.5 py-1.5 text-xs bg-[#fbfdfc] hover:bg-white focus:bg-white border border-[#c2e7db] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] focus:border-[#08775A] transition-colors text-slate-700"
           >
             <option value="ALL">All Types</option>
-            <option value="MORNING">Morning</option>
-            <option value="EVENING">Evening</option>
-            <option value="NIGHT">Night</option>
-            <option value="CUSTOM">Custom</option>
+            <option value="MORNING">Morning Shift</option>
+            <option value="EVENING">Evening Shift</option>
+            <option value="NIGHT">Night Shift</option>
+            <option value="CUSTOM">Custom Shift</option>
           </select>
         </div>
 
@@ -92,11 +92,11 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
                 schedule: e.target.value as 'ALL' | 'DAY' | 'OVERNIGHT',
               })
             }
-            className="w-full px-2.5 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] focus:border-[#08775A] transition-colors text-slate-700"
+            className="w-full px-2.5 py-1.5 text-xs bg-[#fbfdfc] hover:bg-white focus:bg-white border border-[#c2e7db] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] focus:border-[#08775A] transition-colors text-slate-700"
           >
             <option value="ALL">All Schedules</option>
-            <option value="DAY">Day Shift</option>
-            <option value="OVERNIGHT">Overnight (+1 Day)</option>
+            <option value="DAY">Standard Day Duty</option>
+            <option value="OVERNIGHT">Overnight Duty (+1 Day)</option>
           </select>
         </div>
 
@@ -110,7 +110,7 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
                 status: e.target.value as 'ALL' | ShiftStatus,
               })
             }
-            className="w-full px-2 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] focus:border-[#08775A] transition-colors text-slate-700"
+            className="w-full px-2 py-1.5 text-xs bg-[#fbfdfc] hover:bg-white focus:bg-white border border-[#c2e7db] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] focus:border-[#08775A] transition-colors text-slate-700"
           >
             <option value="ALL">Status</option>
             <option value="ACTIVE">Active</option>
@@ -120,15 +120,15 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
       </div>
 
       {/* Filter Status Bar with Reset */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
-        <div className="flex items-center gap-2 text-slate-600">
-          <Filter className="h-3.5 w-3.5 text-slate-400" />
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#e2eae5] text-xs">
+        <div className="flex items-center gap-2 text-[#52665e]">
+          <Filter className="h-3.5 w-3.5 text-[#08775A]" />
           <span>
-            Showing <strong className="text-slate-900">{filteredCount}</strong> of{' '}
-            <strong className="text-slate-900">{totalCount}</strong> shifts
+            Showing <strong className="text-[#123e2b]">{filteredCount}</strong> of{' '}
+            <strong className="text-[#123e2b]">{totalCount}</strong> shifts
           </span>
           {isFiltered && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
               Filters Active
             </span>
           )}
@@ -138,7 +138,7 @@ export const ShiftFilterBar: React.FC<ShiftFilterBarProps> = ({
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#08775A] hover:text-[#065f46] hover:bg-[#effaf5] rounded-md transition-colors cursor-pointer border border-transparent hover:border-[#c2e7db]"
           >
             <RotateCcw className="h-3 w-3" />
             <span>Reset Filters</span>

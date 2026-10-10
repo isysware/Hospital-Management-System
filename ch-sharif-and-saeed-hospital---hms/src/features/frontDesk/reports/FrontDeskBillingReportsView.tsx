@@ -242,7 +242,7 @@ export const FrontDeskBillingReportsView: React.FC = () => {
   const statusEntries = report ? Object.entries(report.billing.invoiceCountsByStatus) : [];
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-150 font-montserrat">
+    <div className="space-y-4 animate-in fade-in duration-150">
       {/* Title */}
       <div>
         <h1 className="text-xl font-bold text-slate-900 tracking-tight">Daily Billing Summary</h1>

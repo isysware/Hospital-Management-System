@@ -127,12 +127,12 @@ export const AdmissionPatientRecordsView: React.FC = () => {
 
   const handleExportCsv = () => {
     if (filteredRows.length === 0) return;
-    const headers = ['#', 'Admission No', 'Patient', 'MRN', 'Payer', 'Admission Date', 'Location', 'Charges', 'Paid', 'Outstanding', 'Clinical Status', 'Billing Status'];
+    const headers = ['#', 'Admission No', 'MR #', 'Patient Name', 'Payer', 'Admission Date', 'Location', 'Charges', 'Paid', 'Outstanding', 'Clinical Status', 'Billing Status'];
     const csvRows = filteredRows.map((r, idx) => [
       idx + 1,
       `"${r.admissionNumber}"`,
-      `"${r.patientName}"`,
       `"${r.patientMrNumber || ''}"`,
+      `"${r.patientName}"`,
       `"${r.payerType === 'PANEL' ? 'Panel' : 'Self-Pay'}"`,
       `"${r.admittedAt ? formatTimestamp(r.admittedAt) : 'Pending'}"`,
       `"${[r.ward, r.room, r.bed].filter(Boolean).join(' / ') || '—'}"`,
@@ -153,15 +153,15 @@ export const AdmissionPatientRecordsView: React.FC = () => {
 
   const handleExportExcel = () => {
     if (filteredRows.length === 0) return;
-    const headers = ['#', 'Admission No', 'Patient', 'MRN', 'Payer', 'Admission Date', 'Location', 'Charges', 'Paid', 'Outstanding', 'Clinical Status', 'Billing Status'];
+    const headers = ['#', 'Admission No', 'MR #', 'Patient Name', 'Payer', 'Admission Date', 'Location', 'Charges', 'Paid', 'Outstanding', 'Clinical Status', 'Billing Status'];
     const rowsHtml = filteredRows
       .map(
         (r, idx) => `
       <tr>
         <td>${idx + 1}</td>
         <td>${r.admissionNumber}</td>
-        <td>${r.patientName}</td>
         <td>${r.patientMrNumber || ''}</td>
+        <td>${r.patientName}</td>
         <td>${r.payerType === 'PANEL' ? 'Panel' : 'Self-Pay'}</td>
         <td>${r.admittedAt ? formatTimestamp(r.admittedAt) : 'Pending'}</td>
         <td>${[r.ward, r.room, r.bed].filter(Boolean).join(' / ') || '—'}</td>
@@ -356,7 +356,8 @@ export const AdmissionPatientRecordsView: React.FC = () => {
                 <tr>
                   <th className="py-3 px-3.5 text-center border-r border-slate-200 w-12 whitespace-nowrap">#</th>
                   <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Admission No.</th>
-                  <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Patient</th>
+                  <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">MR #</th>
+                  <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Patient Name</th>
                   <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Payer</th>
                   <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Admission Date</th>
                   <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Ward / Bed</th>
@@ -383,13 +384,11 @@ export const AdmissionPatientRecordsView: React.FC = () => {
                       <td className="py-3.5 px-4 border-r border-slate-100 font-mono font-bold text-slate-900 whitespace-nowrap">
                         {r.admissionNumber}
                       </td>
+                      <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap font-mono text-xs font-semibold text-[#08775A]">
+                        {r.patientMrNumber || '—'}
+                      </td>
                       <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap">
                         <span className="font-semibold text-slate-900 block whitespace-nowrap">{r.patientName}</span>
-                        {r.patientMrNumber && (
-                          <span className="inline-block mt-0.5 font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 whitespace-nowrap">
-                            {r.patientMrNumber}
-                          </span>
-                        )}
                       </td>
                       <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap">
                         {r.payerType === 'PANEL' ? (
@@ -462,7 +461,7 @@ export const AdmissionPatientRecordsView: React.FC = () => {
                 })}
                 {filteredRows.length === 0 && (
                   <tr>
-                    <td colSpan={12} className="py-16 text-center text-slate-500">
+                    <td colSpan={13} className="py-16 text-center text-slate-500">
                       <ClipboardList className="h-9 w-9 text-slate-300 mx-auto mb-2" />
                       <h4 className="text-sm font-semibold text-slate-800">No Admission Records Found</h4>
                       <p className="text-xs text-slate-500 mt-1">

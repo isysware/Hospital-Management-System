@@ -1,7 +1,6 @@
 import type { PanelMembershipDetails } from '../../../types/patient';
 import { doctorsForEncounter } from '../../../utils/doctorAvailability';
 import { formatDateISO, getHospitalCurrentDate } from '../../../utils/dateConstants';
-import { HOSPITAL_SERVICE_SOURCE, NO_ACTIVE_DEPARTMENT_SERVICES, servicesForSource } from '../../../utils/serviceSelection';
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   AlertCircle,
@@ -19,6 +18,7 @@ import { Select, TextInput, Textarea, NumberInput, Toggle, CNICInput } from '../
 import { DepartmentService, fetchDepartments } from '../../../services/departmentService';
 import { StaffUserService, fetchStaffUsers } from '../../../services/staffUserService';
 import { ServiceRatesService, fetchServices } from '../../../services/serviceRatesService';
+import type { HospitalService } from '../../../types/serviceRates';
 import { normalizePhone, calculateAgeFromDob, PanelPatientSearchResult } from '../../../services/patientRegistryService';
 import { PanelPatientSearchSection } from '../../../components/common/PanelPatientSearchSection';
 import {
@@ -286,25 +286,67 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
     }
   };
 
-  // Real database services eligible for the appointment:
-  // - Must be active and not pharmacy items or room accommodation
-  // - If an encounter type is selected (OPD / Observation / Emergency), service must match that encounterType OR be a general hospital service (NONE)
-  // - If department is selected and service is department-specific, must match department or be assigned to the doctor
-  const selectableServices = useMemo(() => {
-    return servicesForSource(activeServices, departmentId).filter(s => !encounterType || s.encounterType === encounterType || s.encounterType === 'NONE');
-  }, [activeServices, encounterType, departmentId, activeDoctors, doctorStaffId]);
+  // 1. Resolve core encounter service directly from real database (OPD, OBS, or ER)
+  const coreEncounterService = useMemo<HospitalService | null>(() => {
+    if (!encounterType) return null;
+    return (
+      activeServices.find((s) => s.encounterType === encounterType && s.isDefaultEncounterService) ||
+      activeServices.find((s) => s.encounterType === encounterType) ||
+      null
+    );
+  }, [activeServices, encounterType]);
 
-  // Keep selected service ONLY if it is still valid in selectableServices.
-  // Never auto-select or default any service (user must explicitly select one from the dropdown).
+  // 2. Real database services eligible for the appointment:
+  // - The core encounter service (OPD / Observation / Emergency)
+  // - Other hospital services that match the encounterType OR are general clinical services (encounterType === 'NONE')
+  // - Excludes pharmacy medications and room accommodations
+  // - If department is selected, includes services for that department plus hospital-wide services (departmentId == null)
+  const selectableServices = useMemo(() => {
+    if (!encounterType) return [];
+    return activeServices.filter((s) => {
+      if (s.status !== 'Active' || s.selectable === false) return false;
+      if (['PHARMACY', 'ROOM_BED'].includes(s.billingSource || '')) return false;
+
+      // Match encounter type: either exact match (e.g. OPD) or hospital general (NONE)
+      const matchesType = s.encounterType === encounterType || s.encounterType === 'NONE';
+      if (!matchesType) return false;
+
+      // Department check: if department is set, allow department-specific or hospital-wide (departmentId == null or core)
+      if (departmentId && s.departmentId) {
+        return s.departmentId === departmentId || s.isDefaultEncounterService;
+      }
+      return true;
+    });
+  }, [activeServices, encounterType, departmentId]);
+
+  // 3. When encounter type is selected or changes, auto-select core encounter service (e.g. OPD)
+  // If user selected another valid service from selectableServices, retain it.
   useEffect(() => {
-    if (serviceRateId && !selectableServices.some((s) => s.id === serviceRateId)) {
+    if (!encounterType) {
       setServiceRateId('');
+      return;
     }
-  }, [selectableServices, serviceRateId]);
+
+    if (serviceRateId && selectableServices.some((s) => s.id === serviceRateId)) {
+      return;
+    }
+
+    if (coreEncounterService) {
+      setServiceRateId(coreEncounterService.id);
+    } else if (selectableServices.length > 0) {
+      setServiceRateId(selectableServices[0].id);
+    }
+  }, [encounterType, coreEncounterService, selectableServices]);
 
   const selectedDoctor = activeDoctors.find((d) => d.id === doctorStaffId);
-  const selectedService = selectableServices.find((s) => s.id === serviceRateId) || activeServices.find((s) => s.id === serviceRateId);
-  const grossFee = selectedService?.standardRate ?? selectedDoctor?.consultationFee ?? 0;
+  const selectedService =
+    activeServices.find((s) => s.id === serviceRateId) ||
+    coreEncounterService ||
+    null;
+  const grossFee =
+    selectedDoctor?.consultationFee && selectedDoctor.consultationFee > 0
+      ? selectedDoctor.consultationFee
+      : selectedService?.standardRate ?? 0;
 
   const panelPreview =
     payerType === 'Corporate / Panel' && panelId && selectedService
@@ -435,9 +477,13 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
         departmentId:
           selectedService?.departmentId && !selectedService.isDefaultEncounterService
             ? selectedService.departmentId
-            : departmentId || selectedService?.departmentId || departments.find((department) => encounterDeptFlag && department[encounterDeptFlag])?.id || departments[0]?.id || '',
+            : departmentId ||
+              selectedDoctor?.departmentId ||
+              departments.find((department) => encounterDeptFlag && department[encounterDeptFlag])?.id ||
+              departments[0]?.id ||
+              '',
         doctorStaffId: doctorStaffId || undefined,
-        serviceRateId: serviceRateId || undefined,
+        serviceRateId: serviceRateId || coreEncounterService?.id || undefined,
         slotAt,
         estimatedAmount: grossFee || undefined,
         advanceAmount: collectAdvance ? Number(advanceAmount) : undefined,
@@ -824,31 +870,26 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
                 />
               </div>
 
-              {/* Real Database Service Dropdown (User must explicitly select) */}
+              {/* Real Database Service Dropdown (Defaults automatically to the real DB service) */}
               <div className="sm:col-span-2">
                 <Select
                   label="Consultation Service (from Database)"
-                  required
                   disabled={!encounterType}
                   options={[
-                    {
-                      label: isLoadingServices
-                        ? 'Loading services from database...'
-                        : !encounterType
-                        ? '-- Select Encounter Service Type First --'
-                        : selectableServices.length === 0
-                        ? '-- No active services found in database for this type --'
-                        : '-- Select Service (Required) --',
-                      value: '',
-                    },
-                    ...selectableServices.map((s) => ({
-                      label: `${s.name} (${s.code}) — PKR ${s.standardRate.toLocaleString()}${
-                        s.departmentName ? ` [${s.departmentName}]` : ''
-                      }`,
-                      value: s.id,
-                    })),
+                    ...(coreEncounterService ? [{
+                      label: `${coreEncounterService.name} Consultation (${coreEncounterService.code}) — PKR ${coreEncounterService.standardRate.toLocaleString()} [Default ${encounterType}]`,
+                      value: coreEncounterService.id,
+                    }] : []),
+                    ...selectableServices
+                      .filter((s) => s.id !== coreEncounterService?.id)
+                      .map((s) => ({
+                        label: `${s.name} (${s.code}) — PKR ${s.standardRate.toLocaleString()}${
+                          s.departmentName ? ` [${s.departmentName}]` : ''
+                        }`,
+                        value: s.id,
+                      })),
                   ]}
-                  value={serviceRateId}
+                  value={serviceRateId || coreEncounterService?.id || ''}
                   onChange={(e) => {
                     const newId = e.target.value;
                     setServiceRateId(newId);
@@ -868,9 +909,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
                   hint={
                     !encounterType
                       ? 'Please select Encounter Service Type above first.'
-                      : selectableServices.length === 0
-                      ? 'No services matching this type were found in the database.'
-                      : 'Choose the specific consultation service rate.'
+                      : `Active service: ${selectedService?.name || encounterType} (from database). You can also choose another specific procedure if needed.`
                   }
                 />
               </div>
@@ -894,7 +933,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({ onCl
               />
             </div>
 
-            {encounterType && selectableServices.length === 0 && !isLoadingServices && (
+            {encounterType && !coreEncounterService && selectableServices.length === 0 && !isLoadingServices && (
               <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
                 No active services configured in database for {encounterType === 'OPD' ? 'OPD' : encounterType === 'OBSERVATION' ? 'Observation' : 'Emergency'}.
               </p>

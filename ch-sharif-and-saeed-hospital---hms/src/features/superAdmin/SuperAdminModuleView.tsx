@@ -46,6 +46,8 @@ import { SuperAdminAttendanceView } from './attendance/SuperAdminAttendanceView'
 import { SuperAdminPayrollView } from './payroll/SuperAdminPayrollView';
 import { PatientRegistryView } from './patientRegistry/PatientRegistryView';
 import { SuperAdminCorporatePanelsView } from './corporatePanels/SuperAdminCorporatePanelsView';
+import { PanelDiscountsView } from './corporatePanels/PanelDiscountsView';
+import { SuperAdminInventoryOverview } from './inventory/SuperAdminInventoryOverview';
 import { SuperAdminOutsourcedProvidersView } from './outsourcedProviders/SuperAdminOutsourcedProvidersView';
 import { HighCostMedicinePolicyView } from './highCostMedicine/HighCostMedicinePolicyView';
 import { ProviderSettlementsView } from './providerSettlements/ProviderSettlementsView';
@@ -132,6 +134,11 @@ const LEGACY_MODULE_MAP: Record<string, string> = {
   accounts_daily_register: 'billing_overview',
   daily_closing_summary: 'account_settlements',
   revenue_reports: 'sa_billing_collection',
+  department_payables: 'provider_settlements',
+  departments_payable: 'provider_settlements',
+  'department-payables': 'provider_settlements',
+  'departments-payable': 'provider_settlements',
+  'provider-settlements': 'provider_settlements',
 
   // Retired Super Admin report pages (old Front Desk / Admission / "Other
   // Reports" copies) -> the management report that now covers them.
@@ -315,6 +322,11 @@ export const SuperAdminModuleView: React.FC<SuperAdminModuleViewProps> = ({
     return <SuperAdminCorporatePanelsView />;
   }
 
+  // 1h2. Check if this is Panel Discounts Page
+  if (activeModuleId === 'panel_discounts') {
+    return <PanelDiscountsView />;
+  }
+
   // 1i. v7.2 — Outsourced Providers (HMS_V7.2_NEW_REQUIREMENTS.md §2.1)
   if (activeModuleId === 'outsourced_providers') {
     return <SuperAdminOutsourcedProvidersView />;
@@ -392,6 +404,11 @@ export const SuperAdminModuleView: React.FC<SuperAdminModuleViewProps> = ({
         showAmountColumn
       />
     );
+  }
+
+  // 1m2. Central Hospital Inventory Overview
+  if (activeModuleId === 'inventory_overview') {
+    return <SuperAdminInventoryOverview />;
   }
 
   // 1n. FINANCIAL CONTROL — Live hospital billing, collections, discounts, refunds, and panel billing

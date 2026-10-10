@@ -19,7 +19,7 @@ import type {
   SetInvoiceAuthorizationBody,
 } from './invoices.schemas';
 
-import { generateInvoiceNumber, generateReceiptNumber, generateMrNumber } from '@/shared/idGenerator';
+import { generateInvoiceNumber, generateReceiptNumber, generateMrNumber, generateQueueToken } from '@/shared/idGenerator';
 import {
   isEligibleHospitalService,
   DISCOUNT_APPROVAL_PERCENT_THRESHOLD,
@@ -63,12 +63,16 @@ export const invoicesService = {
       }
 
       const invoiceNumber = await generateInvoiceNumber(tx);
+      const queueToken = await generateQueueToken(body.encounterType, tx);
 
       const invoice = await tx.hospitalInvoice.create({
         data: {
           invoiceNumber,
           sourceType: 'WALK_IN',
           encounterType: body.encounterType,
+          queueNumber: queueToken?.queueNumber ?? null,
+          queueSequence: queueToken?.queueSequence ?? null,
+          queueDate: queueToken?.queueDate ?? null,
           panelPatientId: body.panelPatientId,
           selfPayEncounterId,
           departmentId: body.departmentId || null,
@@ -851,9 +855,11 @@ export const invoicesService = {
     if (query.search) {
       where.OR = [
         { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
+        { queueNumber: { contains: query.search, mode: 'insensitive' } },
         { panelPatient: { fullName: { contains: query.search, mode: 'insensitive' } } },
         { panelPatient: { mrNumber: { contains: query.search, mode: 'insensitive' } } },
         { selfPayEncounter: { fullName: { contains: query.search, mode: 'insensitive' } } },
+        { selfPayEncounter: { mrNumber: { contains: query.search, mode: 'insensitive' } } },
       ];
     }
 

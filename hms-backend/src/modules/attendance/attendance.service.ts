@@ -368,4 +368,20 @@ export const attendanceService = {
     if (!record) throw new NotFoundError('Attendance record not found');
     return record;
   },
+
+  async deleteRecord(id: string) {
+    const record = await prisma.attendanceRecord.findUnique({
+      where: { id },
+      include: { corrections: true },
+    });
+    if (!record) throw new NotFoundError('Attendance record not found');
+    if (record.isApproved) {
+      throw new ConflictError('Cannot delete an approved attendance record. Use correction workflow instead.');
+    }
+    if (record.corrections && record.corrections.length > 0) {
+      await prisma.attendanceCorrectionLog.deleteMany({ where: { attendanceRecordId: id } });
+    }
+    await prisma.attendanceRecord.delete({ where: { id } });
+    return { success: true };
+  },
 };

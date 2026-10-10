@@ -25,15 +25,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 bg-white text-slate-800 flex flex-col border-r border-slate-200/80 shadow-[1px_0_10px_rgba(0,0,0,0.03)] transition-all duration-300 ease-in-out ${
-          isOpen ? 'w-64' : 'w-[72px]'
-        }`}
+        className={`fixed top-0 bottom-0 left-0 z-40 bg-white text-slate-800 flex flex-col border-r border-slate-200/80 shadow-[1px_0_10px_rgba(0,0,0,0.03)] transition-all duration-300 ease-in-out ${isOpen ? 'w-64' : 'w-[72px]'
+          }`}
       >
         {/* Brand Header */}
         <div
-          className={`h-16 flex items-center border-b border-slate-100 bg-white shrink-0 ${
-            isOpen ? 'justify-between px-4' : 'justify-center px-2'
-          }`}
+          className={`h-16 flex items-center border-b border-slate-100 bg-white shrink-0 ${isOpen ? 'justify-between px-4' : 'justify-center px-2'
+            }`}
         >
           {isOpen ? (
             <>
@@ -121,18 +119,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       type="button"
                       onClick={() => onSelectPage(item.id)}
                       title={!isOpen ? item.label : undefined}
-                      className={`w-full flex items-center ${
-                        isOpen ? 'gap-3 px-3 py-2' : 'justify-center p-2.5'
-                      } rounded-xl text-xs font-medium transition-all duration-150 cursor-pointer ${
-                        isActive
+                      className={`w-full flex items-center ${isOpen ? 'gap-3 px-3 py-2' : 'justify-center p-2.5'
+                        } rounded-xl text-xs font-medium transition-all duration-150 cursor-pointer ${isActive
                           ? 'bg-[#0e7d5a] text-white font-semibold shadow-xs'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       <Icon
-                        className={`h-4.5 w-4.5 shrink-0 transition-colors ${
-                          isActive ? 'text-white' : 'text-slate-500'
-                        }`}
+                        className={`h-4.5 w-4.5 shrink-0 transition-colors ${isActive ? 'text-white' : 'text-slate-500'
+                          }`}
                       />
                       {isOpen && (
                         <span className="truncate text-left flex-1">{item.label}</span>

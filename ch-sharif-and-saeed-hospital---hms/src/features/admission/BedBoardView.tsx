@@ -9,8 +9,10 @@ import {
   Building2,
   CheckCircle2,
   Clock,
-  LogIn,
   Layers,
+  Activity,
+  AlertTriangle,
+  User,
 } from 'lucide-react';
 import { PanelBadge } from '../../components/common/PanelBadge';
 import { Modal } from '../../components/common/Modal';
@@ -20,12 +22,7 @@ import { WardsRoomsBedsService, fetchWardHierarchy } from '../../services/wardsR
 import type { Ward, Room, Bed } from '../../types/wardsRoomsBeds';
 import { AdmissionDetailModal } from './AdmissionDetailModal';
 import { CheckInAdmissionModal } from './CheckInAdmissionModal';
-import { formatDateTimeDDMMYYYY } from '../../utils/formatters';
-
-function formatDisplayDateTime(iso?: string | null): string {
-  if (!iso) return '—';
-  return formatDateTimeDDMMYYYY(iso) || '—';
-}
+import { HospitalKpiHeader, KpiItem } from '../../components/common/HospitalKpiHeader';
 
 export const BedBoardView: React.FC = () => {
   const { navigate } = useRouter();
@@ -93,7 +90,40 @@ export const BedBoardView: React.FC = () => {
   const totalBeds = beds.length;
   const occupiedBeds = beds.filter((b) => b.occupancyStatus === 'Occupied').length;
   const availableBeds = beds.filter((b) => b.occupancyStatus === 'Available').length;
-  const maintenanceBeds = beds.filter((b) => b.occupancyStatus === 'Maintenance' || b.operationalStatus === 'Cleaning' || b.operationalStatus === 'Maintenance').length;
+  const maintenanceBeds = beds.filter(
+    (b) => b.occupancyStatus === 'Maintenance' || b.operationalStatus === 'Cleaning' || b.operationalStatus === 'Maintenance'
+  ).length;
+
+  const kpiItems: KpiItem[] = [
+    {
+      title: 'Total Inpatient Beds',
+      value: totalBeds,
+      icon: BedIcon,
+      subtitle: `${wards.length} Active Wards Configured`,
+      accentColor: '#08775A',
+    },
+    {
+      title: 'Available Beds',
+      value: availableBeds,
+      icon: CheckCircle2,
+      subtitle: 'Ready for Immediate Intake',
+      accentColor: '#16a34a',
+    },
+    {
+      title: 'Occupied Beds',
+      value: occupiedBeds,
+      icon: Activity,
+      subtitle: totalBeds > 0 ? `${Math.round((occupiedBeds / totalBeds) * 100)}% Census Rate` : '0% Census Rate',
+      accentColor: '#dc2626',
+    },
+    {
+      title: 'Maintenance / Out of Service',
+      value: maintenanceBeds,
+      icon: Clock,
+      subtitle: 'Sanitizing / Servicing',
+      accentColor: '#f59e0b',
+    },
+  ];
 
   // Filtered beds
   const filteredBeds = useMemo(() => {
@@ -200,7 +230,7 @@ export const BedBoardView: React.FC = () => {
     setSelectedStatusFilter('ALL');
   };
 
-  // Render a compact, clean Bed Card
+  // Render a high-fidelity bed card per design.md
   const renderBedCard = (bed: Bed) => {
     const isOccupied = bed.occupancyStatus === 'Occupied';
     const isAvailable = bed.occupancyStatus === 'Available';
@@ -210,22 +240,22 @@ export const BedBoardView: React.FC = () => {
     const patientName = bed.currentPatientName || adm?.patientName;
     const admissionIdToUse = bed.admissionId || adm?.id;
 
-    // Card styling
-    let cardClasses = 'border-slate-200 bg-white hover:border-slate-300';
-    let dotColor = 'bg-slate-400';
+    let cardClasses = 'border-slate-200 bg-white hover:border-slate-300 shadow-xs';
+    let statusPill = 'bg-slate-100 text-slate-700 border-slate-200';
+    let statusText: string = bed.operationalStatus || 'Maintenance';
 
     if (isOccupied) {
-      cardClasses = 'border-rose-200 bg-rose-50/30 hover:border-rose-300 hover:bg-rose-50/60 shadow-2xs';
-      dotColor = 'bg-rose-500';
+      cardClasses = 'border-rose-200/90 bg-rose-50/40 hover:border-rose-300 hover:bg-rose-50/70 shadow-xs';
+      statusPill = 'bg-rose-100 text-rose-800 border-rose-200';
+      statusText = 'Occupied';
     } else if (isAvailable) {
-      cardClasses = 'border-emerald-200 bg-emerald-50/30 hover:border-emerald-300 hover:bg-emerald-50/60 shadow-2xs';
-      dotColor = 'bg-emerald-500';
+      cardClasses = 'border-emerald-200/90 bg-[#effaf5]/50 hover:border-[#08775A]/40 hover:bg-[#effaf5] shadow-xs';
+      statusPill = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      statusText = 'Available';
     } else if (isReserved) {
-      cardClasses = 'border-amber-200 bg-amber-50/30 hover:border-amber-300 hover:bg-amber-50/60 shadow-2xs';
-      dotColor = 'bg-amber-500';
-    } else {
-      cardClasses = 'border-slate-200 bg-slate-50/60 hover:bg-slate-100';
-      dotColor = 'bg-slate-400';
+      cardClasses = 'border-amber-200/90 bg-amber-50/40 hover:border-amber-300 hover:bg-amber-50/70 shadow-xs';
+      statusPill = 'bg-amber-100 text-amber-800 border-amber-200';
+      statusText = 'Reserved';
     }
 
     const handleClick = () => {
@@ -240,7 +270,7 @@ export const BedBoardView: React.FC = () => {
       <div
         key={bed.id}
         onClick={handleClick}
-        className={`rounded-lg border p-2.5 flex flex-col justify-between transition-all duration-150 cursor-pointer min-h-[76px] ${cardClasses}`}
+        className={`group rounded-xl border p-3 flex flex-col justify-between transition-all duration-150 cursor-pointer min-h-[96px] ${cardClasses}`}
         title={
           isOccupied
             ? `Bed ${bed.bedNumber}: Click to manage stay / transfer`
@@ -249,26 +279,31 @@ export const BedBoardView: React.FC = () => {
             : `Bed ${bed.bedNumber} (${bed.operationalStatus})`
         }
       >
-        {/* Top: Bed Number + Dot */}
+        {/* Top: Bed number + status badge */}
         <div className="flex items-center justify-between gap-1 leading-none">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-xs font-bold text-slate-900 truncate">{bed.bedNumber}</span>
+            <span className="text-xs font-bold text-slate-900 group-hover:text-[#08775A] transition-colors truncate">
+              {bed.bedNumber}
+            </span>
             {bed.bedType && bed.bedType !== 'Standard' && (
               <span className="text-[9px] text-slate-400 font-medium">({bed.bedType})</span>
             )}
           </div>
-          <span className={`h-2 w-2 rounded-full shrink-0 ${dotColor}`} />
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${statusPill}`}>
+            {statusText}
+          </span>
         </div>
 
-        {/* Content */}
-        <div className="mt-1">
+        {/* Content Details */}
+        <div className="mt-2">
           {isOccupied ? (
-            <div>
-              <p className="text-[11px] font-bold text-slate-800 truncate leading-tight">
-                {patientName || 'Admitted'}
+            <div className="space-y-0.5">
+              <p className="text-[11px] font-bold text-slate-900 truncate leading-tight flex items-center gap-1">
+                <User className="h-2.5 w-2.5 text-rose-600 shrink-0" />
+                <span className="truncate">{patientName || 'Admitted Patient'}</span>
               </p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-[9px] font-mono text-slate-500 truncate">
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-mono text-slate-600 truncate">
                   {adm?.patientMrNumber || adm?.admissionNumber || 'Inpatient'}
                 </span>
                 {adm?.payerType === 'Corporate / Panel' && <PanelBadge className="scale-75 origin-left" />}
@@ -276,20 +311,22 @@ export const BedBoardView: React.FC = () => {
             </div>
           ) : isAvailable ? (
             <div>
-              <p className="text-[11px] font-semibold text-emerald-700 leading-tight">Available</p>
-              <p className="text-[9px] text-emerald-600/70 mt-0.5">+ Assign</p>
+              <p className="text-[11px] font-semibold text-emerald-800 leading-tight">Ready for Intake</p>
+              <span className="inline-flex items-center text-[10px] font-bold text-[#08775A] group-hover:underline mt-0.5">
+                + Assign Patient
+              </span>
             </div>
           ) : isReserved ? (
             <div>
-              <p className="text-[11px] font-semibold text-amber-700 leading-tight">Reserved</p>
-              <p className="text-[9px] text-amber-600/70 mt-0.5">Held</p>
+              <p className="text-[11px] font-semibold text-amber-800 leading-tight">Patient Reserved</p>
+              <p className="text-[10px] text-amber-700/80 mt-0.5">Hold Active</p>
             </div>
           ) : (
             <div>
-              <p className="text-[11px] font-semibold text-slate-600 leading-tight">
+              <p className="text-[11px] font-semibold text-slate-700 leading-tight">
                 {bed.operationalStatus || 'Maintenance'}
               </p>
-              <p className="text-[9px] text-slate-400 mt-0.5">Out of service</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Unavailable</p>
             </div>
           )}
         </div>
@@ -298,62 +335,56 @@ export const BedBoardView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-150">
-      {/* Compact Top Header */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-[#effaf5] text-[#08775A] flex items-center justify-center font-bold">
-            <LayoutGrid className="h-4 w-4" />
+    <div className="space-y-5 animate-in fade-in duration-150">
+      {/* Page Header Block (§4.1) */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl bg-[#effaf5] border border-[#c2e7db] text-[#08775A] flex items-center justify-center font-bold shadow-2xs">
+            <LayoutGrid className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-slate-900 leading-tight">Bed Board &amp; Transfers</h1>
-            <p className="text-[11px] text-slate-500">
-              Click any bed: <span className="text-emerald-700 font-semibold">Available</span> to assign patient, or{' '}
-              <span className="text-rose-700 font-semibold">Occupied</span> to transfer / view stay.
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Bed Board &amp; Transfers</h1>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                Live Census
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Real-time occupancy telemetry, bed allocation, and inter-ward transfers. Click Available to assign, or Occupied to transfer.
             </p>
           </div>
         </div>
 
-        {/* Quick inline stats & actions */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-            <span className="text-slate-600 font-medium">Total: <b>{totalBeds}</b></span>
-            <span className="text-slate-300">•</span>
-            <span className="text-emerald-700 font-semibold">Free: <b>{availableBeds}</b></span>
-            <span className="text-slate-300">•</span>
-            <span className="text-rose-700 font-semibold">Occupied: <b>{occupiedBeds}</b></span>
-            {maintenanceBeds > 0 && (
-              <>
-                <span className="text-slate-300">•</span>
-                <span className="text-slate-500">Maint: <b>{maintenanceBeds}</b></span>
-              </>
-            )}
-          </div>
-
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => loadData(true)}
             disabled={isRefreshing}
-            className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl border border-slate-200 text-xs font-semibold shadow-2xs transition-colors"
             title="Refresh Bed Status"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-[#08775A]' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-[#08775A]' : 'text-slate-500'}`} />
+            Refresh
           </button>
         </div>
       </div>
 
-      {/* Simple, Compact Filter Strip */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center justify-between flex-wrap gap-2 text-xs">
-        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+      {/* Hospital KPI Telemetry (§4.2) */}
+      <HospitalKpiHeader items={kpiItems} />
+
+      {/* Filter Toolbar (§4.4) */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-0">
           {/* Search Input */}
-          <div className="relative w-48 sm:w-60">
-            <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <div className="relative w-56 sm:w-64">
+            <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search bed, patient, room…"
+              placeholder="Search bed, patient, MRN, room…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#08775A] bg-slate-50/60"
+              className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#08775A] bg-slate-50/50"
             />
           </div>
 
@@ -361,7 +392,7 @@ export const BedBoardView: React.FC = () => {
           <select
             value={selectedWardFilter}
             onChange={(e) => setSelectedWardFilter(e.target.value)}
-            className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#08775A] bg-white text-slate-700 font-medium"
+            className="px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#08775A] bg-white text-slate-700 font-semibold"
           >
             <option value="ALL">All Wards</option>
             {wards.map((w) => (
@@ -372,42 +403,54 @@ export const BedBoardView: React.FC = () => {
             <option value="__STANDALONE__">Standalone Rooms</option>
           </select>
 
-          {/* Status Buttons */}
-          <div className="flex items-center gap-1">
+          {/* Segmented Status Tabs */}
+          <div className="inline-flex items-center p-1 bg-slate-100/80 rounded-xl gap-1">
             <button
               type="button"
               onClick={() => setSelectedStatusFilter('ALL')}
-              className={`px-2 py-1 rounded text-[11px] font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                 selectedStatusFilter === 'ALL'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              All
+              All Beds
             </button>
             <button
               type="button"
               onClick={() => setSelectedStatusFilter('Available')}
-              className={`px-2 py-1 rounded text-[11px] font-semibold transition-all flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 selectedStatusFilter === 'Available'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                  ? 'bg-[#08775A] text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span className={`h-1.5 w-1.5 rounded-full ${selectedStatusFilter === 'Available' ? 'bg-white' : 'bg-emerald-500'}`} />
               Available ({availableBeds})
             </button>
             <button
               type="button"
               onClick={() => setSelectedStatusFilter('Occupied')}
-              className={`px-2 py-1 rounded text-[11px] font-semibold transition-all flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 selectedStatusFilter === 'Occupied'
-                  ? 'bg-rose-600 text-white'
-                  : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                  ? 'bg-rose-600 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+              <span className={`h-1.5 w-1.5 rounded-full ${selectedStatusFilter === 'Occupied' ? 'bg-white' : 'bg-rose-500'}`} />
               Occupied ({occupiedBeds})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedStatusFilter('Maintenance')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                selectedStatusFilter === 'Maintenance'
+                  ? 'bg-amber-600 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${selectedStatusFilter === 'Maintenance' ? 'bg-white' : 'bg-amber-500'}`} />
+              Maint ({maintenanceBeds})
             </button>
           </div>
         </div>
@@ -416,25 +459,25 @@ export const BedBoardView: React.FC = () => {
           <button
             type="button"
             onClick={resetFilters}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-800"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-800 bg-rose-50/60 rounded-lg hover:bg-rose-50 transition-colors"
           >
-            <RotateCcw className="h-3 w-3" /> Reset
+            <RotateCcw className="h-3.5 w-3.5" /> Reset Filters
           </button>
         )}
       </div>
 
       {/* Main Bed Grid */}
       {isLoading ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-10 flex flex-col items-center justify-center gap-2 text-slate-400">
-          <RefreshCw className="h-5 w-5 animate-spin text-[#08775A]" />
-          <span className="text-xs">Loading beds…</span>
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-12 flex flex-col items-center justify-center gap-2.5 text-slate-400">
+          <RefreshCw className="h-6 w-6 animate-spin text-[#08775A]" />
+          <span className="text-xs font-semibold">Loading real-time bed board…</span>
         </div>
       ) : groupedStructure.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-xs text-slate-500">
-          No beds found matching your search.
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-10 text-center text-xs text-slate-500 font-medium">
+          No inpatient beds found matching the filter criteria.
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {groupedStructure.map(([wardId, wardData]) => {
             const ward = wardData.ward;
             const wardTitle = ward ? ward.name : 'Standalone / Private Rooms';
@@ -447,42 +490,55 @@ export const BedBoardView: React.FC = () => {
               wardOccupiedBeds += r.beds.filter((b) => b.occupancyStatus === 'Occupied').length;
             });
 
+            const wardOccupancyPct = wardTotalBeds > 0 ? Math.round((wardOccupiedBeds / wardTotalBeds) * 100) : 0;
+
             return (
-              <div key={wardId} className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-                {/* Clean Ward Banner */}
-                <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-3.5 w-3.5 text-[#08775A]" />
-                    <h2 className="text-xs font-bold text-slate-900">{wardTitle}</h2>
+              <div key={wardId} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.03)] overflow-hidden">
+                {/* Dark Emerald Header Strip (§4.1 / §4.5) */}
+                <div className="bg-[#0e5944] px-4 py-3 flex items-center justify-between flex-wrap gap-2 text-white">
+                  <div className="flex items-center gap-2.5">
+                    <Building2 className="h-4 w-4 text-emerald-300" />
+                    <h2 className="text-sm font-bold text-white tracking-wide">{wardTitle}</h2>
                     {ward?.genderPolicy && ward.genderPolicy !== 'Not Applicable' && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-600 font-medium">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-200 border border-emerald-700/50 font-semibold">
                         {ward.genderPolicy}
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    <b>{wardOccupiedBeds}</b> / {wardTotalBeds} Beds Occupied
-                  </span>
+                  <div className="flex items-center gap-3 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-20 bg-emerald-950/60 rounded-full h-2 overflow-hidden border border-emerald-700/40">
+                        <div
+                          className="bg-emerald-400 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${wardOccupancyPct}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-[11px] text-emerald-200 font-bold">{wardOccupancyPct}%</span>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-950/70 text-emerald-100 border border-emerald-700/50 font-mono text-[11px]">
+                      <b>{wardOccupiedBeds}</b> / {wardTotalBeds} Occupied
+                    </span>
+                  </div>
                 </div>
 
                 {/* Rooms and Beds */}
-                <div className="p-3.5 space-y-3.5">
+                <div className="p-4 space-y-4">
                   {Array.from(wardData.rooms.entries()).map(([roomId, roomData]) => {
                     const room = roomData.room;
                     const roomName = room ? room.name : `Room ${roomId}`;
 
                     return (
-                      <div key={roomId} className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold">
-                          <DoorOpen className="h-3 w-3 text-slate-400" />
+                      <div key={roomId} className="space-y-2">
+                        <div className="flex items-center gap-2 text-xs text-slate-600 font-bold">
+                          <DoorOpen className="h-3.5 w-3.5 text-[#08775A]" />
                           <span>{roomName}</span>
-                          <span className="text-[10px] text-slate-400 font-normal">
+                          <span className="text-[11px] text-slate-400 font-normal font-mono">
                             ({roomData.beds.length} bed{roomData.beds.length === 1 ? '' : 's'})
                           </span>
                         </div>
 
-                        {/* Beds Grid: 2 cols on mobile, 4 on tablet, 6 on desktop, 8 on wide */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                        {/* Beds Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
                           {roomData.beds.map((bed) => renderBedCard(bed))}
                         </div>
                       </div>
@@ -490,12 +546,12 @@ export const BedBoardView: React.FC = () => {
                   })}
 
                   {wardData.directBeds.length > 0 && (
-                    <div className="space-y-1.5 pt-1">
-                      <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold">
-                        <Layers className="h-3 w-3 text-slate-400" />
+                    <div className="space-y-2 pt-1 border-t border-slate-100">
+                      <div className="flex items-center gap-2 text-xs text-slate-600 font-bold">
+                        <Layers className="h-3.5 w-3.5 text-[#08775A]" />
                         <span>Direct Beds</span>
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
                         {wardData.directBeds.map((bed) => renderBedCard(bed))}
                       </div>
                     </div>
@@ -515,24 +571,24 @@ export const BedBoardView: React.FC = () => {
           title={`Assign Bed ${assignTargetBed.bedNumber} (${assignTargetBed.wardName || 'Ward'})`}
           maxWidth="md"
         >
-          <div className="space-y-3 text-xs">
-            <p className="text-slate-600">Select a planned patient awaiting admission to check them in:</p>
+          <div className="space-y-3.5 text-xs">
+            <p className="text-slate-600 font-medium">Select a planned patient awaiting admission to check them in:</p>
 
             {plannedAdmissions.length === 0 ? (
-              <div className="p-4 bg-slate-50 rounded-lg text-center text-slate-500">
+              <div className="p-5 bg-slate-50 rounded-xl text-center text-slate-500 font-medium border border-slate-200">
                 No planned admissions waiting for check-in.
               </div>
             ) : (
-              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto border border-slate-200 rounded-lg">
+              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto border border-slate-200 rounded-xl">
                 {plannedAdmissions.map((p) => (
-                  <div key={p.id} className="p-2.5 hover:bg-slate-50 flex items-center justify-between gap-2">
+                  <div key={p.id} className="p-3 hover:bg-slate-50 flex items-center justify-between gap-2.5 transition-colors">
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-slate-900">{p.patientName}</span>
-                        <span className="font-mono text-[10px] text-slate-500">({p.patientMrNumber})</span>
+                        <span className="font-mono text-[11px] text-slate-500">({p.patientMrNumber})</span>
                         {p.payerType === 'Corporate / Panel' && <PanelBadge />}
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{p.departmentName} • Dr. {p.doctorName || 'Assigned'}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{p.departmentName} • Dr. {p.doctorName || 'Assigned'}</p>
                     </div>
 
                     <button
@@ -542,7 +598,7 @@ export const BedBoardView: React.FC = () => {
                         setAssignTargetBed(null);
                         setCheckInTargetAdmission(target);
                       }}
-                      className="px-2.5 py-1 bg-[#08775A] hover:bg-[#065f46] text-white rounded text-xs font-semibold shrink-0"
+                      className="px-3 py-1.5 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-semibold shadow-2xs shrink-0 transition-colors"
                     >
                       Check-In
                     </button>
@@ -555,7 +611,7 @@ export const BedBoardView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setAssignTargetBed(null)}
-                className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-semibold"
+                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
               >
                 Cancel
               </button>

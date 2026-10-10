@@ -7,6 +7,7 @@ import {
   getNextBedNumbers,
 } from '../../../services/wardsRoomsBedsService';
 import { useToast } from '../../../context/ToastContext';
+import { generateNextCode } from '../../../utils/codeGenerator';
 
 interface BedModalProps {
   isOpen: boolean;
@@ -117,9 +118,10 @@ export const BedModal: React.FC<BedModalProps> = ({
         ? beds.filter((b) => b.roomId === initialRoom.id)
         : beds.filter((b) => b.wardId === initialWardId && !b.roomId);
       const defaultNextBedName = getNextBedNumbers(initialScopedBeds, 1, 'Bed ')[0] || 'Bed 1';
+      const autoCode = generateNextCode(beds.map((b) => b.code), 'BED');
 
       setFormValues({
-        code: '',
+        code: autoCode,
         bedNumber: defaultNextBedName,
         roomId: initialRoom?.id || '',
         wardId: initialWardId,
@@ -468,15 +470,20 @@ export const BedModal: React.FC<BedModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Bed Code */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Bed Code
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Bed Code
+                </label>
+                <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                  Auto-generated
+                </span>
+              </div>
               <input
                 id="bed-form-code"
                 type="text"
                 value={formValues.code}
                 onChange={(e) => handleCodeChange(e.target.value)}
-                placeholder="e.g. BED-101-A (optional — auto-generated)"
+                placeholder="Auto-generated (e.g. BED-0001)"
                 className={`w-full px-3 py-2 text-xs font-mono font-medium rounded-lg border bg-white focus:outline-hidden focus:ring-2 transition-colors ${
                   codeError || errors.code
                     ? 'border-rose-300 focus:ring-rose-200 focus:border-rose-500'

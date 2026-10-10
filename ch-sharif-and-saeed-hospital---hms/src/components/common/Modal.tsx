@@ -60,7 +60,7 @@ export const Modal: React.FC<ModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/55 backdrop-blur-sm flex items-center justify-center p-4"
       onMouseDown={(e) => {
         mouseDownTargetRef.current = e.target;
       }}
@@ -81,15 +81,15 @@ export const Modal: React.FC<ModalProps> = ({
         )}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/50">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-            {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+        <div className="flex items-start justify-between px-6 sm:px-8 pt-6 pb-5 border-b border-slate-200/90 bg-slate-50/70">
+          <div className="flex-1 min-w-0 pr-4">
+            <div className="text-base font-bold text-slate-900 leading-snug">{title}</div>
+            {subtitle && <div className="text-xs text-slate-500 mt-1.5">{subtitle}</div>}
           </div>
           {showCloseButton && (
             <button
               onClick={onClose}
-              className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              className="rounded-xl p-2 -mr-1.5 -mt-0.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 transition-colors shrink-0 cursor-pointer"
               aria-label="Close dialog"
             >
               <X className="h-5 w-5" />

@@ -187,17 +187,6 @@ export const CANONICAL_HOSPITAL_MANAGEMENT_NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    id: 'hm_system',
-    title: 'SYSTEM',
-    items: [
-      { id: 'general_settings', label: 'General Settings', icon: 'Settings' },
-      { id: 'invoice_settings', label: 'Invoice Settings', icon: 'FileText' },
-      { id: 'receipt_settings', label: 'Receipt Settings', icon: 'Receipt' },
-      { id: 'import_export', label: 'Import / Export', icon: 'ArrowLeftRight' },
-      { id: 'backup', label: 'Backup Placeholder', icon: 'Layers' },
-    ],
-  },
-  {
     id: 'hm_logout_section',
     title: 'LOGOUT',
     items: [

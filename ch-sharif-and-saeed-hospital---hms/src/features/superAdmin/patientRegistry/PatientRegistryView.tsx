@@ -45,6 +45,7 @@ import { PatientImportModal } from './PatientImportModal';
 import { PatientExportModal } from './PatientExportModal';
 import { PatientDossierModal } from './PatientDossierModal';
 import { useToast } from '../../../context/ToastContext';
+import { HospitalKpiHeader, KpiItem } from '../../../components/common/HospitalKpiHeader';
 
 interface PatientRegistryViewProps {
   currentUser: User | null;
@@ -281,113 +282,112 @@ export const PatientRegistryView: React.FC<PatientRegistryViewProps> = ({
 
   return (
     <div className="space-y-5">
-      {/* Header & Primary Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
-            <span>Hospital Administration</span>
-            <span>/</span>
-            <span className="text-[#08775A] font-medium">Patient Registry</span>
+      {/* Section 4.1 Card Page Header Block */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-xl bg-[#effaf5] text-[#08775A] border border-[#c2e7db] flex items-center justify-center shadow-2xs">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-[#123e2b] tracking-tight">
+                  Patient Registry
+                </h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                  MPI Central Directory
+                </span>
+              </div>
+              <p className="text-xs text-[#52665e] mt-0.5">
+                Permanent Master Patient Index (MPI), collision-safe MR number allocation, and corporate panels
+              </p>
+            </div>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2.5">
-            <span>Patient Registry</span>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
-              MPI Central Directory
-            </span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Permanent Master Patient Index (MPI), collision-safe MR number allocation, and payer classification
-          </p>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Import Excel */}
-          <button
-            onClick={() => setIsImportModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-            title="Import Patients via Excel Spreadsheets"
-          >
-            <Upload className="w-3.5 h-3.5 text-slate-500" />
-            <span>Import Excel</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Import Excel */}
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#f6f8f7] text-[#52665e] hover:text-[#111827] border border-[#e2eae5] rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              title="Import Patients via Excel Spreadsheets"
+            >
+              <Upload className="w-3.5 h-3.5 text-[#08775A]" />
+              <span>Import Excel</span>
+            </button>
 
-          {/* Export */}
-          <button
-            onClick={() => setIsExportModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-            title="Export Registry as PDF or Excel"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Export</span>
-          </button>
+            {/* Export */}
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#f6f8f7] text-[#52665e] hover:text-[#111827] border border-[#e2eae5] rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              title="Export Registry as PDF or Excel"
+            >
+              <Download className="w-3.5 h-3.5 text-[#08775A]" />
+              <span>Export</span>
+            </button>
 
-          {/* Register New Patient */}
-          <button
-            onClick={() => {
-              setPatientToEdit(null);
-              setIsRegisterModalOpen(true);
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#08775A] hover:bg-[#07664d] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-            title="Register a new patient and allocate permanent MR Number"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Register New Patient</span>
-          </button>
+            {/* Register New Patient */}
+            <button
+              onClick={() => {
+                setPatientToEdit(null);
+                setIsRegisterModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              title="Register a new patient and allocate permanent MR Number"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Register Patient</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-        {/* Total Registered */}
-        <div className="bg-white border border-[#e2eae5] rounded-xl p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">Total Registered</span>
-            <Users className="w-4 h-4 text-[#08775A]" />
-          </div>
-          <div className="text-xl font-bold text-slate-900">{kpis.total}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Permanent MR Numbers</div>
-        </div>
-
-        {/* Active Patients */}
-        <div className="bg-white border border-[#e2eae5] rounded-xl p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">Active Patients</span>
-            <UserCheck className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-xl font-bold text-emerald-700">{kpis.active}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Eligible for visits</div>
-        </div>
-
-        {/* Self Pay */}
-        <div className="bg-white border border-[#e2eae5] rounded-xl p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">Self Pay</span>
-            <CreditCard className="w-4 h-4 text-slate-600" />
-          </div>
-          <div className="text-xl font-bold text-slate-800">{kpis.selfPay}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Direct billing</div>
-        </div>
-
-        {/* Corporate / Panel */}
-        <div className="bg-white border border-[#e2eae5] rounded-xl p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">Corporate / Panel</span>
-            <Building className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="text-xl font-bold text-blue-700">{kpis.panel}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Institutional cover</div>
-        </div>
-
-        {/* Registered This Month */}
-        <div className="bg-white border border-[#e2eae5] rounded-xl p-3.5 shadow-2xs col-span-2 sm:col-span-1">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">New This Month</span>
-            <CalendarPlus className="w-4 h-4 text-purple-600" />
-          </div>
-          <div className="text-xl font-bold text-purple-700">{kpis.newThisMonth}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">September 2026 intake</div>
-        </div>
-      </div>
+      {/* Section 4.2 & Section 9 HospitalKpiHeader */}
+      <HospitalKpiHeader
+        columns="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"
+        items={[
+          {
+            category: 'MASTER REGISTRY',
+            title: 'Total Patients',
+            value: kpis.total,
+            icon: Users,
+            subtitle: 'Permanent MR numbers',
+            tone: 'default',
+          },
+          {
+            category: 'CLINICAL ELIGIBILITY',
+            title: 'Active Patients',
+            value: kpis.active,
+            icon: UserCheck,
+            subtitle: 'Eligible for hospital visits',
+            tone: 'success',
+          },
+          {
+            category: 'BILLING CLASSIFICATION',
+            title: 'Self Pay Patients',
+            value: kpis.selfPay,
+            icon: CreditCard,
+            subtitle: 'Direct cash/card billing',
+            tone: 'default',
+          },
+          {
+            category: 'CORPORATE COVER',
+            title: 'Panel Patients',
+            value: kpis.panel,
+            icon: Building,
+            subtitle: 'Institutional coverage',
+            tone: 'info',
+          },
+          {
+            category: 'GROWTH INTAKE',
+            title: 'New This Month',
+            value: kpis.newThisMonth,
+            icon: CalendarPlus,
+            subtitle: 'Current monthly admissions',
+            tone: 'warning',
+          },
+        ]}
+      />
 
       {/* Time Filter Tabs (All Patients vs Today's Patients) */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">

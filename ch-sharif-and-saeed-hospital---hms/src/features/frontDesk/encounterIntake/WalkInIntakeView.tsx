@@ -555,6 +555,7 @@ export const WalkInIntakeView: React.FC = () => {
       const combinedNotes = [notes.trim(), weightNote].filter(Boolean).join(' | ');
 
       let targetInvoiceId = '';
+      let createdToken: string | null = null;
 
       if (payerType === 'Self Pay') {
         // Direct Self Pay: Instant Encounter & Invoice shell
@@ -572,6 +573,7 @@ export const WalkInIntakeView: React.FC = () => {
           notes: combinedNotes,
         });
         targetInvoiceId = invoice.id;
+        createdToken = invoice.queueNumber || null;
       } else {
         // Corporate / Panel: Must use selected existing panel patient (registration restricted to Super Admin / Admin)
         if (!selectedExistingPatient?.id) {
@@ -591,6 +593,7 @@ export const WalkInIntakeView: React.FC = () => {
           authorizationValidUntil: authorizationValidUntil.trim() || undefined,
         });
         targetInvoiceId = invoice.id;
+        createdToken = invoice.queueNumber || null;
       }
 
       if (targetInvoiceId && doctorId && selectedDoctorObj?.consultationFee != null) {
@@ -628,8 +631,9 @@ export const WalkInIntakeView: React.FC = () => {
       }
 
       setCreatedInvoiceId(targetInvoiceId);
+      const tokenNote = createdToken ? ` Token: ${createdToken} —` : '';
       toast.success(
-        `Encounter created successfully. Invoice has been opened.`,
+        `Encounter created successfully.${tokenNote} Invoice has been opened.`,
         'Encounter Created'
       );
     } catch (err: any) {

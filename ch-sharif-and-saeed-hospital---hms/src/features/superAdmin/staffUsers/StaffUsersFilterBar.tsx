@@ -1,14 +1,11 @@
 import React from 'react';
-import { Search, RotateCcw, Filter } from 'lucide-react';
+import { Search, RotateCcw, Filter, RefreshCw, X } from 'lucide-react';
 import {
   StaffUserFilterState,
   STAFF_CATEGORIES,
   STAFF_PORTALS,
   STAFF_PORTAL_ROLES,
-  StaffCategory,
   StaffPortalKey,
-  StaffStatus,
-  StaffAccessType,
 } from '../../../types/staffUser';
 import { Department } from '../../../types/department';
 
@@ -42,7 +39,7 @@ export const StaffUsersFilterBar: React.FC<StaffUsersFilterBarProps> = ({
     onFilterChange({
       ...filters,
       assignedPortal: value,
-      staffRole: 'ALL', // reset role when portal changes
+      staffRole: 'ALL',
     });
   };
 
@@ -73,7 +70,10 @@ export const StaffUsersFilterBar: React.FC<StaffUsersFilterBarProps> = ({
     (filters.staffRole && filters.staffRole !== 'ALL');
 
   return (
-    <div className="bg-white border border-[#e2eae5] rounded-xl p-4 shadow-sm mb-6 space-y-3.5">
+    <div
+      id="staff-users-filter-bar"
+      className="bg-white rounded-xl border border-[#e2eae5] p-3 shadow-2xs space-y-3"
+    >
       {/* Search and Quick Counter */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative flex-1">
@@ -82,49 +82,51 @@ export const StaffUsersFilterBar: React.FC<StaffUsersFilterBarProps> = ({
             type="text"
             value={filters.searchTerm}
             onChange={handleSearchChange}
-            placeholder="Search by Employee Code, Name, Phone, Email, CNIC, Designation, Dept, Username..."
-            className="w-full pl-9 pr-4 py-2 bg-[#f6f8f7] border border-[#e2eae5] rounded-lg text-sm text-[#111827] placeholder-[#8b9e95] focus:outline-none focus:ring-2 focus:ring-[#129b70]/20 focus:border-[#129b70] transition-colors"
+            placeholder="Search Employee Code, Name, Phone, Email, CNIC, Dept, Username..."
+            className="w-full pl-9 pr-8 py-2 bg-white border border-[#c2e7db] rounded-lg text-xs text-[#111827] placeholder:text-[#8b9e95] focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A] transition-colors"
           />
           {filters.searchTerm && (
             <button
+              type="button"
               onClick={() => onFilterChange({ ...filters, searchTerm: '' })}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8b9e95] hover:text-[#111827] cursor-pointer"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8b9e95] hover:text-[#111827] cursor-pointer"
             >
-              Clear
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-[#52665e] font-medium bg-[#f6f8f7] px-3 py-2 rounded-lg border border-[#e2eae5]">
+          <span className="text-xs text-[#52665e] font-medium bg-[#f6faf8] px-3 py-2 rounded-lg border border-[#e2eae5]">
             Showing <strong className="text-[#111827]">{totalMatches}</strong> of{' '}
             <strong className="text-[#111827]">{totalRecords}</strong> staff
           </span>
 
           {isFiltered && (
             <button
+              type="button"
               onClick={handleReset}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#0e7d5a] bg-[#e7f6f1] hover:bg-[#d0efe5] border border-[#c2e7db] rounded-lg transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
               title="Reset all filters"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>Reset Filters</span>
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Reset</span>
             </button>
           )}
         </div>
       </div>
 
       {/* Structured Filter Dropdowns */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-1 border-t border-[#e2eae5]/60">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100">
         {/* Department */}
         <div>
-          <label className="block text-[11px] font-semibold text-[#52665e] uppercase tracking-wider mb-1">
+          <label className="block text-[10px] font-bold text-[#52665e] uppercase tracking-wider mb-1">
             Department
           </label>
           <select
             value={filters.departmentId}
             onChange={(e) => handleSelectChange('departmentId', e.target.value)}
-            className="w-full py-1.5 px-2.5 bg-[#f6f8f7] border border-[#e2eae5] rounded-lg text-xs text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#129b70]/20 focus:border-[#129b70]"
+            className="w-full py-1.5 px-2 bg-white border border-[#c2e7db] rounded-lg text-xs text-[#111827] font-medium focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A] cursor-pointer"
           >
             <option value="ALL">All Departments</option>
             {departments.map((d) => (
@@ -137,13 +139,13 @@ export const StaffUsersFilterBar: React.FC<StaffUsersFilterBarProps> = ({
 
         {/* Staff Category */}
         <div>
-          <label className="block text-[11px] font-semibold text-[#52665e] uppercase tracking-wider mb-1">
+          <label className="block text-[10px] font-bold text-[#52665e] uppercase tracking-wider mb-1">
             Staff Category
           </label>
           <select
             value={filters.staffCategory}
             onChange={(e) => handleSelectChange('staffCategory', e.target.value)}
-            className="w-full py-1.5 px-2.5 bg-[#f6f8f7] border border-[#e2eae5] rounded-lg text-xs text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#129b70]/20 focus:border-[#129b70]"
+            className="w-full py-1.5 px-2 bg-white border border-[#c2e7db] rounded-lg text-xs text-[#111827] font-medium focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A] cursor-pointer"
           >
             <option value="ALL">All Categories</option>
             {STAFF_CATEGORIES.map((cat) => (
@@ -156,29 +158,29 @@ export const StaffUsersFilterBar: React.FC<StaffUsersFilterBarProps> = ({
 
         {/* Access Type */}
         <div>
-          <label className="block text-[11px] font-semibold text-[#52665e] uppercase tracking-wider mb-1">
+          <label className="block text-[10px] font-bold text-[#52665e] uppercase tracking-wider mb-1">
             Access Type
           </label>
           <select
             value={filters.accessType}
             onChange={(e) => handleSelectChange('accessType', e.target.value)}
-            className="w-full py-1.5 px-2.5 bg-[#f6f8f7] border border-[#e2eae5] rounded-lg text-xs text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#129b70]/20 focus:border-[#129b70]"
+            className="w-full py-1.5 px-2 bg-white border border-[#c2e7db] rounded-lg text-xs text-[#111827] font-medium focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A] cursor-pointer"
           >
             <option value="ALL">All Access Types</option>
-            <option value="PORTAL_USER">Portal User (Login Enabled)</option>
-            <option value="STAFF_RECORD_ONLY">Staff Record Only (Directory)</option>
+            <option value="PORTAL_USER">Portal User (Login)</option>
+            <option value="STAFF_RECORD_ONLY">Directory Only</option>
           </select>
         </div>
 
         {/* Assigned Portal */}
         <div>
-          <label className="block text-[11px] font-semibold text-[#52665e] uppercase tracking-wider mb-1">
+          <label className="block text-[10px] font-bold text-[#52665e] uppercase tracking-wider mb-1">
             Assigned Portal
           </label>
           <select
             value={filters.assignedPortal}
             onChange={(e) => handlePortalFilterChange(e.target.value)}
-            className="w-full py-1.5 px-2.5 bg-[#f6f8f7] border border-[#e2eae5] rounded-lg text-xs text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#129b70]/20 focus:border-[#129b70]"
+            className="w-full py-1.5 px-2 bg-white border border-[#c2e7db] rounded-lg text-xs text-[#111827] font-medium focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A] cursor-pointer"
           >
             <option value="ALL">All Portals</option>
             {STAFF_PORTALS.map((p) => (
@@ -191,13 +193,13 @@ export const StaffUsersFilterBar: React.FC<StaffUsersFilterBarProps> = ({
 
         {/* Staff Role */}
         <div>
-          <label className="block text-[11px] font-semibold text-[#52665e] uppercase tracking-wider mb-1">
+          <label className="block text-[10px] font-bold text-[#52665e] uppercase tracking-wider mb-1">
             Staff Role
           </label>
           <select
             value={filters.staffRole || 'ALL'}
             onChange={(e) => handleSelectChange('staffRole', e.target.value)}
-            className="w-full py-1.5 px-2.5 bg-[#f6f8f7] border border-[#e2eae5] rounded-lg text-xs text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#129b70]/20 focus:border-[#129b70]"
+            className="w-full py-1.5 px-2 bg-white border border-[#c2e7db] rounded-lg text-xs text-[#111827] font-medium focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A] cursor-pointer"
           >
             <option value="ALL">All Roles</option>
             {availableRoles.map((r) => (
@@ -210,13 +212,13 @@ export const StaffUsersFilterBar: React.FC<StaffUsersFilterBarProps> = ({
 
         {/* Status */}
         <div>
-          <label className="block text-[11px] font-semibold text-[#52665e] uppercase tracking-wider mb-1">
+          <label className="block text-[10px] font-bold text-[#52665e] uppercase tracking-wider mb-1">
             Account Status
           </label>
           <select
             value={filters.status}
             onChange={(e) => handleSelectChange('status', e.target.value)}
-            className="w-full py-1.5 px-2.5 bg-[#f6f8f7] border border-[#e2eae5] rounded-lg text-xs text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#129b70]/20 focus:border-[#129b70]"
+            className="w-full py-1.5 px-2 bg-white border border-[#c2e7db] rounded-lg text-xs text-[#111827] font-medium focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A] cursor-pointer"
           >
             <option value="ALL">All Statuses</option>
             <option value="ACTIVE">Active</option>

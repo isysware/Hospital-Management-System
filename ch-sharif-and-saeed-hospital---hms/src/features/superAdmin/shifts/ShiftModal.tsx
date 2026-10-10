@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Clock, Moon, Sun, AlertCircle, Info, Calendar } from 'lucide-react';
+import { X, Clock, Moon, Sun, AlertCircle } from 'lucide-react';
 import {
   Shift,
   ShiftFormData,
   ShiftType,
-  ShiftStatus,
   Weekday,
   WEEKDAYS,
 } from '../../../types/shift';
@@ -14,6 +13,7 @@ import {
   formatMinutesToHours,
   ShiftService,
 } from '../../../services/shiftService';
+import { generateNextCode } from '../../../utils/codeGenerator';
 
 interface ShiftModalProps {
   isOpen: boolean;
@@ -22,6 +22,7 @@ interface ShiftModalProps {
   initialShift?: Shift | null;
   isDuplicate?: boolean;
   departments: Department[];
+  shifts?: Shift[];
 }
 
 export const ShiftModal: React.FC<ShiftModalProps> = ({
@@ -31,6 +32,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
   initialShift,
   isDuplicate = false,
   departments,
+  shifts = [],
 }) => {
   const isEditing = Boolean(initialShift && !isDuplicate);
 
@@ -43,8 +45,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
     startTime: '08:00',
     endTime: '16:00',
     breakMinutes: 0,
-    defaultArrivalGraceMinutes: 0,
-    defaultEarlyExitToleranceMinutes: 0,
+    defaultArrivalGraceMinutes: 15,
+    defaultEarlyExitToleranceMinutes: 15,
     defaultWeeklyOffDays: [],
     status: 'ACTIVE',
     notes: '',
@@ -56,13 +58,16 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
   // Reset or populate form when modal opens or initialShift changes
   useEffect(() => {
     if (isOpen) {
+      const nextAutoCode = generateNextCode(
+        (shifts || []).map((s) => s.code),
+        'SHF'
+      );
+
       if (initialShift) {
         if (isDuplicate) {
           // DUPLICATE MODE:
-          // Prefill all settings, but blank the Shift Code (optional — a new
-          // unique code is auto-generated unless the user enters one) and suggest name - Copy
           setFormData({
-            code: '', // Left blank; auto-generated on save unless the user types a new one
+            code: nextAutoCode,
             name: `${initialShift.name} - Copy`,
             departmentId: initialShift.departmentId,
             shiftType: initialShift.shiftType,
@@ -93,15 +98,16 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
           });
         }
       } else {
-        // ADD NEW MODE:
+        // ADD NEW MODE: Auto-fill sequential code immediately
         setFormData({
           ...defaultState,
+          code: nextAutoCode,
           departmentId: '',
         });
       }
       setErrors({});
     }
-  }, [isOpen, initialShift, isDuplicate, departments]);
+  }, [isOpen, initialShift, isDuplicate, departments, shifts]);
 
   // Live Timing Calculation
   const timingCalc = useMemo(() => {
@@ -114,9 +120,6 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Available departments for selection:
-  // For new/duplicate: only active departments.
-  // For edit: if current department is inactive, include it with "(Inactive)" tag.
   const selectableDepartments = departments.filter((d) => {
     if (d.status === 'Active') return true;
     if (isEditing && d.id === initialShift?.departmentId) return true;
@@ -148,7 +151,6 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Frontend validation via ShiftService
     const validation = ShiftService.validateShift(
       formData,
       isEditing ? initialShift?.id : undefined
@@ -165,7 +167,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
           <div>
@@ -182,7 +184,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                 ? 'Creates an independent new shift record based on an existing schedule.'
                 : isEditing
                 ? `Updating shift configuration for ${formData.code || initialShift?.code}`
-                : 'Configure reusable duty hours, attendance grace, and weekly off schedule.'}
+                : 'Configure reusable duty hours, attendance tolerance, and weekly off days.'}
             </p>
           </div>
           <button
@@ -195,21 +197,26 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         </div>
 
         {/* Modal Scrollable Body */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-6 text-xs">
+        <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-5 text-xs">
           {/* SECTION A: Basic Information */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2 pb-1.5 border-b border-slate-200">
+            <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
               <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                A. Basic Information
+                Basic Information
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Shift Code */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Shift Code
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold text-slate-700">
+                    Shift Code
+                  </label>
+                  <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                    Auto-generated
+                  </span>
+                </div>
                 <input
                   type="text"
                   value={formData.code}
@@ -217,7 +224,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                     setFormData({ ...formData, code: e.target.value.toUpperCase() });
                     if (errors.code) setErrors({ ...errors, code: '' });
                   }}
-                  placeholder="e.g. SHF-MOR-01 (optional — auto-generated if blank)"
+                  placeholder="Auto-generated (e.g. SHF-0001)"
                   className={`w-full px-3 py-1.5 font-mono text-xs uppercase bg-white border rounded-lg focus:outline-hidden focus:ring-1 transition-colors ${
                     errors.code
                       ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/20'
@@ -228,7 +235,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   <p className="text-[11px] text-rose-500 mt-1">{errors.code}</p>
                 ) : (
                   <p className="text-[10.5px] text-slate-400 mt-0.5">
-                    Unique uppercase code — leave blank to auto-generate
+                    Pre-filled automatically — you can customize if desired
                   </p>
                 )}
               </div>
@@ -245,19 +252,15 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                     setFormData({ ...formData, name: e.target.value });
                     if (errors.name) setErrors({ ...errors, name: '' });
                   }}
-                  placeholder="e.g. Morning Clinical Duty"
+                  placeholder="e.g. Morning Clinical Shift"
                   className={`w-full px-3 py-1.5 text-xs bg-white border rounded-lg focus:outline-hidden focus:ring-1 transition-colors ${
                     errors.name
                       ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/20'
                       : 'border-slate-300 focus:border-[#08775A] focus:ring-[#08775A]'
                   }`}
                 />
-                {errors.name ? (
+                {errors.name && (
                   <p className="text-[11px] text-rose-500 mt-1">{errors.name}</p>
-                ) : (
-                  <p className="text-[10.5px] text-slate-400 mt-0.5">
-                    Descriptive name for shift assignment
-                  </p>
                 )}
               </div>
 
@@ -285,12 +288,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                     </option>
                   ))}
                 </select>
-                {errors.departmentId ? (
+                {errors.departmentId && (
                   <p className="text-[11px] text-rose-500 mt-1">{errors.departmentId}</p>
-                ) : (
-                  <p className="text-[10.5px] text-slate-400 mt-0.5">
-                    Leave blank for an HMS-wide shift, or select its department
-                  </p>
                 )}
               </div>
 
@@ -324,9 +323,9 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
 
           {/* SECTION B: Working Hours */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2 pb-1.5 border-b border-slate-200">
+            <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
               <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                B. Working Hours & Duration
+                Working Hours & Duration
               </span>
             </div>
 
@@ -412,55 +411,22 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               </div>
             )}
 
-            {/* Live Calculation Preview Banner */}
+            {/* Clean & Compact Duration Summary Banner */}
             {timingCalc.valid && (
-              <div className="bg-[#effaf5] border border-[#c2e7db] rounded-lg p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-800">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-[#08775A] tracking-wider block">
-                    Gross Duration
-                  </span>
-                  <span className="font-bold text-slate-900 text-xs">
-                    {formatMinutesToHours(timingCalc.grossDurationMinutes)}
-                  </span>
-                  <span className="text-[10px] text-slate-500 block">
-                    ({timingCalc.grossDurationMinutes} mins)
-                  </span>
+              <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 bg-emerald-50/70 border border-emerald-200/70 rounded-lg text-xs">
+                <div className="flex flex-wrap items-center gap-3.5 text-slate-700">
+                  <span>Gross: <strong className="text-slate-900">{formatMinutesToHours(timingCalc.grossDurationMinutes)}</strong></span>
+                  <span>Break: <strong className="text-slate-900">{timingCalc.breakMinutes}m</strong></span>
+                  <span>Net Working: <strong className="text-[#08775A] font-bold">{formatMinutesToHours(timingCalc.netWorkingMinutes)}</strong></span>
                 </div>
-
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-[#08775A] tracking-wider block">
-                    Break Allocated
-                  </span>
-                  <span className="font-bold text-slate-900 text-xs">
-                    {timingCalc.breakMinutes} mins
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-[#08775A] tracking-wider block">
-                    Net Working Hours
-                  </span>
-                  <span className="font-bold text-[#08775A] text-xs">
-                    {formatMinutesToHours(timingCalc.netWorkingMinutes)}
-                  </span>
-                  <span className="text-[10px] text-slate-500 block">
-                    ({timingCalc.netWorkingMinutes} mins)
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-[#08775A] tracking-wider block">
-                    Shift Cycle
-                  </span>
                   {timingCalc.isOvernight ? (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 mt-0.5">
-                      <Moon className="h-2.5 w-2.5" />
-                      +1 Day / Overnight
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                      <Moon className="h-3 w-3" /> Overnight (+1 Day)
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mt-0.5">
-                      <Sun className="h-2.5 w-2.5" />
-                      Same-Day Shift
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      <Sun className="h-3 w-3" /> Same-Day Shift
                     </span>
                   )}
                 </div>
@@ -468,20 +434,11 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
             )}
           </div>
 
-          {/* SECTION C: Attendance Timing Defaults */}
+          {/* SECTION C: Attendance Tolerance */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2 pb-1.5 border-b border-slate-200">
+            <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
               <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                C. Attendance Timing Defaults
-              </span>
-            </div>
-
-            <div className="bg-amber-50/70 border border-amber-200 rounded-lg p-2.5 flex items-start gap-2 text-[11px] text-amber-800">
-              <Info className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
-              <span>
-                <strong>Scheduling Defaults Only:</strong> Default timing values —
-                individual Staff policy may override later upon contract or profile configuration.
-                Monetary deduction rates are strictly managed within Staff profiles.
+                Attendance Grace & Tolerance
               </span>
             </div>
 
@@ -489,7 +446,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               {/* Default Arrival Grace */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  Default Arrival Grace (minutes)
+                  Arrival Grace (minutes)
                 </label>
                 <input
                   type="number"
@@ -512,21 +469,15 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                       : 'border-slate-300 focus:border-[#08775A] focus:ring-[#08775A]'
                   }`}
                 />
-                {errors.defaultArrivalGraceMinutes ? (
-                  <p className="text-[11px] text-rose-500 mt-1">
-                    {errors.defaultArrivalGraceMinutes}
-                  </p>
-                ) : (
-                  <p className="text-[10.5px] text-slate-400 mt-0.5">
-                    Minutes allowed past shift start before late mark
-                  </p>
-                )}
+                <p className="text-[10.5px] text-slate-400 mt-0.5">
+                  Grace period allowed after shift start before late mark
+                </p>
               </div>
 
               {/* Default Early Exit Tolerance */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  Default Early Exit Tolerance (minutes)
+                  Early Exit Tolerance (minutes)
                 </label>
                 <input
                   type="number"
@@ -549,31 +500,25 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                       : 'border-slate-300 focus:border-[#08775A] focus:ring-[#08775A]'
                   }`}
                 />
-                {errors.defaultEarlyExitToleranceMinutes ? (
-                  <p className="text-[11px] text-rose-500 mt-1">
-                    {errors.defaultEarlyExitToleranceMinutes}
-                  </p>
-                ) : (
-                  <p className="text-[10.5px] text-slate-400 mt-0.5">
-                    Minutes allowed before shift end without early departure penalty
-                  </p>
-                )}
+                <p className="text-[10.5px] text-slate-400 mt-0.5">
+                  Allowed exit before shift end without early departure penalty
+                </p>
               </div>
             </div>
           </div>
 
           {/* SECTION D: Weekly Schedule */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
               <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                D. Default Weekly Off Days
+                Default Weekly Off Days
               </span>
               <button
                 type="button"
                 onClick={handleClearWeeklyOff}
                 className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
               >
-                Clear (24/7 Rotational / No Default Off)
+                Clear All (24/7 Rotational)
               </button>
             </div>
 
@@ -596,16 +541,13 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                 );
               })}
             </div>
-            <p className="text-[10.5px] text-slate-400">
-              Selected off days serve as standard roster baseline. 24/7 hospital duties may leave this empty.
-            </p>
           </div>
 
           {/* SECTION E: Notes & Status */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2 pb-1.5 border-b border-slate-200">
+            <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
               <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                E. Notes & Operational Status
+                Notes & Status
               </span>
             </div>
 
@@ -618,7 +560,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   rows={2}
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="e.g. Critical care shift covering emergency ward roster..."
+                  placeholder="e.g. Standard roster duty schedule..."
                   className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#08775A] focus:border-[#08775A] transition-colors resize-none"
                 />
               </div>
@@ -651,9 +593,6 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                     <span className="text-xs font-semibold text-slate-600">Inactive</span>
                   </label>
                 </div>
-                <p className="text-[10.5px] text-slate-400 mt-1.5">
-                  Only active shifts can be assigned to new staff members
-                </p>
               </div>
             </div>
           </div>
@@ -679,3 +618,4 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
     </div>
   );
 };
+

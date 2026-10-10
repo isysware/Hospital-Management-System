@@ -66,6 +66,9 @@ export interface InvoiceSummary {
   hasRefund: boolean;
   /** Sum of reversed receipt amounts — what has actually been refunded, not the current balance. */
   refundedAmount: number;
+  queueNumber?: string | null;
+  queueSequence?: number | null;
+  queueDate?: string | null;
   panelName?: string;
   panelMemberId?: string;
   departmentName?: string;
@@ -153,6 +156,9 @@ function toInvoiceSummary(raw: Record<string, any>): InvoiceSummary {
     invoiceNumber: raw.invoiceNumber,
     sourceType: raw.sourceType,
     encounterType: raw.encounterType || null,
+    queueNumber: raw.queueNumber || null,
+    queueSequence: raw.queueSequence || null,
+    queueDate: raw.queueDate ? String(raw.queueDate).slice(0, 10) : null,
     status: raw.status === 'VOID' ? 'VOID' : balanceDue === 0 ? 'PAID' : paidTotal > 0 ? 'PARTIALLY_PAID' : 'UNPAID',
     patientName: patient?.fullName || 'Walk-in Patient',
     patientMr: resolveMrNumber(raw),
@@ -269,8 +275,9 @@ export async function applyDiscount(
 export async function collectPayment(
   invoiceId: string,
   values: { amount: number; paymentMethod: PaymentMethod; reference?: string },
-): Promise<void> {
-  await apiClient.post(`/invoices/${invoiceId}/payments`, values);
+): Promise<{ receipt: any; invoice: any }> {
+  const res = await apiClient.post<{ data: { receipt: any; invoice: any } }>(`/invoices/${invoiceId}/payments`, values);
+  return res.data?.data;
 }
 
 export async function refundPayment(

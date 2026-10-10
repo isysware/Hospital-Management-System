@@ -88,14 +88,23 @@ export const HighCostMedicinePolicyView: React.FC = () => {
 
   return (
     <div className="space-y-5 animate-in fade-in duration-150 max-w-3xl">
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+      {/* 1. Page Header Block (design.md §4.1) */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl bg-[#effaf5] text-[#08775A] border border-[#c2e7db] flex items-center justify-center shadow-2xs">
             <ShieldAlert className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">High-Cost Medicine Authorization Policy</h1>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-[#123e2b] tracking-tight">
+                High-Cost Medicine Authorization Policy
+              </h1>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                Active Policy
+              </span>
+            </div>
+            <p className="text-xs text-[#52665e] mt-0.5">
               Configurable inpatient medicine cost-control policy for Self-Pay and Panel patients.
             </p>
           </div>

@@ -9,6 +9,7 @@ import {
   VALID_GENDER_POLICIES,
 } from '../../../services/wardsRoomsBedsService';
 import { useToast } from '../../../context/ToastContext';
+import { generateNextCode } from '../../../utils/codeGenerator';
 
 interface WardModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ interface WardModalProps {
   departments: Department[];
   staffUsers?: StaffUser[];
   floors?: HospitalFloor[];
+  wards?: Ward[];
 }
 
 export const WardModal: React.FC<WardModalProps> = ({
@@ -28,6 +30,7 @@ export const WardModal: React.FC<WardModalProps> = ({
   departments,
   staffUsers = [],
   floors = [],
+  wards = [],
 }) => {
   const toast = useToast();
   const isEditing = !!ward;
@@ -65,8 +68,9 @@ export const WardModal: React.FC<WardModalProps> = ({
       setCodeError(null);
       setErrors({});
     } else {
+      const autoCode = generateNextCode((wards || []).map((w) => w.code), 'WRD');
       setFormValues({
-        code: '',
+        code: autoCode,
         name: '',
         departmentId: departments.find((d) => d.status === 'Active')?.id || departments[0]?.id || '',
         wardType: 'General',
@@ -172,15 +176,20 @@ export const WardModal: React.FC<WardModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Ward Code */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Ward Code
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Ward Code
+                </label>
+                <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                  Auto-generated
+                </span>
+              </div>
               <input
                 id="ward-form-code"
                 type="text"
                 value={formValues.code}
                 onChange={(e) => handleCodeChange(e.target.value)}
-                placeholder="e.g. WRD-MED-01 (optional)"
+                placeholder="Auto-generated (e.g. WRD-0001)"
                 className={`w-full px-3 py-2 text-xs font-mono font-medium rounded-lg border bg-white focus:outline-hidden focus:ring-2 transition-colors ${
                   codeError || errors.code
                     ? 'border-rose-300 focus:ring-rose-200 focus:border-rose-500'

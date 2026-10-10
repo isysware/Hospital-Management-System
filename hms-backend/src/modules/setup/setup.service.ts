@@ -648,8 +648,20 @@ export const setupService = {
     }
     if (isCoreEncounterService(existing)) {
       if (body.departmentId || (body.providerType && body.providerType !== 'INTERNAL') || body.isActive === false || body.isDefaultEncounterService === false || (body.encounterType && body.encounterType !== (existing as any).encounterType) || (body.code && body.code !== (existing as any).code) || (body.serviceStream && body.serviceStream !== 'HOSPITAL')) throw new ValidationError('Default encounter services must remain active, internal and without a department');
-      const { standardRate, description, billingUnit, panelEligible, discountAllowed, manualRateOverrideAllowed } = body;
-      const updated = await prisma.serviceRate.update({ where: { id }, data: { standardRate, description, billingUnit, panelEligible, discountAllowed, manualRateOverrideAllowed, updatedById }, include: this.serviceRateInclude });
+      const { standardRate, description, billingUnit, panelEligible, discountAllowed, manualRateOverrideAllowed, name } = body;
+      const data: Prisma.ServiceRateUncheckedUpdateInput = {
+        standardRate,
+        description,
+        billingUnit,
+        panelEligible,
+        discountAllowed,
+        manualRateOverrideAllowed,
+        updatedById,
+      };
+      if (name && typeof name === 'string' && name.trim()) {
+        data.name = name.trim();
+      }
+      const updated = await prisma.serviceRate.update({ where: { id }, data, include: this.serviceRateInclude });
       return this.decorateServiceRates([updated as any])[0];
     }
     if (body.isDefaultEncounterService) throw new ValidationError('Edit the existing OPD, OBS or ER default');

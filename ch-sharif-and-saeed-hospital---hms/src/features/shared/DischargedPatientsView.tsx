@@ -204,12 +204,12 @@ export const DischargedPatientsView: React.FC = () => {
 
   const handleExportCsv = () => {
     if (filtered.length === 0) return;
-    const headers = ['#', 'Admission No', 'Patient Name', 'MRN', 'Payer', 'Department', 'Doctor', 'Discharged Bed', 'Admitted At', 'Discharged At', 'Stay Duration', 'Medication Mode'];
+    const headers = ['#', 'Admission No', 'MR #', 'Patient Name', 'Payer', 'Department', 'Doctor', 'Discharged Bed', 'Admitted At', 'Discharged At', 'Stay Duration', 'Medication Mode'];
     const rows = filtered.map((p, idx) => [
       idx + 1,
       `"${p.admissionNumber}"`,
-      `"${p.patientName}"`,
       `"${p.patientMrNumber}"`,
+      `"${p.patientName}"`,
       `"${p.payerType}"`,
       `"${p.departmentName}"`,
       `"${p.doctorName || ''}"`,
@@ -230,15 +230,15 @@ export const DischargedPatientsView: React.FC = () => {
 
   const handleExportExcel = () => {
     if (filtered.length === 0) return;
-    const headers = ['#', 'Admission No', 'Patient Name', 'MRN', 'Payer', 'Department', 'Doctor', 'Discharged Bed', 'Admitted At', 'Discharged At', 'Stay Duration', 'Medication Mode'];
+    const headers = ['#', 'Admission No', 'MR #', 'Patient Name', 'Payer', 'Department', 'Doctor', 'Discharged Bed', 'Admitted At', 'Discharged At', 'Stay Duration', 'Medication Mode'];
     const rowsHtml = filtered
       .map(
         (p, idx) => `
       <tr>
         <td>${idx + 1}</td>
         <td>${p.admissionNumber}</td>
-        <td>${p.patientName}</td>
         <td>${p.patientMrNumber}</td>
+        <td>${p.patientName}</td>
         <td>${p.payerType}</td>
         <td>${p.departmentName}</td>
         <td>${p.doctorName || ''}</td>
@@ -582,7 +582,8 @@ export const DischargedPatientsView: React.FC = () => {
                 <tr>
                   <th className="py-3 px-3.5 text-center border-r border-slate-200 w-12 whitespace-nowrap">#</th>
                   <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Admission #</th>
-                  <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Patient &amp; MR #</th>
+                  <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">MR #</th>
+                  <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Patient Name</th>
                   <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Department &amp; Doctor</th>
                   <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Discharged Bed</th>
                   <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Admission Timeline</th>
@@ -607,13 +608,17 @@ export const DischargedPatientsView: React.FC = () => {
                         {patient.admissionNumber}
                       </td>
 
-                      {/* Patient Name & MR # */}
+                      {/* MR # */}
+                      <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap font-mono text-xs font-semibold text-[#08775A]">
+                        {patient.patientMrNumber || '—'}
+                      </td>
+
+                      {/* Patient Name */}
                       <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-900">{patient.patientName}</span>
                           {patient.payerType === 'Corporate / Panel' && <PanelBadge />}
                         </div>
-                        <div className="font-mono text-[10px] text-slate-400 mt-0.5">{patient.patientMrNumber}</div>
                         {patient.diagnosis && (
                           <div className="text-[10px] text-slate-500 italic mt-0.5 line-clamp-1 max-w-[180px]">
                             {patient.diagnosis}

@@ -236,35 +236,41 @@ export const ShiftManagementView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* 1. Header Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-lg bg-[#effaf5] text-[#08775A] border border-[#c2e7db] flex items-center justify-center">
-                <Clock className="h-4 w-4" />
-              </div>
-              <h1 className="text-lg font-bold text-slate-900 tracking-tight">
-                Shift Management
-              </h1>
+      {/* 1. Section 4.1 Card Page Header Block */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-xl bg-[#effaf5] text-[#08775A] border border-[#c2e7db] flex items-center justify-center shadow-2xs">
+              <Clock className="h-5 w-5" />
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Configure department-wise reusable duty shifts for 24/7 hospital operations.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-[#123e2b] tracking-tight">
+                  Shift Management
+                </h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#08775A] animate-pulse" />
+                  24/7 Operations
+                </span>
+              </div>
+              <p className="text-xs text-[#52665e] mt-0.5">
+                Configure department-wise reusable duty shifts, arrival grace periods, and weekly rotas
+              </p>
+            </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          {/* Action Header Buttons */}
+          <div className="flex items-center flex-wrap gap-2">
             {/* Export Dropdown */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#52665e] hover:text-[#111827] bg-white border border-[#e2eae5] hover:bg-[#f6f8f7] rounded-lg transition-colors cursor-pointer shadow-2xs"
               >
-                <Download className="h-3.5 w-3.5 text-slate-500" />
+                <Download className="h-3.5 w-3.5 text-[#08775A]" />
                 <span>Export</span>
-                <ChevronDown className="h-3 w-3 text-slate-400" />
+                <ChevronDown className="h-3 w-3 text-[#52665e]" />
               </button>
 
               {exportDropdownOpen && (
@@ -273,11 +279,11 @@ export const ShiftManagementView: React.FC = () => {
                     className="fixed inset-0 z-20"
                     onClick={() => setExportDropdownOpen(false)}
                   />
-                  <div className="absolute right-0 mt-1.5 w-48 bg-white border border-slate-200 rounded-lg shadow-lg z-30 py-1 text-xs">
+                  <div className="absolute right-0 mt-1.5 w-48 bg-white border border-[#e2eae5] rounded-xl shadow-lg z-30 py-1 text-xs">
                     <button
                       type="button"
                       onClick={handleExportPDF}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-medium cursor-pointer"
+                      className="w-full text-left px-3 py-2 hover:bg-[#effaf5] flex items-center gap-2 text-slate-700 font-medium cursor-pointer"
                     >
                       <FileText className="h-4 w-4 text-rose-600" />
                       <span>Download PDF</span>
@@ -285,7 +291,7 @@ export const ShiftManagementView: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleExportExcel}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-medium cursor-pointer"
+                      className="w-full text-left px-3 py-2 hover:bg-[#effaf5] flex items-center gap-2 text-slate-700 font-medium cursor-pointer"
                     >
                       <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
                       <span>Download Excel</span>
@@ -299,10 +305,10 @@ export const ShiftManagementView: React.FC = () => {
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#52665e] hover:text-[#111827] bg-white border border-[#e2eae5] hover:bg-[#f6f8f7] rounded-lg transition-colors cursor-pointer shadow-2xs"
               title="Print Shift Directory"
             >
-              <Printer className="h-3.5 w-3.5 text-slate-500" />
+              <Printer className="h-3.5 w-3.5 text-[#08775A]" />
               <span className="hidden sm:inline">Print</span>
             </button>
 
@@ -310,9 +316,9 @@ export const ShiftManagementView: React.FC = () => {
             <button
               type="button"
               onClick={handleOpenAdd}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg transition-colors cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg transition-colors cursor-pointer shadow-2xs"
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               <span>Add Shift</span>
             </button>
           </div>
@@ -342,6 +348,9 @@ export const ShiftManagementView: React.FC = () => {
         onToggleStatus={handleOpenStatusToggle}
         onAddNew={handleOpenAdd}
         onClearFilters={() => setFilters(initialFilters)}
+        onExportExcel={handleExportExcel}
+        onExportPDF={handleExportPDF}
+        onPrint={handlePrint}
       />
 
       {/* 5. Add / Edit / Duplicate Modal */}
@@ -352,6 +361,7 @@ export const ShiftManagementView: React.FC = () => {
         initialShift={formModalShift}
         isDuplicate={isDuplicateMode}
         departments={departments}
+        shifts={shifts}
       />
 
       {/* 6. Read-Only Shift Detail Modal */}

@@ -445,59 +445,63 @@ export const SuperAdminWardsRoomsBedsView: React.FC<
   }
 
   return (
-    <div id="super-admin-wards-rooms-beds-view" className="p-6 max-w-7xl mx-auto">
-      {/* Toast */}
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+    <div id="super-admin-wards-rooms-beds-view" className="space-y-4 animate-in fade-in duration-200">
+      {/* 1. Page Header Block (design.md §4.1) */}
+      <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              Inpatient Facility: Wards, Rooms & Beds
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-xl font-bold text-[#111827]">
+              Inpatient Facility: Wards, Rooms &amp; Beds
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#effaf5] text-[#08775A] border border-[#c2e7db]">
-              Capacity Master
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#effaf5] text-[#08775A] border border-[#c2e7db] inline-flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#129b70]" />
+              Capacity Master &amp; Census
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Hierarchical inpatient management, synchronized bed census, daily tariffs, and operational governance
+          <p className="text-xs text-[#52665e] max-w-2xl leading-relaxed">
+            Hierarchical inpatient management, synchronized bed census, daily tariffs, and operational governance across all floors.
           </p>
         </div>
 
         {/* Global Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Quick PDF Download */}
           <button
             id="wrb-quick-pdf-btn"
+            type="button"
             onClick={handleDirectDownloadPDF}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#f6faf8] text-[#52665e] hover:text-[#111827] border border-[#e2eae5] text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
-            Download PDF
+            <span>Download PDF</span>
           </button>
 
           {/* Export Options */}
           <button
             id="wrb-export-menu-btn"
+            type="button"
             onClick={() => setIsExportModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#f6faf8] text-[#52665e] hover:text-[#111827] border border-[#e2eae5] text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
-            Export Options...
+            <span>Export Options...</span>
           </button>
 
           {/* Import Excel */}
           <button
             id="wrb-import-excel-btn"
+            type="button"
             onClick={() => setIsImportModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#f6faf8] text-[#52665e] hover:text-[#111827] border border-[#e2eae5] text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
           >
-            <Upload className="w-3.5 h-3.5 text-slate-500" />
-            Import Excel
+            <Upload className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Import Excel</span>
           </button>
 
-          {/* Add item for current tab */}
+          {/* Add item for current tab (Primary) */}
           <button
             id="wrb-add-primary-btn"
+            type="button"
             onClick={() => {
               if (activeTab === 'wards') {
                 setSelectedWard(null);
@@ -510,91 +514,98 @@ export const SuperAdminWardsRoomsBedsView: React.FC<
                 setIsBedModalOpen(true);
               }
             }}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#129b70] hover:bg-[#0e7d5a] text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            {activeTab === 'wards'
-              ? 'Add Ward'
-              : activeTab === 'rooms'
-              ? 'Add Room'
-              : 'Add Bed'}
+            <span>
+              {activeTab === 'wards'
+                ? 'Add Ward'
+                : activeTab === 'rooms'
+                ? 'Add Room'
+                : 'Add Bed'}
+            </span>
           </button>
         </div>
       </div>
 
-      {/* Top Reconciled Summary */}
+      {/* 2. Top Reconciled Summary (design.md §4.2) */}
       <WardsRoomsBedsTopSummary summary={summary} />
 
-      {/* Navigation Tabs */}
-      <div className="flex items-center gap-1 border-b border-slate-200 mb-5">
-        <button
-          id="wrb-tab-wards"
-          onClick={() => setActiveTab('wards')}
-          className={`flex items-center gap-2 py-3 px-4 text-xs font-bold border-b-2 transition-colors ${
-            activeTab === 'wards'
-              ? 'border-[#08775A] text-[#08775A] bg-[#effaf5]/50'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <LayoutGrid className="w-4 h-4" />
-          <span>Wards</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] ${
+      {/* 3. Navigation Segmented Tabs (design.md §4.3) */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="bg-[#f6faf8] p-1 rounded-xl border border-[#e2eae5] inline-flex items-center gap-1 shadow-2xs">
+          <button
+            id="wrb-tab-wards"
+            type="button"
+            onClick={() => setActiveTab('wards')}
+            className={`flex items-center gap-2 py-2 px-3.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               activeTab === 'wards'
-                ? 'bg-[#08775A] text-white'
-                : 'bg-slate-100 text-slate-600'
+                ? 'bg-[#08775A] text-white shadow-xs'
+                : 'text-[#52665e] hover:text-[#111827] hover:bg-white/60'
             }`}
           >
-            {wards.length}
-          </span>
-        </button>
+            <LayoutGrid className="w-4 h-4" />
+            <span>Wards</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                activeTab === 'wards'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-white text-[#52665e] border border-[#e2eae5]'
+              }`}
+            >
+              {wards.length}
+            </span>
+          </button>
 
-        <button
-          id="wrb-tab-rooms"
-          onClick={() => setActiveTab('rooms')}
-          className={`flex items-center gap-2 py-3 px-4 text-xs font-bold border-b-2 transition-colors ${
-            activeTab === 'rooms'
-              ? 'border-[#08775A] text-[#08775A] bg-[#effaf5]/50'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Building className="w-4 h-4" />
-          <span>Rooms</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] ${
+          <button
+            id="wrb-tab-rooms"
+            type="button"
+            onClick={() => setActiveTab('rooms')}
+            className={`flex items-center gap-2 py-2 px-3.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               activeTab === 'rooms'
-                ? 'bg-[#08775A] text-white'
-                : 'bg-slate-100 text-slate-600'
+                ? 'bg-[#08775A] text-white shadow-xs'
+                : 'text-[#52665e] hover:text-[#111827] hover:bg-white/60'
             }`}
           >
-            {rooms.length}
-          </span>
-        </button>
+            <Building className="w-4 h-4" />
+            <span>Rooms</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                activeTab === 'rooms'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-white text-[#52665e] border border-[#e2eae5]'
+              }`}
+            >
+              {rooms.length}
+            </span>
+          </button>
 
-        <button
-          id="wrb-tab-beds"
-          onClick={() => setActiveTab('beds')}
-          className={`flex items-center gap-2 py-3 px-4 text-xs font-bold border-b-2 transition-colors ${
-            activeTab === 'beds'
-              ? 'border-[#08775A] text-[#08775A] bg-[#effaf5]/50'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <BedIcon className="w-4 h-4" />
-          <span>Beds</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] ${
+          <button
+            id="wrb-tab-beds"
+            type="button"
+            onClick={() => setActiveTab('beds')}
+            className={`flex items-center gap-2 py-2 px-3.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               activeTab === 'beds'
-                ? 'bg-[#08775A] text-white'
-                : 'bg-slate-100 text-slate-600'
+                ? 'bg-[#08775A] text-white shadow-xs'
+                : 'text-[#52665e] hover:text-[#111827] hover:bg-white/60'
             }`}
           >
-            {beds.length}
-          </span>
-        </button>
+            <BedIcon className="w-4 h-4" />
+            <span>Beds</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                activeTab === 'beds'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-white text-[#52665e] border border-[#e2eae5]'
+              }`}
+            >
+              {beds.length}
+            </span>
+          </button>
+        </div>
       </div>
 
-      {/* Tab Panels */}
+      {/* 4. Tab Panels */}
       {activeTab === 'wards' && (
         <WardTab
           wards={wards}
@@ -613,6 +624,9 @@ export const SuperAdminWardsRoomsBedsView: React.FC<
           }}
           onToggleStatus={handleToggleWardStatus}
           onDelete={handleDeleteWardPrompt}
+          onExportExcel={() => setIsExportModalOpen(true)}
+          onExportPDF={handleDirectDownloadPDF}
+          onPrint={() => window.print()}
         />
       )}
 
@@ -634,6 +648,9 @@ export const SuperAdminWardsRoomsBedsView: React.FC<
           }}
           onToggleStatus={handleToggleRoomStatus}
           onDelete={handleDeleteRoomPrompt}
+          onExportExcel={() => setIsExportModalOpen(true)}
+          onExportPDF={handleDirectDownloadPDF}
+          onPrint={() => window.print()}
         />
       )}
 
@@ -656,6 +673,9 @@ export const SuperAdminWardsRoomsBedsView: React.FC<
           }}
           onToggleOperational={handleToggleBedOperational}
           onDelete={handleDeleteBedPrompt}
+          onExportExcel={() => setIsExportModalOpen(true)}
+          onExportPDF={handleDirectDownloadPDF}
+          onPrint={() => window.print()}
         />
       )}
 
@@ -671,6 +691,7 @@ export const SuperAdminWardsRoomsBedsView: React.FC<
         departments={departments}
         staffUsers={staffUsers}
         floors={floors}
+        wards={wards}
       />
 
       <RoomModal
@@ -683,6 +704,7 @@ export const SuperAdminWardsRoomsBedsView: React.FC<
         room={selectedRoom}
         wards={wards}
         beds={beds}
+        rooms={rooms}
       />
 
       <BedModal

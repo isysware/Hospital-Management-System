@@ -1842,7 +1842,8 @@ export const FrontDeskDashboard: React.FC = () => {
                     <tr>
                       <th className="py-3 px-3.5 text-center border-r border-slate-200 w-12 whitespace-nowrap">#</th>
                       <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Admission #</th>
-                      <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Patient / MRN</th>
+                      <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">MR #</th>
+                      <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Patient Name</th>
                       <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Ward & Bed</th>
                       <th className="py-3 px-4 border-r border-slate-200 whitespace-nowrap">Attending Doctor</th>
                       <th className="py-3 px-4 border-r border-slate-200 text-center whitespace-nowrap">Status</th>
@@ -1852,7 +1853,7 @@ export const FrontDeskDashboard: React.FC = () => {
                   <tbody className="divide-y divide-slate-100">
                     {paginatedAdmissions.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                        <td colSpan={8} className="py-12 text-center text-slate-400">
                           <div className="flex flex-col items-center justify-center gap-1.5 max-w-sm mx-auto">
                             <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                               <Search className="h-4 w-4" />
@@ -1873,9 +1874,11 @@ export const FrontDeskDashboard: React.FC = () => {
                             <td className="py-3.5 px-4 border-r border-slate-100 font-mono font-bold text-sky-800 whitespace-nowrap">
                               {adm.admissionNumber}
                             </td>
+                            <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap font-mono text-xs font-semibold text-[#08775A]">
+                              {adm.mrn}
+                            </td>
                             <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap">
                               <div className="font-semibold text-slate-900">{adm.patient}</div>
-                              <div className="text-[10.5px] text-slate-400 font-mono">MRN: {adm.mrn}</div>
                             </td>
                             <td className="py-3.5 px-4 border-r border-slate-100 whitespace-nowrap">
                               <span className="font-semibold text-slate-800">{adm.department}</span>

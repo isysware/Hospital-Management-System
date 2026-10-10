@@ -69,7 +69,7 @@ export interface AttendanceSummaryRow {
 }
 
 export interface RosterMarkDraft {
-  status: AttendanceStatus;
+  status: AttendanceStatus | '';
   actualIn: string;
   actualOut: string;
   notes: string;

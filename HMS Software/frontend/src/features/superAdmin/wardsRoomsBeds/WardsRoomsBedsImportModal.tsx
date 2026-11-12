@@ -124,8 +124,8 @@ export const WardsRoomsBedsImportModal: React.FC<WardsRoomsBedsImportModalProps>
           targetEntity === 'wards'
             ? ['ward', 'name', 'type', 'department']
             : targetEntity === 'rooms'
-            ? ['room', 'ward', 'rate', 'capacity']
-            : ['bed', 'room', 'type', 'status'];
+              ? ['room', 'ward', 'rate', 'capacity']
+              : ['bed', 'room', 'type', 'status'];
 
         const rows = await parseExcelOrCsvFile(selectedFile, keywords);
         if (!rows || rows.length === 0) {
@@ -240,20 +240,20 @@ export const WardsRoomsBedsImportModal: React.FC<WardsRoomsBedsImportModalProps>
 
   const totalAllValid = allInOneResult
     ? allInOneResult.wardsResult.validRows.length +
-      allInOneResult.roomsResult.validRows.length +
-      allInOneResult.bedsResult.validRows.length
+    allInOneResult.roomsResult.validRows.length +
+    allInOneResult.bedsResult.validRows.length
     : 0;
 
   const totalAllRows = allInOneResult
     ? allInOneResult.wardsResult.totalRows +
-      allInOneResult.roomsResult.totalRows +
-      allInOneResult.bedsResult.totalRows
+    allInOneResult.roomsResult.totalRows +
+    allInOneResult.bedsResult.totalRows
     : 0;
 
   const totalAllInvalid = allInOneResult
     ? allInOneResult.wardsResult.invalidRows.length +
-      allInOneResult.roomsResult.invalidRows.length +
-      allInOneResult.bedsResult.invalidRows.length
+    allInOneResult.roomsResult.invalidRows.length +
+    allInOneResult.bedsResult.invalidRows.length
     : 0;
 
   return (
@@ -300,45 +300,41 @@ export const WardsRoomsBedsImportModal: React.FC<WardsRoomsBedsImportModalProps>
               <button
                 type="button"
                 onClick={() => handleEntitySwitch('all')}
-                className={`py-2 px-3 text-xs font-bold rounded-lg border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                  targetEntity === 'all'
-                    ? 'bg-[#08775A] border-[#08775A] text-white shadow-xs'
-                    : 'bg-emerald-50/60 border-emerald-200 text-emerald-800 hover:bg-emerald-100/60'
-                }`}
+                className={`py-2 px-3 text-xs font-bold rounded-lg border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${targetEntity === 'all'
+                  ? 'bg-[#08775A] border-[#08775A] text-white shadow-xs'
+                  : 'bg-emerald-50/60 border-emerald-200 text-emerald-800 hover:bg-emerald-100/60'
+                  }`}
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                ⭐ All-in-One Setup
+                All-in-One Setup
               </button>
               <button
                 type="button"
                 onClick={() => handleEntitySwitch('wards')}
-                className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-colors cursor-pointer ${
-                  targetEntity === 'wards'
-                    ? 'bg-[#effaf5] border-[#08775A] text-[#08775A]'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
+                className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-colors cursor-pointer ${targetEntity === 'wards'
+                  ? 'bg-[#effaf5] border-[#08775A] text-[#08775A]'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
               >
                 1. Wards Only
               </button>
               <button
                 type="button"
                 onClick={() => handleEntitySwitch('rooms')}
-                className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-colors cursor-pointer ${
-                  targetEntity === 'rooms'
-                    ? 'bg-[#effaf5] border-[#08775A] text-[#08775A]'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
+                className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-colors cursor-pointer ${targetEntity === 'rooms'
+                  ? 'bg-[#effaf5] border-[#08775A] text-[#08775A]'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
               >
                 2. Rooms Only
               </button>
               <button
                 type="button"
                 onClick={() => handleEntitySwitch('beds')}
-                className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-colors cursor-pointer ${
-                  targetEntity === 'beds'
-                    ? 'bg-[#effaf5] border-[#08775A] text-[#08775A]'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
+                className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-colors cursor-pointer ${targetEntity === 'beds'
+                  ? 'bg-[#effaf5] border-[#08775A] text-[#08775A]'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
               >
                 3. Beds Only
               </button>
@@ -474,11 +470,10 @@ export const WardsRoomsBedsImportModal: React.FC<WardsRoomsBedsImportModalProps>
                 <button
                   type="button"
                   onClick={() => setActiveAllTab('wards')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    activeAllTab === 'wards'
-                      ? 'border-[#08775A] bg-emerald-50/50 shadow-xs ring-2 ring-[#08775A]/20'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
-                  }`}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${activeAllTab === 'wards'
+                    ? 'border-[#08775A] bg-emerald-50/50 shadow-xs ring-2 ring-[#08775A]/20'
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
@@ -501,11 +496,10 @@ export const WardsRoomsBedsImportModal: React.FC<WardsRoomsBedsImportModalProps>
                 <button
                   type="button"
                   onClick={() => setActiveAllTab('rooms')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    activeAllTab === 'rooms'
-                      ? 'border-[#08775A] bg-emerald-50/50 shadow-xs ring-2 ring-[#08775A]/20'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
-                  }`}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${activeAllTab === 'rooms'
+                    ? 'border-[#08775A] bg-emerald-50/50 shadow-xs ring-2 ring-[#08775A]/20'
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
@@ -528,11 +522,10 @@ export const WardsRoomsBedsImportModal: React.FC<WardsRoomsBedsImportModalProps>
                 <button
                   type="button"
                   onClick={() => setActiveAllTab('beds')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    activeAllTab === 'beds'
-                      ? 'border-[#08775A] bg-emerald-50/50 shadow-xs ring-2 ring-[#08775A]/20'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
-                  }`}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${activeAllTab === 'beds'
+                    ? 'border-[#08775A] bg-emerald-50/50 shadow-xs ring-2 ring-[#08775A]/20'
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
@@ -559,52 +552,49 @@ export const WardsRoomsBedsImportModal: React.FC<WardsRoomsBedsImportModalProps>
                   <button
                     type="button"
                     onClick={() => setFilterMode('all')}
-                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
-                      filterMode === 'all'
-                        ? 'border-[#08775A] text-[#08775A]'
-                        : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${filterMode === 'all'
+                      ? 'border-[#08775A] text-[#08775A]'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                      }`}
                   >
                     All {activeAllTab.toUpperCase()} ({
                       activeAllTab === 'wards'
                         ? allInOneResult.wardsResult.totalRows
                         : activeAllTab === 'rooms'
-                        ? allInOneResult.roomsResult.totalRows
-                        : allInOneResult.bedsResult.totalRows
+                          ? allInOneResult.roomsResult.totalRows
+                          : allInOneResult.bedsResult.totalRows
                     })
                   </button>
                   <button
                     type="button"
                     onClick={() => setFilterMode('valid')}
-                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
-                      filterMode === 'valid'
-                        ? 'border-emerald-600 text-emerald-700'
-                        : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${filterMode === 'valid'
+                      ? 'border-emerald-600 text-emerald-700'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                      }`}
                   >
                     Valid Ready ({
                       activeAllTab === 'wards'
                         ? allInOneResult.wardsResult.validRows.length
                         : activeAllTab === 'rooms'
-                        ? allInOneResult.roomsResult.validRows.length
-                        : allInOneResult.bedsResult.validRows.length
+                          ? allInOneResult.roomsResult.validRows.length
+                          : allInOneResult.bedsResult.validRows.length
                     })
                   </button>
                   <button
                     type="button"
                     onClick={() => setFilterMode('invalid')}
-                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
-                      filterMode === 'invalid'
-                        ? 'border-rose-600 text-rose-700'
-                        : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${filterMode === 'invalid'
+                      ? 'border-rose-600 text-rose-700'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                      }`}
                   >
                     Errors ({
                       activeAllTab === 'wards'
                         ? allInOneResult.wardsResult.invalidRows.length
                         : activeAllTab === 'rooms'
-                        ? allInOneResult.roomsResult.invalidRows.length
-                        : allInOneResult.bedsResult.invalidRows.length
+                          ? allInOneResult.roomsResult.invalidRows.length
+                          : allInOneResult.bedsResult.invalidRows.length
                     })
                   </button>
                 </div>
@@ -708,33 +698,30 @@ export const WardsRoomsBedsImportModal: React.FC<WardsRoomsBedsImportModalProps>
                   <button
                     type="button"
                     onClick={() => setFilterMode('all')}
-                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
-                      filterMode === 'all'
-                        ? 'border-[#08775A] text-[#08775A]'
-                        : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${filterMode === 'all'
+                      ? 'border-[#08775A] text-[#08775A]'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                      }`}
                   >
                     All Rows ({singleValidationResult.totalRows})
                   </button>
                   <button
                     type="button"
                     onClick={() => setFilterMode('valid')}
-                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
-                      filterMode === 'valid'
-                        ? 'border-emerald-600 text-emerald-700'
-                        : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${filterMode === 'valid'
+                      ? 'border-emerald-600 text-emerald-700'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                      }`}
                   >
                     Valid Only ({singleValidationResult.validRows.length})
                   </button>
                   <button
                     type="button"
                     onClick={() => setFilterMode('invalid')}
-                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
-                      filterMode === 'invalid'
-                        ? 'border-rose-600 text-rose-700'
-                        : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${filterMode === 'invalid'
+                      ? 'border-rose-600 text-rose-700'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                      }`}
                   >
                     Invalid Only ({singleValidationResult.invalidRows.length})
                   </button>
@@ -824,11 +811,10 @@ export const WardsRoomsBedsImportModal: React.FC<WardsRoomsBedsImportModalProps>
               type="button"
               onClick={handleCommitAll}
               disabled={totalAllValid === 0 || isImporting}
-              className={`inline-flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer ${
-                totalAllValid > 0 && !isImporting
-                  ? 'bg-[#08775A] hover:bg-[#065f46] text-white'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-              }`}
+              className={`inline-flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer ${totalAllValid > 0 && !isImporting
+                ? 'bg-[#08775A] hover:bg-[#065f46] text-white'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
             >
               <Upload className="w-4 h-4" />
               {isImporting
@@ -840,11 +826,10 @@ export const WardsRoomsBedsImportModal: React.FC<WardsRoomsBedsImportModalProps>
               type="button"
               onClick={handleCommitSingle}
               disabled={singleValidationResult.validRows.length === 0 || isImporting}
-              className={`inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer ${
-                singleValidationResult.validRows.length > 0 && !isImporting
-                  ? 'bg-[#08775A] hover:bg-[#065f46] text-white'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-              }`}
+              className={`inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer ${singleValidationResult.validRows.length > 0 && !isImporting
+                ? 'bg-[#08775A] hover:bg-[#065f46] text-white'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
             >
               <Upload className="w-4 h-4" />
               {isImporting ? 'Importing…' : `Commit Import (${singleValidationResult.validRows.length} Valid Records)`}

@@ -36556,11 +36556,17 @@ function resolvePharmacyBaseUrl() {
 function getPharmacyBaseUrls() {
   const primary = resolvePharmacyBaseUrl();
   const urls = [primary];
-  if (!urls.includes("http://localhost:4100/api/v1")) {
-    urls.push("http://localhost:4100/api/v1");
-  }
-  if (!urls.includes("https://api.pharmacy.isywarecloud.com/api/v1")) {
-    urls.push("https://api.pharmacy.isywarecloud.com/api/v1");
+  if (process.env.NODE_ENV === "production") {
+    if (!urls.includes("https://api.pharmacy.isywarecloud.com/api/v1")) {
+      urls.push("https://api.pharmacy.isywarecloud.com/api/v1");
+    }
+  } else {
+    if (!urls.includes("http://localhost:4100/api/v1")) {
+      urls.push("http://localhost:4100/api/v1");
+    }
+    if (!urls.includes("https://api.pharmacy.isywarecloud.com/api/v1")) {
+      urls.push("https://api.pharmacy.isywarecloud.com/api/v1");
+    }
   }
   return urls;
 }

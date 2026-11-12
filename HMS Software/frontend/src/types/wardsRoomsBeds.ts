@@ -231,6 +231,7 @@ export interface WardImportRow {
   genderPolicy?: string;
   floor?: string;
   location?: string;
+  fixedPrice?: number | null;
   status: string;
   isValid: boolean;
   errors: string[];

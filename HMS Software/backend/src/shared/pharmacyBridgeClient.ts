@@ -13,11 +13,17 @@ function resolvePharmacyBaseUrl(): string {
 function getPharmacyBaseUrls(): string[] {
   const primary = resolvePharmacyBaseUrl();
   const urls: string[] = [primary];
-  if (!urls.includes('http://localhost:4100/api/v1')) {
-    urls.push('http://localhost:4100/api/v1');
-  }
-  if (!urls.includes('https://api.pharmacy.isywarecloud.com/api/v1')) {
-    urls.push('https://api.pharmacy.isywarecloud.com/api/v1');
+  if (process.env.NODE_ENV === 'production') {
+    if (!urls.includes('https://api.pharmacy.isywarecloud.com/api/v1')) {
+      urls.push('https://api.pharmacy.isywarecloud.com/api/v1');
+    }
+  } else {
+    if (!urls.includes('http://localhost:4100/api/v1')) {
+      urls.push('http://localhost:4100/api/v1');
+    }
+    if (!urls.includes('https://api.pharmacy.isywarecloud.com/api/v1')) {
+      urls.push('https://api.pharmacy.isywarecloud.com/api/v1');
+    }
   }
   return urls;
 }

@@ -102,10 +102,10 @@ const MainPortalRouter: React.FC = () => {
   // If authenticated but still on /login URL waiting for navigation
   if (currentPath === '/login' || currentPath.startsWith('/login')) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="flex items-center gap-3 text-slate-300 text-sm">
-          <div className="h-5 w-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-          <span>Opening authorized workstation...</span>
+      <div className="min-h-screen bg-[#f6f8f7] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-[#52665e] text-sm">
+          <div className="h-7 w-7 border-2 border-[#08775A] border-t-transparent rounded-full animate-spin" />
+          <span className="font-medium">Opening authorized workstation...</span>
         </div>
       </div>
     );

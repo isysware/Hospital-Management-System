@@ -447,6 +447,7 @@ export const WARDS_HEADERS = [
   'Gender Policy',
   'Floor',
   'Location / Wing',
+  'Ward Fee (Per Day PKR)',
   'Description',
   'Status (Active/Inactive)',
 ];
@@ -460,6 +461,7 @@ export const WARDS_SAMPLE_ROWS = [
     'Gender Policy': 'Male',
     'Floor': '1st Floor',
     'Location / Wing': 'East Wing Block A',
+    'Ward Fee (Per Day PKR)': 1500,
     'Description': 'Inpatient internal medicine ward for adult male admissions',
     'Status (Active/Inactive)': 'Active',
   },
@@ -471,6 +473,7 @@ export const WARDS_SAMPLE_ROWS = [
     'Gender Policy': 'Female',
     'Floor': '2nd Floor',
     'Location / Wing': 'West Wing Block B',
+    'Ward Fee (Per Day PKR)': 2000,
     'Description': 'Intermediate post-surgical nursing recovery ward',
     'Status (Active/Inactive)': 'Active',
   },
@@ -482,6 +485,7 @@ export const WARDS_SAMPLE_ROWS = [
     'Gender Policy': 'Pediatric',
     'Floor': '1st Floor',
     'Location / Wing': 'North Wing Children Hospital',
+    'Ward Fee (Per Day PKR)': 1500,
     'Description': 'Child health inpatient care with dedicated nursing and play area',
     'Status (Active/Inactive)': 'Active',
   },
@@ -493,6 +497,7 @@ export const WARDS_SAMPLE_ROWS = [
     'Gender Policy': 'Mixed',
     'Floor': '3rd Floor',
     'Location / Wing': 'Critical Care Wing',
+    'Ward Fee (Per Day PKR)': 5000,
     'Description': 'Critical care with central telemetry and mechanical ventilation',
     'Status (Active/Inactive)': 'Active',
   },
@@ -542,6 +547,12 @@ export const WARDS_INSTRUCTIONS = [
     'Description': 'Specific building or wing information.',
   },
   {
+    'Column Name': 'Ward Fee (Per Day PKR)',
+    'Requirement': 'OPTIONAL',
+    'Allowed Values / Examples': 'Numeric fee >= 0 (e.g., 1500, 2000, 5000)',
+    'Description': 'Ward fee in PKR separate from room fee (leave blank or 0 if not applicable).',
+  },
+  {
     'Column Name': 'Description',
     'Requirement': 'OPTIONAL',
     'Allowed Values / Examples': 'Free text ward details',
@@ -567,6 +578,7 @@ export function downloadWardsBulkTemplate(): void {
     { wch: 18 }, // Gender Policy
     { wch: 16 }, // Floor
     { wch: 28 }, // Location
+    { wch: 22 }, // Ward Fee
     { wch: 45 }, // Description
     { wch: 22 }, // Status
   ]);
@@ -592,7 +604,7 @@ export const ROOMS_HEADERS = [
   'Room Number *',
   'Ward *',
   'Room Type *',
-  'Daily Room Rate (PKR) *',
+  'Room Fee (Per Day PKR) *',
   'Room Name',
   'Capacity',
   'Room Code',
@@ -605,7 +617,7 @@ export const ROOMS_SAMPLE_ROWS = [
     'Room Number *': '101',
     'Ward *': 'General Medical Ward (Male)',
     'Room Type *': 'General',
-    'Daily Room Rate (PKR) *': 2000,
+    'Room Fee (Per Day PKR) *': 2000,
     'Room Name': 'Male Medical Hall 1',
     'Capacity': 4,
     'Room Code': '',
@@ -616,7 +628,7 @@ export const ROOMS_SAMPLE_ROWS = [
     'Room Number *': '201',
     'Ward *': 'Post-Operative Surgical Ward (Female)',
     'Room Type *': 'Semi-Private',
-    'Daily Room Rate (PKR) *': 4500,
+    'Room Fee (Per Day PKR) *': 4500,
     'Room Name': 'Twin Sharing Room 201',
     'Capacity': 2,
     'Room Code': '',
@@ -627,7 +639,7 @@ export const ROOMS_SAMPLE_ROWS = [
     'Room Number *': '301',
     'Ward *': 'Post-Operative Surgical Ward (Female)',
     'Room Type *': 'Private',
-    'Daily Room Rate (PKR) *': 8500,
+    'Room Fee (Per Day PKR) *': 8500,
     'Room Name': 'Executive VIP Suite 301',
     'Capacity': 1,
     'Room Code': '',
@@ -638,7 +650,7 @@ export const ROOMS_SAMPLE_ROWS = [
     'Room Number *': 'ICU-1',
     'Ward *': 'Intensive Care Unit (ICU)',
     'Room Type *': 'General',
-    'Daily Room Rate (PKR) *': 15000,
+    'Room Fee (Per Day PKR) *': 15000,
     'Room Name': 'ICU Critical Cubicle 1',
     'Capacity': 1,
     'Room Code': '',
@@ -667,10 +679,10 @@ export const ROOMS_INSTRUCTIONS = [
     'Description': 'Room category governing pricing and patient privacy.',
   },
   {
-    'Column Name': 'Daily Room Rate (PKR) *',
+    'Column Name': 'Room Fee (Per Day PKR) *',
     'Requirement': 'MANDATORY',
     'Allowed Values / Examples': 'Numeric rate >= 0 (e.g. 2000, 4500, 8500)',
-    'Description': 'Daily accommodation billing charge in PKR.',
+    'Description': 'Per-day Room accommodation fee in PKR (charged daily).',
   },
   {
     'Column Name': 'Room Name',
@@ -864,9 +876,10 @@ export const UNIFIED_INPATIENT_HEADERS = [
   'Ward Type *',
   'Floor',
   'Location / Wing',
+  'Ward Fee (Per Day PKR)',
   'Room Number *',
   'Room Type *',
-  'Daily Room Rate (PKR) *',
+  'Room Fee (Per Day PKR) *',
   'Bed Number *',
   'Bed Type *',
   'Status (Active/Inactive)',
@@ -879,9 +892,10 @@ export const UNIFIED_INPATIENT_SAMPLE_ROWS = [
     'Ward Type *': 'General',
     'Floor': 'Ground Floor',
     'Location / Wing': 'East Wing',
+    'Ward Fee (Per Day PKR)': 1500,
     'Room Number *': '101',
     'Room Type *': 'General',
-    'Daily Room Rate (PKR) *': 2500,
+    'Room Fee (Per Day PKR) *': 2500,
     'Bed Number *': 'BED-101-A',
     'Bed Type *': 'Standard Bed',
     'Status (Active/Inactive)': 'Active',
@@ -892,9 +906,10 @@ export const UNIFIED_INPATIENT_SAMPLE_ROWS = [
     'Ward Type *': 'General',
     'Floor': 'Ground Floor',
     'Location / Wing': 'East Wing',
+    'Ward Fee (Per Day PKR)': 1500,
     'Room Number *': '101',
     'Room Type *': 'General',
-    'Daily Room Rate (PKR) *': 2500,
+    'Room Fee (Per Day PKR) *': 2500,
     'Bed Number *': 'BED-101-B',
     'Bed Type *': 'Standard Bed',
     'Status (Active/Inactive)': 'Active',
@@ -905,9 +920,10 @@ export const UNIFIED_INPATIENT_SAMPLE_ROWS = [
     'Ward Type *': 'General',
     'Floor': 'Ground Floor',
     'Location / Wing': 'East Wing',
+    'Ward Fee (Per Day PKR)': 1500,
     'Room Number *': '102',
     'Room Type *': 'Semi-Private',
-    'Daily Room Rate (PKR) *': 4500,
+    'Room Fee (Per Day PKR) *': 4500,
     'Bed Number *': 'BED-102-A',
     'Bed Type *': 'Standard Bed',
     'Status (Active/Inactive)': 'Active',
@@ -918,9 +934,10 @@ export const UNIFIED_INPATIENT_SAMPLE_ROWS = [
     'Ward Type *': 'ICU',
     'Floor': '1st Floor',
     'Location / Wing': 'ICU Block',
+    'Ward Fee (Per Day PKR)': 5000,
     'Room Number *': 'ICU-01',
     'Room Type *': 'ICU / CCU',
-    'Daily Room Rate (PKR) *': 15000,
+    'Room Fee (Per Day PKR) *': 15000,
     'Bed Number *': 'ICU-BED-01',
     'Bed Type *': 'ICU Bed (Electric)',
     'Status (Active/Inactive)': 'Active',
@@ -931,9 +948,10 @@ export const UNIFIED_INPATIENT_SAMPLE_ROWS = [
     'Ward Type *': 'Surgical',
     'Floor': '2nd Floor',
     'Location / Wing': 'North Wing',
+    'Ward Fee (Per Day PKR)': 2000,
     'Room Number *': '201',
     'Room Type *': 'Private',
-    'Daily Room Rate (PKR) *': 7500,
+    'Room Fee (Per Day PKR) *': 7500,
     'Bed Number *': 'BED-201-A',
     'Bed Type *': 'Deluxe Patient Bed',
     'Status (Active/Inactive)': 'Active',
@@ -946,9 +964,10 @@ export const UNIFIED_INPATIENT_INSTRUCTIONS = [
   { 'Column Name': 'Ward Type *', 'Requirement': 'MANDATORY', 'Allowed Values / Examples': 'General, Semi-Private, Private, ICU, CCU, NICU, PICU, HDU, Post-Op, Emergency, Dialysis, Isolation, Day Care', 'Description': 'Clinical category of the ward.' },
   { 'Column Name': 'Floor', 'Requirement': 'OPTIONAL', 'Allowed Values / Examples': 'Ground Floor, 1st Floor, 2nd Floor, Basement', 'Description': 'Hospital floor location.' },
   { 'Column Name': 'Location / Wing', 'Requirement': 'OPTIONAL', 'Allowed Values / Examples': 'East Wing, North Wing, ICU Block', 'Description': 'Hospital wing or corridor section.' },
+  { 'Column Name': 'Ward Fee (Per Day PKR)', 'Requirement': 'OPTIONAL', 'Allowed Values / Examples': '1500, 2000, 5000 (or 0 / blank)', 'Description': 'Ward fee in PKR separate from room fee (applied to the ward).' },
   { 'Column Name': 'Room Number *', 'Requirement': 'MANDATORY', 'Allowed Values / Examples': '101, 102, ICU-01, RM-201', 'Description': 'Unique room identifier within the ward. Rooms are automatically linked to the ward in the same row.' },
   { 'Column Name': 'Room Type *', 'Requirement': 'MANDATORY', 'Allowed Values / Examples': 'General, Semi-Private, Private, Deluxe, VIP Suite, Isolation, ICU / CCU, HDU', 'Description': 'Room classification determining base amenities.' },
-  { 'Column Name': 'Daily Room Rate (PKR) *', 'Requirement': 'MANDATORY', 'Allowed Values / Examples': '2500, 4500, 7500, 15000', 'Description': 'Daily accommodation billing charge in Pakistani Rupees.' },
+  { 'Column Name': 'Room Fee (Per Day PKR) *', 'Requirement': 'MANDATORY', 'Allowed Values / Examples': '2500, 4500, 7500, 15000', 'Description': 'Per-day Room accommodation fee in PKR (charged daily for inpatient stay).' },
   { 'Column Name': 'Bed Number *', 'Requirement': 'MANDATORY', 'Allowed Values / Examples': 'BED-101-A, BED-101-B, ICU-BED-01', 'Description': 'Individual bed identifier. Automatically linked to the room in the same row.' },
   { 'Column Name': 'Bed Type *', 'Requirement': 'MANDATORY', 'Allowed Values / Examples': 'Standard Bed, Electric Bed, Fowler Bed, ICU Bed, Pediatric Cot', 'Description': 'Physical bed apparatus category.' },
   { 'Column Name': 'Status (Active/Inactive)', 'Requirement': 'OPTIONAL', 'Allowed Values / Examples': 'Active, Inactive (default: Active)', 'Description': 'Current operational readiness of the ward, room, and bed.' },
@@ -965,9 +984,10 @@ export function downloadCompleteWardsRoomsBedsTemplate(): void {
     { wch: 18 }, // Ward Type
     { wch: 18 }, // Floor
     { wch: 20 }, // Location / Wing
+    { wch: 22 }, // Ward Fee (Per Day PKR)
     { wch: 18 }, // Room Number
     { wch: 20 }, // Room Type
-    { wch: 24 }, // Daily Room Rate
+    { wch: 24 }, // Room Fee (Per Day PKR)
     { wch: 20 }, // Bed Number
     { wch: 22 }, // Bed Type
     { wch: 22 }, // Status
@@ -978,7 +998,7 @@ export function downloadCompleteWardsRoomsBedsTemplate(): void {
   const wsWards = XLSX.utils.json_to_sheet(WARDS_SAMPLE_ROWS, { header: WARDS_HEADERS });
   applyTableStyles(wsWards, WARDS_HEADERS, [
     { wch: 34 }, { wch: 28 }, { wch: 18 }, { wch: 16 }, { wch: 18 },
-    { wch: 16 }, { wch: 28 }, { wch: 45 }, { wch: 22 },
+    { wch: 16 }, { wch: 28 }, { wch: 22 }, { wch: 45 }, { wch: 22 },
   ]);
   XLSX.utils.book_append_sheet(wb, wsWards, 'Wards');
 
@@ -1024,7 +1044,7 @@ export function downloadUnifiedInpatientTemplate(): void {
 
   const wsUnified = XLSX.utils.json_to_sheet(UNIFIED_INPATIENT_SAMPLE_ROWS, { header: UNIFIED_INPATIENT_HEADERS });
   applyTableStyles(wsUnified, UNIFIED_INPATIENT_HEADERS, [
-    { wch: 30 }, { wch: 24 }, { wch: 18 }, { wch: 18 }, { wch: 20 },
+    { wch: 30 }, { wch: 24 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 22 },
     { wch: 18 }, { wch: 20 }, { wch: 24 }, { wch: 20 }, { wch: 22 }, { wch: 22 },
   ]);
   XLSX.utils.book_append_sheet(wb, wsUnified, 'Inpatient Setup');
@@ -1182,9 +1202,29 @@ export async function parseAllInOneInpatientFile(file: File): Promise<AllInOneIn
         const dept = String(norm['department'] || norm['dept'] || '').trim();
         const floor = String(norm['floor'] || '').trim();
         const location = String(norm['locationwing'] || norm['location'] || norm['wing'] || '').trim();
+        const rawWardFee =
+          norm['wardfeeperdaypkr'] ??
+          norm['wardfeepkr'] ??
+          norm['wardfee'] ??
+          norm['fixedpricepkr'] ??
+          norm['fixedprice'];
+        const wardFee =
+          rawWardFee !== undefined && rawWardFee !== null && String(rawWardFee).trim() !== ''
+            ? Number(rawWardFee)
+            : '';
         const roomNumber = String(norm['roomnumber'] || norm['room'] || '').trim();
         const roomType = String(norm['roomtype'] || 'General').trim();
-        const dailyRate = Number(norm['dailyroomratepkr'] || norm['dailyroomrate'] || norm['rate'] || 0);
+        const dailyRate = Number(
+          norm['roomfeeperdaypkr'] ||
+            norm['roomfeepkr'] ||
+            norm['roomfee'] ||
+            norm['roomwardfeeperdaypkr'] ||
+            norm['dailyroomratepkr'] ||
+            norm['dailyroomrate'] ||
+            norm['dailyrate'] ||
+            norm['rate'] ||
+            0
+        );
         const bedNumber = String(norm['bednumber'] || norm['bed'] || '').trim();
         const bedType = String(norm['bedtype'] || 'Standard Bed').trim();
         const status = String(norm['statusactiveinactive'] || norm['status'] || 'Active').trim();
@@ -1197,6 +1237,7 @@ export async function parseAllInOneInpatientFile(file: File): Promise<AllInOneIn
             'Ward Type *': wardType,
             'Floor': floor,
             'Location / Wing': location,
+            'Ward Fee (Per Day PKR)': wardFee,
             'Status': status,
             _sourceRow: idx + 2,
           });
@@ -1210,7 +1251,7 @@ export async function parseAllInOneInpatientFile(file: File): Promise<AllInOneIn
               'Room Number *': roomNumber,
               'Ward Name / Code *': wardName,
               'Room Type *': roomType,
-              'Daily Room Rate (PKR) *': dailyRate,
+              'Room Fee (Per Day PKR) *': dailyRate,
               'Capacity (Beds) *': 1,
               'Status': status,
               _sourceRow: idx + 2,

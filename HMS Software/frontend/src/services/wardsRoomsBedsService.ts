@@ -550,6 +550,19 @@ export class WardsRoomsBedsService {
       const location = String(r['Location / Wing'] || r['Location'] || r.location || '').trim();
       const description = String(r['Description'] || r.description || '').trim();
       const status = String(r['Status (Active/Inactive)'] || r['Status'] || r.status || 'Active').trim();
+      const rawWardFee =
+        r['Ward Fee (Per Day PKR)'] ??
+        r['Ward Fee (PKR)'] ??
+        r['Ward Fee'] ??
+        r['Fixed Price (PKR)'] ??
+        r.fixed_price ??
+        r.fixedPrice ??
+        r.ward_fee;
+      const parsedWardFee =
+        rawWardFee !== undefined && rawWardFee !== null && String(rawWardFee).trim() !== ''
+          ? parseFloat(String(rawWardFee).replace(/[^0-9.-]+/g, ''))
+          : null;
+      const fixedPrice = parsedWardFee !== null && !isNaN(parsedWardFee) && parsedWardFee >= 0 ? parsedWardFee : null;
 
       let wardCode = rawCode;
       if (wardCode) {
@@ -588,6 +601,7 @@ export class WardsRoomsBedsService {
         genderPolicy,
         floor,
         location,
+        fixedPrice,
         status: status.toLowerCase() === 'inactive' ? 'Inactive' : 'Active',
         isValid: errors.length === 0,
         errors,
@@ -622,6 +636,7 @@ export class WardsRoomsBedsService {
           genderPolicy: r.genderPolicy as GenderPolicy,
           floor: r.floor,
           location: r.location,
+          fixedPrice: r.fixedPrice ?? undefined,
           description: '',
           status: r.status as 'Active' | 'Inactive',
         });
@@ -682,6 +697,14 @@ export class WardsRoomsBedsService {
       );
 
       const dailyRateVal =
+        r['Room Fee (Per Day PKR) *'] ??
+        r['Room Fee (Per Day PKR)'] ??
+        r['Room Fee (PKR)'] ??
+        r['Room Fee'] ??
+        r['Room / Ward Fee (Per Day PKR) *'] ??
+        r['Room / Ward Fee (Per Day PKR)'] ??
+        r['Ward Fee (Per Day PKR)'] ??
+        r.ward_fee ??
         r['Daily Room Rate (PKR) *'] ??
         r['Daily Room Rate (PKR)'] ??
         r['Daily Room Rate'] ??
@@ -933,8 +956,10 @@ export class WardsRoomsBedsService {
         occupiedBeds: 0,
         availableBeds: 0,
         maintenanceBeds: 0,
-        status: w.status,
+        status: w.status as any,
+        createdBy: 'Import',
         createdAt: new Date().toISOString(),
+        updatedBy: 'Import',
         updatedAt: new Date().toISOString(),
       })),
     ];
@@ -952,14 +977,19 @@ export class WardsRoomsBedsService {
         name: r.roomName,
         wardId: 'pending',
         wardName: r.wardCode,
+        departmentId: 'pending',
+        departmentName: '',
         roomType: r.roomType as any,
         floor: '',
         capacity: r.capacity,
+        bedsConfigured: 0,
         currentOccupancy: 0,
         dailyRoomRate: r.dailyRoomRate,
         bedCount: 0,
-        status: r.status,
+        status: r.status as any,
+        createdBy: 'Import',
         createdAt: new Date().toISOString(),
+        updatedBy: 'Import',
         updatedAt: new Date().toISOString(),
       })),
     ];

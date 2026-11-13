@@ -128,7 +128,7 @@ const App: React.FC = () => {
       case 'stock-in':
         return <StockInPage prefill={stockInPrefill} onConsumedPrefill={() => setStockInPrefill(null)} />;
       case 'balance-sheet':
-        return <BalanceSheetPage />;
+        return <BalanceSheetPage onNavigate={navigate} />;
       case 'settlements':
         return <SettlementsPage canReview={!isSales} />;
       case 'hms-receivables':

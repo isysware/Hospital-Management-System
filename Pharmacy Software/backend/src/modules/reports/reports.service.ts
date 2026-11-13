@@ -215,7 +215,10 @@ async function returnRefund(range?: { gte?: Date; lte?: Date }) {
     take: ROW_LIMIT,
   });
 
-  const invoiceIds = refunds.filter((r) => r.referenceTable === 'pharmacy_invoices' && r.referenceId).map((r) => r.referenceId as string);
+  const invoiceIds = refunds
+    .filter((r) => r.referenceTable === 'pharmacy_invoices' && r.referenceId)
+    .map((r) => r.referenceId as string);
+
   const invoices = invoiceIds.length > 0
     ? await prisma.pharmacyInvoice.findMany({
         where: { id: { in: invoiceIds } },
@@ -224,22 +227,64 @@ async function returnRefund(range?: { gte?: Date; lte?: Date }) {
     : [];
   const invoiceMap = new Map(invoices.map((i) => [i.id, i]));
 
-  const rows = refunds.map((r) => {
+  const salesReturnRows = refunds.map((r) => {
     const inv = r.referenceId ? invoiceMap.get(r.referenceId) : null;
     return {
-      returnReferenceNo: r.referenceNo,
+      type: 'Sales Return',
+      returnNumber: r.referenceNo ?? '—',
+      returnReferenceNo: r.referenceNo ?? '—',
+      originalRef: inv?.invoiceNumber ?? '—',
       invoiceNumber: inv?.invoiceNumber ?? '—',
-      customerName: inv?.customerName ?? 'Walk-in',
+      party: inv?.customerName ?? 'Walk-In Customer',
+      customerName: inv?.customerName ?? 'Walk-In Customer',
+      refundAmount: r.amount,
       amount: r.amount,
       isPhysicalCash: r.isPhysicalCash,
       paymentMethod: r.isPhysicalCash ? 'CASH' : 'NON_CASH',
-      reason: r.note,
-      processedBy: r.portalUser.fullName,
+      reason: r.note ? r.note.replace(/^RET-\d+:\s*/, '') : 'Sales Return Refund',
+      processedBy: r.portalUser?.fullName ?? 'Pharmacy Staff',
+      createdAt: r.occurredAt,
       occurredAt: r.occurredAt,
     };
   });
-  const totals = { amount: sumDecimal(refunds.map((r) => r.amount)) };
-  return { rows, totals };
+
+  // Also include Vendor Returns (Purchase Returns) if any exist
+  const vendorReturns = await prisma.vendorLedgerEntry.findMany({
+    where: { entryType: 'RETURN_CREDIT', createdAt: range },
+    include: { vendor: { select: { name: true } }, actor: { select: { fullName: true } } },
+    orderBy: { createdAt: 'desc' },
+    take: ROW_LIMIT,
+  });
+
+  const purchaseReturnRows = vendorReturns.map((vr) => ({
+    type: 'Purchase Return',
+    returnNumber: vr.referenceNo ?? '—',
+    returnReferenceNo: vr.referenceNo ?? '—',
+    originalRef: vr.referenceTable === 'purchases' && vr.referenceId ? vr.referenceId : '—',
+    invoiceNumber: '—',
+    party: vr.vendor?.name ?? 'Vendor',
+    customerName: vr.vendor?.name ?? 'Vendor',
+    refundAmount: vr.amount,
+    amount: vr.amount,
+    isPhysicalCash: false,
+    paymentMethod: 'VENDOR_CREDIT',
+    reason: vr.description ?? 'Purchase Return Credit',
+    processedBy: vr.actor?.fullName ?? 'Pharmacy Staff',
+    createdAt: vr.createdAt,
+    occurredAt: vr.createdAt,
+  }));
+
+  const allRows = [...salesReturnRows, ...purchaseReturnRows].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  const totalRefund = sumDecimal(allRows.map((r) => r.refundAmount));
+  const totals = {
+    refundAmount: totalRefund,
+    amount: totalRefund,
+  };
+
+  return { rows: allRows, totals };
 }
 
 async function balanceSettlement(range?: { gte?: Date; lte?: Date }) {

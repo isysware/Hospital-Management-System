@@ -3,6 +3,7 @@ import { prisma } from '@/db/client';
 import { NotFoundError, ConflictError, ValidationError } from '@/shared/errors/AppError';
 import { nextCode, SEQUENCE } from '@/shared/sequence';
 import type { IssuePettyCashBody, BalanceSheetQuery, SubmitSettlementBody, ReviewSettlementBody, ListSettlementsQuery } from './cash.schemas';
+import { balanceSheetRange, summarizeCashEntries } from './balanceSheet.util';
 
 /**
  * pharmacy.md §11.2 Expected Cash formula, restated as a running signed
@@ -41,10 +42,37 @@ export const cashService = {
   },
 
   async getBalanceSheet(userId: string, query: BalanceSheetQuery) {
+    const range = balanceSheetRange(query);
+    const lastSettlement = !range ? await prisma.accountSettlement.findFirst({
+      where: { portalUserId: userId, status: 'ACCEPTED' }, orderBy: { submittedAt: 'desc' },
+    }) : null;
     const entries = await prisma.cashLedgerEntry.findMany({
-      where: { portalUserId: userId, occurredAt: { gte: query.from, lte: query.to } },
+      where: {
+        portalUserId: userId,
+        ...(range ? { occurredAt: { gte: range.gte, lte: range.lte } } : {
+          isSettled: false,
+          OR: [{ isPhysicalCash: true }, { isPhysicalCash: false, ...(lastSettlement ? { occurredAt: { gt: lastSettlement.submittedAt } } : {}) }],
+        }),
+      },
       orderBy: { occurredAt: 'asc' },
     });
+    const activity = entries.filter(e => e.category !== 'SETTLEMENT_HANDOVER');
+    const settlements = range ? await prisma.accountSettlement.findMany({
+      where: { portalUserId: userId, status: 'ACCEPTED', reviewedAt: { gte: range.gte, lte: range.lte } },
+    }) : [];
+    const pendingSettlement = await prisma.accountSettlement.findFirst({ where: { portalUserId: userId, status: 'SUBMITTED' }, select: { id: true } });
+    const referenceIds = (table: string) => activity.filter(e => e.referenceTable === table && e.referenceId).map(e => e.referenceId!);
+    const [invoices, purchases, expenses, vendorPayments] = await Promise.all([
+      prisma.pharmacyInvoice.findMany({ where: { id: { in: referenceIds('pharmacy_invoices') } }, select: { id: true, invoiceNumber: true } }),
+      prisma.purchase.findMany({ where: { id: { in: referenceIds('purchases') } }, select: { id: true, purchaseNumber: true } }),
+      prisma.expense.findMany({ where: { id: { in: referenceIds('expenses') } }, select: { id: true, expenseNumber: true } }),
+      prisma.vendorLedgerEntry.findMany({ where: { id: { in: referenceIds('vendor_ledger_entries') } }, select: { id: true, referenceNo: true } }),
+    ]);
+    const references = new Map<string, string | null>([
+      ...invoices.map(e => [e.id, e.invoiceNumber] as const), ...purchases.map(e => [e.id, e.purchaseNumber] as const),
+      ...expenses.map(e => [e.id, e.expenseNumber] as const), ...vendorPayments.map(e => [e.id, e.referenceNo] as const),
+    ]);
+    const summary = summarizeCashEntries(activity);
 
     const byCategory = new Map<string, Decimal>();
     for (const e of entries) {
@@ -53,9 +81,19 @@ export const cashService = {
     }
 
     return {
-      expectedCash: await expectedCash(userId),
+      // Keep the legacy property live for the settlement form.
+      expectedCash: range ? await expectedCash(userId) : summary.expectedPhysicalCash,
       breakdown: Object.fromEntries(byCategory),
-      entries,
+      entries: activity.map(e => ({ ...e, documentReference: e.referenceNo || references.get(e.referenceId || '') || null })),
+      period: { mode: range ? 'period' : 'shift', label: range?.label || 'Current Shift (unsettled)' },
+      pendingSettlement: Boolean(pendingSettlement),
+      summary: {
+        ...summary,
+        settlementCount: settlements.length,
+        settledAmount: settlements.reduce((s, e) => s.plus(e.settlementAmount ?? 0), new Decimal(0)),
+        physicalCashCounted: settlements.reduce((s, e) => s.plus(e.physicalCash), new Decimal(0)),
+        variance: settlements.reduce((s, e) => s.plus(e.variance), new Decimal(0)),
+      },
     };
   },
 

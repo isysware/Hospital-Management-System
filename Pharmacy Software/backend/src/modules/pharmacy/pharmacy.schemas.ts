@@ -40,6 +40,11 @@ export const createMedicineBodySchema = z.object({
   purchaseRate: z.coerce.number().nonnegative().optional(),
   saleRate: z.coerce.number().nonnegative().default(0),
   taxPercent: z.coerce.number().min(0).max(100).default(0),
+  /// Opening Stock fields (optional initial lot when registering a new medicine)
+  openingStock: z.coerce.number().nonnegative().optional(),
+  openingBatchNumber: z.string().max(60).optional(),
+  openingExpiryDate: z.coerce.date().optional(),
+  openingCostRate: z.coerce.number().nonnegative().optional(),
 });
 export type CreateMedicineBody = z.infer<typeof createMedicineBodySchema>;
 
@@ -55,7 +60,7 @@ export const listMedicinesQuerySchema = z.object({
 export type ListMedicinesQuery = z.infer<typeof listMedicinesQuerySchema>;
 
 export const createBatchBodySchema = z.object({
-  batchNumber: z.string().min(1).max(60),
+  batchNumber: z.string().max(60).optional().default(''),
   expiryDate: z.coerce.date(),
   costRate: z.coerce.number().nonnegative(),
   saleRate: z.coerce.number().nonnegative().optional(),

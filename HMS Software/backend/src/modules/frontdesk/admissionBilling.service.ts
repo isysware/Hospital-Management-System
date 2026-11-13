@@ -552,9 +552,9 @@ export const admissionBillingService = {
         const line = invoice.lines.find((l) => l.id === body.lineItemId);
         if (!line) throw new NotFoundError('Invoice line item not found');
 
-        if (!isEligibleHospitalService(line.serviceRate)) {
+        if (!isEligibleHospitalService(line.serviceRate || line)) {
           throw new ValidationError(
-            `Discounts are strictly restricted to Hospital Services. '${line.serviceRate?.name || 'This service'}' (Outsourced Lab / Radiology / Pharmacy) cannot receive discounts.`,
+            `Discounts cannot be applied to this item.`,
           );
         }
 
@@ -588,13 +588,13 @@ export const admissionBillingService = {
           },
         });
       } else {
-        // Invoice-wide discount distributed across eligible Hospital Services lines ONLY
-        const eligibleLines = invoice.lines.filter((l) => isEligibleHospitalService(l.serviceRate));
-        const nonEligibleLines = invoice.lines.filter((l) => !isEligibleHospitalService(l.serviceRate));
+        // Invoice-wide discount distributed across lines
+        const eligibleLines = invoice.lines.filter((l) => isEligibleHospitalService(l.serviceRate || l));
+        const nonEligibleLines = invoice.lines.filter((l) => !isEligibleHospitalService(l.serviceRate || l));
 
         if (eligibleLines.length === 0) {
           throw new ValidationError(
-            'Discounts are strictly restricted to Hospital Services. This admission has no eligible Hospital Services charges (only Outsourced Lab / Pharmacy) to discount.',
+            'Cannot apply discount to this invoice.',
           );
         }
 
@@ -608,7 +608,7 @@ export const admissionBillingService = {
 
         if (totalDiscAmt.greaterThan(eligibleGross)) {
           throw new ValidationError(
-            `Discount of PKR ${totalDiscAmt.toFixed(2)} exceeds total eligible Hospital Services charges of PKR ${eligibleGross.toFixed(2)}. Outsourced Lab, Radiology, and Pharmacy services cannot receive discounts.`,
+            `Discount of PKR ${totalDiscAmt.toFixed(2)} exceeds total charges of PKR ${eligibleGross.toFixed(2)}.`,
           );
         }
 

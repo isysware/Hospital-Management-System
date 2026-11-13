@@ -175,7 +175,7 @@ export const StockInPage: React.FC<Props> = ({ prefill, onConsumedPrefill }) => 
 
   const buildPayload = (post: boolean) => {
     const validLines = lines.filter(
-      (l) => l.medicineId && l.batchNumber && l.expiryDate && l.purchaseUnitId && Number(l.quantity) > 0
+      (l) => l.medicineId && l.expiryDate && l.purchaseUnitId && Number(l.quantity) > 0
     );
     if (validLines.length === 0) return null;
     return {
@@ -191,7 +191,7 @@ export const StockInPage: React.FC<Props> = ({ prefill, onConsumedPrefill }) => 
         );
         return {
           medicineId: l.medicineId,
-          batchNumber: l.batchNumber,
+          batchNumber: l.batchNumber?.trim() || '',
           expiryDate: l.expiryDate,
           purchaseUnitId: l.purchaseUnitId,
           purchaseUnitQuantity: Number(l.quantity),

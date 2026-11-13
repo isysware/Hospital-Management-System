@@ -220,13 +220,13 @@ export const PurchaseLineCard: React.FC<Props> = ({
             )}
           </div>
 
-          {/* Batch Number (4 cols) */}
+          {/* Batch Number (4 cols) - Optional */}
           <div className="sm:col-span-4">
-            <label className={labelCls}>Batch / Lot No *</label>
+            <label className={labelCls}>Batch / Lot No <span className="font-normal text-slate-400 lowercase">(optional)</span></label>
             <input
               value={line.batchNumber}
               onChange={(e) => onChange({ batchNumber: e.target.value })}
-              placeholder="e.g. B-99420"
+              placeholder="e.g. B-99420 (or blank)"
               className={`${inputCls} font-mono font-medium`}
             />
           </div>

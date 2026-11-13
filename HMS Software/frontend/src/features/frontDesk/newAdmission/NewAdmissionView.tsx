@@ -351,6 +351,14 @@ export const NewAdmissionView: React.FC = () => {
   };
 
   const handleUseExistingPatient = (match: PanelPatientSearchResult) => {
+    setFormValues((prev) => ({ ...prev, weightKg: match.weightKg ?? '' }));
+    setPayerType(match.panelId ? 'Corporate / Panel' : 'Self Pay');
+    setGuardianCnic(match.guardianCnic || '');
+    setMembershipDetails({});
+    setAuthorizationNumber('');
+    setAuthorizationLimit('');
+    setAuthorizationValidUntil('');
+    setFormError(null);
     setFullName(match.fullName.toUpperCase());
     setFatherGuardianName((match.guardianName || '').toUpperCase());
     setGuardianRelation((match.guardianRelation as GuardianRelation) || '');
@@ -367,7 +375,9 @@ export const NewAdmissionView: React.FC = () => {
   };
 
   const handleClearExistingPatient = () => {
+    setFormValues((prev) => ({ ...prev, weightKg: '' }));
     setSelectedExistingPatient(null);
+    setGuardianCnic('');
     setFullName('');
     setFatherGuardianName('');
     setGuardianRelation('');
@@ -401,7 +411,7 @@ export const NewAdmissionView: React.FC = () => {
     const ageNum = Number(age);
     if (!age.trim() || isNaN(ageNum) || ageNum < 0 || ageNum > 130) { showValidationError('Please enter a valid age in years.'); return; }
     if (payerType === 'Corporate / Panel') {
-      if (!selectedExistingPatient) {
+      if (!selectedExistingPatient?.panelId) {
         showValidationError('Front Desk cannot register new panel patients. Please search and select an existing verified panel patient from the registry above, or contact Super Admin / Admin.');
         return;
       }
@@ -425,8 +435,7 @@ export const NewAdmissionView: React.FC = () => {
 
     setIsSaving(true);
     try {
-      // 3. Register Patient — reuse the selected Panel Patient Registry
-      // record as-is (admission.md §2.1 point 2). Only Self Pay creates a new patient.
+      // Reuse a selected patient; register only a new self-pay patient.
       let activePatient: { id: string; payerType: PayerType };
 
       if (payerType === 'Corporate / Panel') {
@@ -436,6 +445,8 @@ export const NewAdmissionView: React.FC = () => {
           return;
         }
         activePatient = { id: selectedExistingPatient.id, payerType: 'Corporate / Panel' };
+      } else if (selectedExistingPatient && !selectedExistingPatient.panelId) {
+        activePatient = { id: selectedExistingPatient.id, payerType: 'Self Pay' };
       } else {
         const birthYear = new Date().getFullYear() - Math.max(0, Math.floor(ageNum));
         const dob = `${birthYear}-01-01`;
@@ -1202,6 +1213,15 @@ export const NewAdmissionView: React.FC = () => {
         </div>
       )}
 
+      <PanelPatientSearchSection
+        key={payerType}
+        selectedPatient={selectedExistingPatient}
+        onSelectPatient={handleUseExistingPatient}
+        onClearPatient={handleClearExistingPatient}
+        mode={payerType === 'Corporate / Panel' ? 'PANEL' : 'ALL'}
+        placeholder="Search patient by Name, MR#, Phone, or CNIC..."
+      />
+
       {/* Landscape Two-Column Form Grid */}
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* LEFT COLUMN: Patient Category & Demographics (7 cols on desktop) */}
@@ -1217,7 +1237,7 @@ export const NewAdmissionView: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setPayerType('Self Pay');
-                  if (selectedExistingPatient) handleClearExistingPatient();
+                  if (payerType !== 'Self Pay' && selectedExistingPatient) handleClearExistingPatient();
                 }}
                 className={`p-3.5 rounded-2xl text-left transition-all flex items-start gap-3 cursor-pointer group ${
                   payerType === 'Self Pay'
@@ -1249,7 +1269,10 @@ export const NewAdmissionView: React.FC = () => {
               {/* Corporate / Panel Card */}
               <button
                 type="button"
-                onClick={() => setPayerType('Corporate / Panel')}
+                onClick={() => {
+                  if (payerType !== 'Corporate / Panel' && selectedExistingPatient) handleClearExistingPatient();
+                  setPayerType('Corporate / Panel');
+                }}
                 className={`p-3.5 rounded-2xl text-left transition-all flex items-start gap-3 cursor-pointer group ${
                   payerType === 'Corporate / Panel'
                     ? 'border-t-[3.5px] border-t-blue-600 border-x-2 border-b-2 border-blue-600 bg-gradient-to-b from-blue-50/70 to-white shadow-md ring-1 ring-blue-600/20'
@@ -1293,21 +1316,12 @@ export const NewAdmissionView: React.FC = () => {
                   : 'bg-slate-100 text-slate-700 border-slate-200'
               }`}>
                 {selectedExistingPatient
-                  ? `From Panel Registry (${selectedExistingPatient.mrNumber})`
+                  ? `Existing Patient (${selectedExistingPatient.mrNumber})`
                   : payerType === 'Corporate / Panel'
                   ? 'Search Required (Panel)'
                   : 'Admission Slip Details'}
               </span>
             </div>
-
-            {/* Corporate / Panel Search Section */}
-            {payerType === 'Corporate / Panel' && (
-              <PanelPatientSearchSection
-                selectedPatient={selectedExistingPatient}
-                onSelectPatient={handleUseExistingPatient}
-                onClearPatient={handleClearExistingPatient}
-              />
-            )}
 
             {/* Name & Guardian */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

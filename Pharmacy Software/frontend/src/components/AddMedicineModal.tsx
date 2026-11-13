@@ -24,6 +24,10 @@ const emptyForm = {
   reorderLevel: '10',
   saleRate: '',
   taxPercent: '0',
+  openingStock: '',
+  openingBatchNumber: '',
+  openingExpiryDate: '',
+  openingCostRate: '',
 };
 
 const emptyPackaging = {
@@ -107,6 +111,10 @@ export const AddMedicineModal: React.FC<Props> = ({ open, onClose, units, onUnit
         reorderLevel: Number(form.reorderLevel) || 0,
         saleRate: form.saleRate.trim() ? Number(form.saleRate) : 0,
         taxPercent: Number(form.taxPercent) || 0,
+        openingStock: form.openingStock.trim() ? Number(form.openingStock) : undefined,
+        openingBatchNumber: form.openingBatchNumber.trim() || undefined,
+        openingExpiryDate: form.openingExpiryDate || undefined,
+        openingCostRate: form.openingCostRate.trim() ? Number(form.openingCostRate) : undefined,
         ...createPackagingPayload(packaging),
       });
       toast.success(`Medicine "${form.name}" added to formulary.`);
@@ -304,6 +312,60 @@ export const AddMedicineModal: React.FC<Props> = ({ open, onClose, units, onUnit
                   </p>
                 );
               })()}
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 pt-3">
+            <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+              <Package className="h-3.5 w-3.5 text-[#0e7d5a]" /> Initial Opening Stock <span className="font-normal text-slate-400 text-xs">(optional)</span>
+            </h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Opening Stock {packaging.baseUnitId && <span className="text-slate-400">({units.find((u) => u.id === packaging.baseUnitId)?.name || 'units'})</span>}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.openingStock}
+                  onChange={(e) => setForm({ ...form, openingStock: e.target.value })}
+                  placeholder="0"
+                  className="w-full h-8 px-2.5 text-xs bg-white border border-slate-200 rounded-lg font-bold font-mono focus:outline-none focus:ring-1 focus:ring-[#0e7d5a]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Batch / Lot No</label>
+                <input
+                  type="text"
+                  value={form.openingBatchNumber}
+                  onChange={(e) => setForm({ ...form, openingBatchNumber: e.target.value })}
+                  placeholder="Optional"
+                  className="w-full h-8 px-2.5 text-xs bg-white border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-1 focus:ring-[#0e7d5a]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Expiry Date</label>
+                <input
+                  type="date"
+                  value={form.openingExpiryDate}
+                  onChange={(e) => setForm({ ...form, openingExpiryDate: e.target.value })}
+                  className="w-full h-8 px-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0e7d5a]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Cost / Purchase Rate</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.openingCostRate}
+                  onChange={(e) => setForm({ ...form, openingCostRate: e.target.value })}
+                  placeholder="PKR 0.00"
+                  className="w-full h-8 px-2.5 text-xs bg-white border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-1 focus:ring-[#0e7d5a]"
+                />
+              </div>
             </div>
           </div>
 

@@ -422,7 +422,18 @@ export const WalkInIntakeView: React.FC = () => {
   };
 
   const getServiceStreamBadge = (s: HospitalService) => {
-    return <span className="px-1.5 py-0.5 rounded text-xs bg-teal-50 text-teal-700">{s.providerType === 'OUTSOURCED' ? 'Outsourced' : 'Hospital / Internal'}</span>;
+    const isOutsourced = s.providerType === 'OUTSOURCED';
+    return (
+      <span
+        className={`inline-flex items-center justify-center px-2 py-1 rounded-md text-[11px] font-semibold tracking-tight whitespace-nowrap shrink-0 border ${
+          isOutsourced
+            ? 'bg-amber-50 text-amber-800 border-amber-200/80'
+            : 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
+        }`}
+      >
+        {isOutsourced ? 'Outsourced' : 'Hospital / Internal'}
+      </span>
+    );
   };
 
   // Clear selected add-on services when Encounter Service changes
@@ -1443,25 +1454,25 @@ export const WalkInIntakeView: React.FC = () => {
                       Clear all
                     </button>
                   </div>
-                  <div className="divide-y divide-slate-200 max-h-56 overflow-y-auto">
+                  <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto">
                     {selectedAdditionalServices.map((s) => (
                       <div
                         key={s.id}
-                        className="px-3 py-2.5 flex items-center justify-between bg-white hover:bg-slate-50/80 transition-colors text-xs"
+                        className="px-3.5 py-2.5 flex items-center justify-between gap-3 bg-white hover:bg-slate-50/80 transition-colors text-xs"
                       >
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
                           {getServiceStreamBadge(s)}
-                          <div>
-                            <span className="font-semibold text-slate-800">{s.name}</span>
-                            <span className="font-mono text-[11px] text-slate-400 ml-1.5">({s.code})</span>
+                          <div className="min-w-0 flex-1 truncate">
+                            <span className="font-semibold text-slate-900">{s.name}</span>
+                            <span className="font-mono text-[10.5px] text-slate-400 ml-1.5 font-normal">({s.code})</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-bold text-slate-900">{formatPKR(s.standardRate)}</span>
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          <span className="font-bold text-slate-900 text-xs font-mono">{formatPKR(s.standardRate)}</span>
                           <button
                             type="button"
                             onClick={() => handleRemoveAdditionalService(s.id)}
-                            className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors"
+                            className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
                             title="Remove Service"
                           >
                             <X className="w-3.5 h-3.5" />

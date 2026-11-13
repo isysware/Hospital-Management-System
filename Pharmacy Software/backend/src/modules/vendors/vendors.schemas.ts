@@ -38,7 +38,7 @@ const packagingOverrideSchema = z.object({
 
 const purchaseLineSchema = z.object({
   medicineId: z.string().uuid(),
-  batchNumber: z.string().min(1).max(60),
+  batchNumber: z.string().max(60).optional().default(''),
   expiryDate: z.coerce.date(),
   /// medicine-packaging-plan — the unit this line was actually bought in (e.g. "Box"); must be a configured purchase unit for the medicine (or the override below).
   purchaseUnitId: z.string().uuid(),

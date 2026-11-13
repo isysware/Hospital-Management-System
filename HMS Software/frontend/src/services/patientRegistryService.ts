@@ -16,6 +16,7 @@ import {
 } from '../types/patient';
 import { User } from '../types';
 import { getPanelByCode, getPanelById } from './panelService';
+import { getSavedPatientDetails } from '../utils/patientSearchDetails';
 
 /**
  * Live Patient Registry service. This Super Admin screen is the
@@ -228,7 +229,9 @@ export interface PanelPatientSearchResult {
   cnicOrPassport?: string;
   phone?: string;
   guardianName?: string;
+  guardianCnic?: string;
   guardianRelation?: string;
+  weightKg?: number;
   dob?: string;
   gender?: string;
   addressLine1?: string;
@@ -260,11 +263,10 @@ export async function searchPanelPatients(query: string = '', panelId?: string):
     mrNumber: raw.mrNumber,
     cnicOrPassport: raw.cnicOrPassport || undefined,
     phone: raw.phone || undefined,
-    guardianName: raw.guardianName || undefined,
-    guardianRelation: raw.guardianRelation || undefined,
+    ...getSavedPatientDetails(raw),
     dob: raw.dob ? formatIsoDate(raw.dob) : undefined,
     gender: raw.gender || undefined,
-    addressLine1: raw.addressLine1 || raw.address || undefined,
+    addressLine1: [raw.addressLine1 || raw.address, raw.addressLine2, raw.city, raw.province, raw.country].filter(Boolean).join(', ') || undefined,
     city: raw.city || undefined,
     province: raw.province || undefined,
     country: raw.country || undefined,
@@ -290,8 +292,7 @@ export async function searchSelfPayPatients(query: string = ''): Promise<PanelPa
     mrNumber: raw.mrNumber,
     cnicOrPassport: raw.cnicOrPassport || undefined,
     phone: raw.phone || undefined,
-    guardianName: raw.guardianName || undefined,
-    guardianRelation: raw.guardianRelation || undefined,
+    ...getSavedPatientDetails(raw),
     dob: raw.dob ? formatIsoDate(raw.dob) : undefined,
     gender: raw.gender || undefined,
     addressLine1: raw.address || undefined,

@@ -31,12 +31,14 @@ interface PharmacyInvoiceModalProps {
   invoice: any;
   onClose: () => void;
   onUpdated?: (updatedInvoice: any) => void;
+  initialAction?: 'return' | 'payment';
 }
 
 export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
   invoice: initialInvoice,
   onClose,
   onUpdated,
+  initialAction,
 }) => {
   const toast = useToast();
   const [invoice, setInvoice] = useState(initialInvoice);
@@ -46,7 +48,7 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
   const [hmsTab, setHmsTab] = useState<'granular' | 'aggregated'>('granular');
 
   // Payment states
-  const [showAddPayment, setShowAddPayment] = useState(false);
+  const [showAddPayment, setShowAddPayment] = useState(initialAction === 'payment');
   const [payAmount, setPayAmount] = useState(
     Number(invoice.outstanding) > 0 ? String(invoice.outstanding) : ''
   );
@@ -54,7 +56,7 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
   const [paying, setPaying] = useState(false);
 
   // Return states
-  const [showReturn, setShowReturn] = useState(false);
+  const [showReturn, setShowReturn] = useState(initialAction === 'return');
   const [returnLines, setReturnLines] = useState<Record<string, { qty: string; restock: boolean }>>({});
   const [refundMethod, setRefundMethod] = useState<'CASH' | 'CARD' | 'ONLINE'>('CASH');
   const [returnReason, setReturnReason] = useState('');
@@ -438,6 +440,7 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
                           ? new Date(line.batch.expiryDate).toLocaleDateString('en-GB')
                           : '—';
                         const qty = Number(line.quantity || 0);
+                        const retQty = Number(line.returnedQuantity || 0);
                         const rate = Number(line.rateSnapshot || 0);
                         const disc = Number(line.discountAmount || 0);
                         const net = Number(line.lineNet || 0);
@@ -451,6 +454,11 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
                               <div className="font-bold text-slate-900">{medName}</div>
                               {medCode && (
                                 <div className="text-[10px] text-slate-400 font-mono">{medCode}</div>
+                              )}
+                              {retQty > 0 && (
+                                <span className="inline-block mt-0.5 text-[9.5px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded">
+                                  {retQty} returned
+                                </span>
                               )}
                             </td>
                             <td className="py-2 px-3 text-[11px] text-slate-600">
@@ -826,57 +834,74 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
             </div>
 
             <div className="space-y-2">
-              {invoice.lines?.map((line: any) => (
-                <div
-                  key={line.id}
-                  className="flex items-center justify-between bg-white p-2 rounded-lg border border-rose-200 text-xs"
-                >
-                  <div className="min-w-0 flex-1 pr-2">
-                    <span className="font-semibold text-slate-900">{line.medicine?.name}</span>
-                    <span className="text-slate-500 ml-2">
-                      (Billed: {Number(line.quantity)} @ PKR {Number(line.rateSnapshot)})
-                    </span>
-                  </div>
+              {invoice.lines?.map((line: any) => {
+                const billedQty = Number(line.quantity || 0);
+                const returnedQty = Number(line.returnedQuantity || 0);
+                const availableForReturn = Math.max(0, billedQty - returnedQty);
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <input
-                      type="number"
-                      min={0}
-                      max={Number(line.quantity)}
-                      placeholder="Qty"
-                      value={returnLines[line.id]?.qty ?? ''}
-                      onChange={(e) =>
-                        setReturnLines((prev) => ({
-                          ...prev,
-                          [line.id]: {
-                            qty: e.target.value,
-                            restock: prev[line.id]?.restock ?? true,
-                          },
-                        }))
-                      }
-                      className="w-20 h-7 px-2 text-xs border border-rose-300 rounded text-center font-bold"
-                    />
+                return (
+                  <div
+                    key={line.id}
+                    className="flex items-center justify-between bg-white p-2.5 rounded-lg border border-rose-200 text-xs"
+                  >
+                    <div className="min-w-0 flex-1 pr-2">
+                      <span className="font-semibold text-slate-900">{line.medicine?.name}</span>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        Billed: {billedQty} @ PKR {Number(line.rateSnapshot)}
+                        {returnedQty > 0 && (
+                          <span className="text-rose-600 font-semibold ml-2">
+                            ({returnedQty} already returned • {availableForReturn} left)
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-                    <label className="flex items-center gap-1 text-[11px] text-slate-600 select-none cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={returnLines[line.id]?.restock ?? true}
-                        onChange={(e) =>
-                          setReturnLines((prev) => ({
-                            ...prev,
-                            [line.id]: {
-                              qty: prev[line.id]?.qty ?? '',
-                              restock: e.target.checked,
-                            },
-                          }))
-                        }
-                        className="rounded text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <span>Restock</span>
-                    </label>
+                    {availableForReturn > 0 ? (
+                      <div className="flex items-center gap-3 shrink-0">
+                        <input
+                          type="number"
+                          min={0}
+                          max={availableForReturn}
+                          placeholder={`Max ${availableForReturn}`}
+                          value={returnLines[line.id]?.qty ?? ''}
+                          onChange={(e) =>
+                            setReturnLines((prev) => ({
+                              ...prev,
+                              [line.id]: {
+                                qty: e.target.value,
+                                restock: prev[line.id]?.restock ?? true,
+                              },
+                            }))
+                          }
+                          className="w-24 h-7 px-2 text-xs border border-rose-300 rounded text-center font-bold"
+                        />
+
+                        <label className="flex items-center gap-1 text-[11px] text-slate-600 select-none cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={returnLines[line.id]?.restock ?? true}
+                            onChange={(e) =>
+                              setReturnLines((prev) => ({
+                                ...prev,
+                                [line.id]: {
+                                  qty: prev[line.id]?.qty ?? '',
+                                  restock: e.target.checked,
+                                },
+                              }))
+                            }
+                            className="rounded text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span>Restock</span>
+                        </label>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">
+                        Fully Returned
+                      </span>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="flex items-center gap-2 pt-1">

@@ -33,6 +33,8 @@ interface CartLine {
   /// Quantity in `saleUnitId` terms (e.g. 2 Strips) — NOT necessarily base units.
   quantity: number;
   discountAmount: number;
+  discountType?: 'PKR' | 'PERCENT';
+  discountValue?: number;
 }
 
 interface PaymentRow {
@@ -78,6 +80,7 @@ export const PosPage: React.FC = () => {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [invoiceDiscount, setInvoiceDiscount] = useState('0');
+  const [invoiceDiscountType, setInvoiceDiscountType] = useState<'PKR' | 'PERCENT'>('PKR');
   const [payments, setPayments] = useState<PaymentRow[]>([{ method: 'CASH', amount: '' }]);
   const [paymentManuallyEdited, setPaymentManuallyEdited] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -203,6 +206,7 @@ export const PosPage: React.FC = () => {
     setCart([]);
     setCustomerName('');
     setInvoiceDiscount('0');
+    setInvoiceDiscountType('PKR');
     setPaymentManuallyEdited(false);
     setPayments([{ method: 'CASH', amount: '' }]);
   };
@@ -222,12 +226,18 @@ export const PosPage: React.FC = () => {
       lineDiscounts += disc;
       tax += lineTax;
     }
-    const invDiscount = Math.max(0, Number(invoiceDiscount) || 0);
-    const total = Math.max(0, subtotal - lineDiscounts + tax - invDiscount);
+    const enteredInvDiscount = Math.max(0, Number(invoiceDiscount) || 0);
+    const postLineSubtotal = Math.max(0, subtotal - lineDiscounts);
+    const calculatedInvDiscount =
+      invoiceDiscountType === 'PERCENT'
+        ? Math.min(postLineSubtotal, (postLineSubtotal * Math.min(100, enteredInvDiscount)) / 100)
+        : Math.min(postLineSubtotal, enteredInvDiscount);
+
+    const total = Math.max(0, subtotal - lineDiscounts + tax - calculatedInvDiscount);
     const paid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
     const outstanding = Math.max(0, total - paid);
-    return { subtotal, lineDiscounts, tax, invDiscount, total, paid, outstanding };
-  }, [cart, invoiceDiscount, payments]);
+    return { subtotal, lineDiscounts, tax, invDiscount: calculatedInvDiscount, rawInvDiscountInput: enteredInvDiscount, total, paid, outstanding };
+  }, [cart, invoiceDiscount, invoiceDiscountType, payments]);
 
   const addPaymentRow = () => {
     setPaymentManuallyEdited(true);
@@ -292,7 +302,7 @@ export const PosPage: React.FC = () => {
           saleUnitQuantity: l.quantity,
           discountAmount: l.discountAmount,
         })),
-        invoiceDiscount: Number(invoiceDiscount) || 0,
+        invoiceDiscount: totals.invDiscount,
         payments: validPayments.map((p) => ({ method: p.method, amount: Number(p.amount) })),
       });
       // Fetch full invoice with complete batch and relation data
@@ -764,20 +774,66 @@ export const PosPage: React.FC = () => {
                         )}
 
                         <div className="flex items-center gap-2 ml-auto">
-                          {/* Line Discount Input */}
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-slate-400">Disc:</span>
+                          {/* Line Discount Input with PKR / % Toggle */}
+                          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-md px-1 py-0.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newType = (line.discountType || 'PKR') === 'PKR' ? 'PERCENT' : 'PKR';
+                                const lineGross = line.quantity * conversionFor(line.medicine, line.saleUnitId) * effectiveBaseRateFor(line.medicine, line.saleUnitId);
+                                const currAmt = line.discountAmount || 0;
+                                let newAmt = currAmt;
+                                let newVal = line.discountValue || 0;
+
+                                if (newType === 'PERCENT') {
+                                  newVal = lineGross > 0 ? Math.min(100, Math.round((currAmt / lineGross) * 100)) : 0;
+                                  newAmt = Math.min(lineGross, (lineGross * newVal) / 100);
+                                } else {
+                                  newVal = currAmt;
+                                  newAmt = Math.min(lineGross, newVal);
+                                }
+
+                                updateLine(line.medicine.id, {
+                                  discountType: newType,
+                                  discountValue: newVal,
+                                  discountAmount: newAmt,
+                                });
+                              }}
+                              className="px-1 py-0.5 text-[9px] font-bold rounded bg-white text-slate-700 shadow-2xs hover:bg-[#0e7d5a] hover:text-white transition-all cursor-pointer"
+                              title="Click to toggle between PKR & %"
+                            >
+                              {(line.discountType || 'PKR') === 'PERCENT' ? '%' : 'Rs'}
+                            </button>
                             <input
                               type="number"
                               min={0}
-                              value={line.discountAmount || ''}
-                              onChange={(e) =>
-                                updateLine(line.medicine.id, {
-                                  discountAmount: Math.max(0, Number(e.target.value) || 0),
-                                })
+                              max={(line.discountType || 'PKR') === 'PERCENT' ? 100 : undefined}
+                              value={
+                                (line.discountType || 'PKR') === 'PERCENT'
+                                  ? (line.discountValue ?? '')
+                                  : (line.discountAmount || '')
                               }
+                              onChange={(e) => {
+                                const inputVal = Math.max(0, Number(e.target.value) || 0);
+                                const lineGross = line.quantity * conversionFor(line.medicine, line.saleUnitId) * effectiveBaseRateFor(line.medicine, line.saleUnitId);
+                                if ((line.discountType || 'PKR') === 'PERCENT') {
+                                  const clampedPct = Math.min(100, inputVal);
+                                  const calcAmount = Math.min(lineGross, (lineGross * clampedPct) / 100);
+                                  updateLine(line.medicine.id, {
+                                    discountType: 'PERCENT',
+                                    discountValue: clampedPct,
+                                    discountAmount: calcAmount,
+                                  });
+                                } else {
+                                  updateLine(line.medicine.id, {
+                                    discountType: 'PKR',
+                                    discountValue: inputVal,
+                                    discountAmount: Math.min(lineGross, inputVal),
+                                  });
+                                }
+                              }}
                               placeholder="0"
-                              className="w-14 h-6.5 text-right text-[11px] bg-slate-50 hover:bg-white border border-slate-200 rounded-md px-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#0e7d5a]"
+                              className="w-12 h-5.5 text-right text-[11px] bg-transparent text-slate-900 focus:outline-none"
                             />
                           </div>
 
@@ -834,18 +890,58 @@ export const PosPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
-                  <Tag className="h-3 w-3 text-slate-400" />
-                  Extra Discount (PKR)
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  value={invoiceDiscount}
-                  onChange={(e) => setInvoiceDiscount(e.target.value)}
-                  placeholder="0"
-                  className="w-full h-7.5 px-2.5 text-xs bg-slate-50 hover:bg-white border border-slate-200 rounded-lg text-right font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0e7d5a] focus:border-[#0e7d5a] transition-colors"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-semibold text-slate-600 flex items-center gap-1">
+                    <Tag className="h-3 w-3 text-slate-400" />
+                    Overall Discount
+                  </label>
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (invoiceDiscountType !== 'PKR') {
+                          setInvoiceDiscountType('PKR');
+                          setInvoiceDiscount(totals.invDiscount > 0 ? String(Math.round(totals.invDiscount)) : '0');
+                        }
+                      }}
+                      className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                        invoiceDiscountType === 'PKR' ? 'bg-[#0e7d5a] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      PKR
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (invoiceDiscountType !== 'PERCENT') {
+                          const baseSub = Math.max(0, totals.subtotal - totals.lineDiscounts);
+                          const pct = baseSub > 0 ? Math.min(100, Math.round((totals.invDiscount / baseSub) * 100)) : 0;
+                          setInvoiceDiscountType('PERCENT');
+                          setInvoiceDiscount(String(pct));
+                        }
+                      }}
+                      className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                        invoiceDiscountType === 'PERCENT' ? 'bg-[#0e7d5a] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      %
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    max={invoiceDiscountType === 'PERCENT' ? 100 : undefined}
+                    value={invoiceDiscount}
+                    onChange={(e) => setInvoiceDiscount(e.target.value)}
+                    placeholder="0"
+                    className="w-full h-7.5 pl-2.5 pr-8 text-xs bg-slate-50 hover:bg-white border border-slate-200 rounded-lg text-right font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0e7d5a] focus:border-[#0e7d5a] transition-colors"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none">
+                    {invoiceDiscountType === 'PERCENT' ? '%' : 'Rs'}
+                  </span>
+                </div>
               </div>
             </div>
 

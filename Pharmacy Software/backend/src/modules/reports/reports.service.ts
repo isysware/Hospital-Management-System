@@ -54,28 +54,43 @@ async function salesCollection(range?: { gte?: Date; lte?: Date }) {
     include: {
       dispensedByUser: { select: { fullName: true, role: true } },
       payments: { include: { collectedByUser: { select: { fullName: true } } } },
+      lines: { select: { returnedQuantity: true, returnedValue: true } },
     },
     orderBy: { createdAt: 'desc' },
     take: ROW_LIMIT,
   });
-  const rows = invoices.map((inv) => ({
-    invoiceNumber: inv.invoiceNumber,
-    channel: inv.channel,
-    customerName: inv.customerName,
-    subtotal: inv.subtotal,
-    discountTotal: inv.discountTotal,
-    taxTotal: inv.taxTotal,
-    total: inv.total,
-    paidTotal: inv.paidTotal,
-    outstanding: inv.outstanding,
-    status: inv.status,
-    soldBy: inv.dispensedByUser.fullName,
-    collectedBy: [...new Set(inv.payments.map((p) => p.collectedByUser.fullName))].join(', ') || null,
-    createdAt: inv.createdAt,
-  }));
+
+  const refunds = await prisma.cashLedgerEntry.findMany({
+    where: { category: 'REFUND', occurredAt: range },
+    select: { amount: true },
+  });
+  const totalRefundAmount = sumDecimal(refunds.map((r) => r.amount));
+
+  const rows = invoices.map((inv) => {
+    const totalReturnedVal = inv.lines.reduce((s, l) => s + Number(l.returnedValue || 0), 0);
+    return {
+      invoiceNumber: inv.invoiceNumber,
+      channel: inv.channel,
+      customerName: inv.customerName,
+      subtotal: inv.subtotal,
+      discountTotal: inv.discountTotal,
+      taxTotal: inv.taxTotal,
+      total: inv.total,
+      paidTotal: inv.paidTotal,
+      returnedTotal: totalReturnedVal,
+      outstanding: inv.outstanding,
+      status: inv.status,
+      soldBy: inv.dispensedByUser.fullName,
+      collectedBy: [...new Set(inv.payments.map((p) => p.collectedByUser.fullName))].join(', ') || null,
+      createdAt: inv.createdAt,
+    };
+  });
+
   const totals = {
     total: sumDecimal(invoices.map((i) => i.total)),
     paidTotal: sumDecimal(invoices.map((i) => i.paidTotal)),
+    totalRefunded: totalRefundAmount,
+    netCollected: sumDecimal(invoices.map((i) => i.paidTotal)) - totalRefundAmount,
     outstanding: sumDecimal(invoices.map((i) => i.outstanding)),
   };
   return { rows, totals };
@@ -199,15 +214,30 @@ async function returnRefund(range?: { gte?: Date; lte?: Date }) {
     orderBy: { occurredAt: 'desc' },
     take: ROW_LIMIT,
   });
-  const rows = refunds.map((r) => ({
-    referenceTable: r.referenceTable,
-    referenceId: r.referenceId,
-    amount: r.amount,
-    isPhysicalCash: r.isPhysicalCash,
-    reason: r.note,
-    processedBy: r.portalUser.fullName,
-    occurredAt: r.occurredAt,
-  }));
+
+  const invoiceIds = refunds.filter((r) => r.referenceTable === 'pharmacy_invoices' && r.referenceId).map((r) => r.referenceId as string);
+  const invoices = invoiceIds.length > 0
+    ? await prisma.pharmacyInvoice.findMany({
+        where: { id: { in: invoiceIds } },
+        select: { id: true, invoiceNumber: true, customerName: true },
+      })
+    : [];
+  const invoiceMap = new Map(invoices.map((i) => [i.id, i]));
+
+  const rows = refunds.map((r) => {
+    const inv = r.referenceId ? invoiceMap.get(r.referenceId) : null;
+    return {
+      returnReferenceNo: r.referenceNo,
+      invoiceNumber: inv?.invoiceNumber ?? '—',
+      customerName: inv?.customerName ?? 'Walk-in',
+      amount: r.amount,
+      isPhysicalCash: r.isPhysicalCash,
+      paymentMethod: r.isPhysicalCash ? 'CASH' : 'NON_CASH',
+      reason: r.note,
+      processedBy: r.portalUser.fullName,
+      occurredAt: r.occurredAt,
+    };
+  });
   const totals = { amount: sumDecimal(refunds.map((r) => r.amount)) };
   return { rows, totals };
 }

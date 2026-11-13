@@ -2,18 +2,24 @@ import { prisma } from '../db/client';
 import { AuthorizationError } from './errors/AppError';
 
 /**
- * Front Desk discretionary discounts are strictly restricted to Hospital
- * Services — Outsourced Lab / Radiology / Pharmacy charges can never be
- * discounted this way (those departments bill the hospital at cost; a
- * discount here would just move the loss onto the hospital's margin on
- * someone else's service). Shared by `invoices.service.ts` (OPD/encounter
- * invoices) and `admissionBilling.service.ts` (admission invoices) so the
- * eligibility rule can't drift between the two call sites.
+ * Evaluates whether an invoice line or service item is eligible for discount.
+ * All hospital services, doctor charges, room/bed charges, and encounter fees
+ * are eligible for discounts by default unless explicitly excluded (e.g. outsourced vendors).
  */
-export function isEligibleHospitalService(serviceRate: any): boolean {
-  return !!serviceRate && serviceRate.selectable === true &&
-    serviceRate.billingSource === 'HOSPITAL_SERVICE' &&
-    serviceRate.providerType === 'INTERNAL' && serviceRate.discountAllowed !== false;
+export function isEligibleHospitalService(serviceRateOrLine: any): boolean {
+  if (!serviceRateOrLine) return true;
+  // If a full line item is passed, or an object containing billingSource
+  if (serviceRateOrLine.billingSource === 'DOCTOR_CHARGE' || serviceRateOrLine.billingSource === 'ROOM_BED') {
+    return true;
+  }
+  // If serviceRate object has providerType OUTSOURCED, it can be excluded if desired, but internal is eligible
+  if (serviceRateOrLine.providerType === 'OUTSOURCED' || serviceRateOrLine.fulfillmentOwnership === 'OUTSOURCED') {
+    return false;
+  }
+  if (serviceRateOrLine.discountAllowed === false) {
+    return false;
+  }
+  return true;
 }
 
 export const DISCOUNT_APPROVAL_PERCENT_THRESHOLD = 15; // default fallback > 15% requires Admin approval

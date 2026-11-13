@@ -227,7 +227,24 @@ export const pharmacyService = {
       if (dup) throw new ConflictError(`Barcode "${rawBarcode}" already exists`);
     }
 
-    const { baseUnitId, baseIsPurchaseUnit, baseIsSaleUnit, packagingLevels, code: _c, barcode: _b, genericName: _g, strength: _s, dosageForm: _d, category: _cat, categoryId, ...rest } = body as any;
+    const {
+      baseUnitId,
+      baseIsPurchaseUnit,
+      baseIsSaleUnit,
+      packagingLevels,
+      code: _c,
+      barcode: _b,
+      genericName: _g,
+      strength: _s,
+      dosageForm: _d,
+      category: _cat,
+      categoryId,
+      openingStock,
+      openingBatchNumber,
+      openingExpiryDate,
+      openingCostRate,
+      ...rest
+    } = body as any;
 
     return prisma.$transaction(async (tx) => {
       const baseUnit = await tx.unit.findUnique({ where: { id: baseUnitId } });
@@ -278,6 +295,60 @@ export const pharmacyService = {
 
       // Throwing here (bad packaging level) rolls the whole transaction back — the medicine row never persists.
       await writePackagingLevels(tx, medicine.id, baseUnitId, baseIsPurchaseUnit, baseIsSaleUnit, packagingLevels);
+
+      // Handle direct Opening Stock (if provided)
+      const opStockNum = Number(openingStock) || 0;
+      if (opStockNum > 0) {
+        if (medicine.batchManaged) {
+          const batchNumber = openingBatchNumber?.trim() || '';
+          let expiryDate = openingExpiryDate ? new Date(openingExpiryDate) : null;
+          if (!expiryDate || isNaN(expiryDate.getTime())) {
+            expiryDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+          }
+          const costRate = openingCostRate !== undefined && openingCostRate !== null
+            ? new Decimal(openingCostRate)
+            : medicine.purchaseRate ?? medicine.saleRate.mul(0.8);
+
+          const batch = await tx.medicineBatch.create({
+            data: {
+              medicineId: medicine.id,
+              batchNumber,
+              expiryDate,
+              costRate,
+              saleRate: medicine.saleRate,
+              createdById: actorId,
+            },
+          });
+
+          await tx.stockLedgerEntry.create({
+            data: {
+              medicineId: medicine.id,
+              batchId: batch.id,
+              movementType: 'OPENING_STOCK',
+              quantityDelta: new Decimal(opStockNum),
+              referenceTable: 'opening_stock',
+              referenceId: batch.id,
+              note: `Opening stock on creation (${opStockNum} ${baseUnit.name})`,
+              actorId,
+            },
+          });
+        } else {
+          await tx.stockLedgerEntry.create({
+            data: {
+              medicineId: medicine.id,
+              batchId: null,
+              movementType: 'OPENING_STOCK',
+              quantityDelta: new Decimal(opStockNum),
+              referenceTable: 'opening_stock',
+              referenceId: medicine.id,
+              note: `Opening stock on creation (${opStockNum} ${baseUnit.name})`,
+              actorId,
+            },
+          });
+        }
+        await syncEffectiveSaleRate(medicine.id, tx);
+      }
+
       return medicine;
     });
   },
@@ -677,15 +748,42 @@ export const pharmacyService = {
 
     return prisma.$transaction(async (tx) => {
       let refundTotal = new Decimal(0);
+      let grossRefundTotal = new Decimal(0);
+      let taxRefundTotal = new Decimal(0);
+      let discountRefundTotal = new Decimal(0);
+
       for (const returnLine of body.lines) {
         const line = invoice.lines.find((l) => l.id === returnLine.invoiceLineId);
         if (!line) throw new NotFoundError(`Invoice line ${returnLine.invoiceLineId} not found on invoice ${invoice.invoiceNumber}`);
         const qty = new Decimal(returnLine.quantity);
-        if (qty.greaterThan(line.quantity)) throw new ValidationError(`Return quantity exceeds originally sold quantity (${line.quantity}) for this line`);
+        const previouslyReturned = line.returnedQuantity || new Decimal(0);
+        const remainingReturnable = line.quantity.minus(previouslyReturned);
+
+        if (qty.greaterThan(remainingReturnable)) {
+          throw new ValidationError(
+            `Return quantity (${qty}) exceeds remaining returnable quantity (${remainingReturnable}) for this line`
+          );
+        }
 
         const proportion = qty.div(line.quantity);
+        const lineGrossRefund = line.rateSnapshot.mul(qty);
+        const lineTaxRefund = line.taxAmount.mul(proportion);
+        const lineDiscountRefund = line.discountAmount.mul(proportion);
         const refundAmount = line.lineNet.mul(proportion);
+
+        grossRefundTotal = grossRefundTotal.plus(lineGrossRefund);
+        taxRefundTotal = taxRefundTotal.plus(lineTaxRefund);
+        discountRefundTotal = discountRefundTotal.plus(lineDiscountRefund);
         refundTotal = refundTotal.plus(refundAmount);
+
+        // Update returned metrics on line
+        await tx.pharmacyInvoiceLine.update({
+          where: { id: line.id },
+          data: {
+            returnedQuantity: previouslyReturned.plus(qty),
+            returnedValue: (line.returnedValue || new Decimal(0)).plus(refundAmount),
+          },
+        });
 
         if (returnLine.restock) {
           await tx.stockLedgerEntry.create({
@@ -715,11 +813,48 @@ export const pharmacyService = {
           isPhysicalCash: body.refundMethod === 'CASH',
           referenceTable: 'pharmacy_invoices',
           referenceId: invoice.id,
-          note: body.reason,
+          note: `${referenceNo}: ${body.reason}`,
         },
       });
 
-      return { invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, returnReferenceNo: referenceNo, refundTotal, refundMethod: body.refundMethod, cashLedgerEntryId: refund.id };
+      // Update invoice totals reflecting the reversal
+      const newSubtotal = Decimal.max(0, invoice.subtotal.minus(grossRefundTotal));
+      const newDiscountTotal = Decimal.max(0, invoice.discountTotal.minus(discountRefundTotal));
+      const newTaxTotal = Decimal.max(0, invoice.taxTotal.minus(taxRefundTotal));
+      const newTotal = Decimal.max(0, invoice.total.minus(refundTotal));
+      const newPaidTotal = Decimal.max(0, invoice.paidTotal.minus(refundTotal));
+      const newOutstanding = Decimal.max(0, newTotal.minus(newPaidTotal));
+      const newStatus = newTotal.isZero()
+        ? 'PAID'
+        : newOutstanding.isZero()
+        ? 'PAID'
+        : newPaidTotal.greaterThan(0)
+        ? 'PARTIALLY_PAID'
+        : 'UNPAID';
+
+      await tx.pharmacyInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          subtotal: newSubtotal,
+          discountTotal: newDiscountTotal,
+          taxTotal: newTaxTotal,
+          total: newTotal,
+          paidTotal: newPaidTotal,
+          outstanding: newOutstanding,
+          status: newStatus,
+        },
+      });
+
+      return {
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        returnReferenceNo: referenceNo,
+        refundTotal,
+        refundMethod: body.refundMethod,
+        cashLedgerEntryId: refund.id,
+        newTotal,
+        newPaidTotal,
+      };
     });
   },
 

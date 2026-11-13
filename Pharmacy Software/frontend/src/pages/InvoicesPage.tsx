@@ -29,6 +29,7 @@ export const InvoicesPage: React.FC = () => {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
+  const [modalInitialAction, setModalInitialAction] = useState<'return' | 'payment' | undefined>(undefined);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -212,17 +213,34 @@ export const InvoicesPage: React.FC = () => {
       key: 'actions',
       header: 'Actions',
       align: 'center',
-      width: '110px',
+      width: '160px',
       render: (inv) => (
-        <div className="flex items-center justify-center gap-1 whitespace-nowrap">
+        <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
           <button
             type="button"
-            onClick={() => setSelectedInvoice(inv)}
+            onClick={() => {
+              setModalInitialAction(undefined);
+              setSelectedInvoice(inv);
+            }}
             title="View & Print Pharmacy Invoice"
-            className="px-2 py-0.5 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+            className="px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
           >
             <Printer className="h-3 w-3" /> Print
           </button>
+
+          {inv.channel === 'RETAIL' && Number(inv.paidTotal || 0) > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setModalInitialAction('return');
+                setSelectedInvoice(inv);
+              }}
+              title="Return items & issue refund"
+              className="px-2 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <Undo2 className="h-3 w-3" /> Refund
+            </button>
+          )}
         </div>
       ),
     },
@@ -306,7 +324,11 @@ export const InvoicesPage: React.FC = () => {
       {selectedInvoice && (
         <PharmacyInvoiceModal
           invoice={selectedInvoice}
-          onClose={() => setSelectedInvoice(null)}
+          initialAction={modalInitialAction}
+          onClose={() => {
+            setSelectedInvoice(null);
+            setModalInitialAction(undefined);
+          }}
           onUpdated={(updated) => {
             setSelectedInvoice(updated);
             load();

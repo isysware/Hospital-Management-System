@@ -237,17 +237,19 @@ export const vendorsService = {
         if (!medicine) throw new NotFoundError(`Medicine ${line.medicineId} not found`);
         if (!medicine.isActive) throw new ValidationError(`"${medicine.name}" is inactive and cannot be purchased`);
 
+        const effectiveBatchNumber = line.batchNumber?.trim() || '';
+
         // ── Validate Expiry ────────────────────────────────────────────
-        if (line.expiryDate < today) throw new ValidationError(`Batch "${line.batchNumber}" expiry date (${line.expiryDate.toISOString().slice(0, 10)}) is in the past`);
+        if (line.expiryDate < today) throw new ValidationError(`Batch ${effectiveBatchNumber ? `"${effectiveBatchNumber}" ` : ''}expiry date (${line.expiryDate.toISOString().slice(0, 10)}) is in the past`);
 
         // ── Resolve Packaging (default or override) ───────────────────
         const packaging = await resolvePackaging(line, medicine, tx);
         const conversionToBase = packaging.conversionToBase;
 
         // ── Validate Batch — packaging snapshot integrity ─────────────
-        const existingBatch = await tx.medicineBatch.findUnique({ where: { medicineId_batchNumber: { medicineId: line.medicineId, batchNumber: line.batchNumber } } });
+        const existingBatch = await tx.medicineBatch.findUnique({ where: { medicineId_batchNumber: { medicineId: line.medicineId, batchNumber: effectiveBatchNumber } } });
         if (existingBatch?.purchaseUnitConversionToBase && !existingBatch.purchaseUnitConversionToBase.equals(conversionToBase)) {
-          throw new ValidationError(`Batch "${line.batchNumber}" was already received with a different pack size (1 unit = ${existingBatch.purchaseUnitConversionToBase} base units then, ${conversionToBase} now). Use a new batch number for this packaging.`);
+          throw new ValidationError(`Batch "${effectiveBatchNumber}" was already received with a different pack size (1 unit = ${existingBatch.purchaseUnitConversionToBase} base units then, ${conversionToBase} now). Use a new batch number for this packaging.`);
         }
 
         // ── Calculate Base Qty ─────────────────────────────────────────
@@ -271,9 +273,9 @@ export const vendorsService = {
         const finalSaleRate = line.finalSaleRate != null ? new Decimal(line.finalSaleRate) : suggestedSaleRate;
 
         const batch = await tx.medicineBatch.upsert({
-          where: { medicineId_batchNumber: { medicineId: line.medicineId, batchNumber: line.batchNumber } },
+          where: { medicineId_batchNumber: { medicineId: line.medicineId, batchNumber: effectiveBatchNumber } },
           create: {
-            medicineId: line.medicineId, batchNumber: line.batchNumber, expiryDate: line.expiryDate, costRate: effectiveCostPerBaseUnit, saleRate: finalSaleRate, createdById: actorId,
+            medicineId: line.medicineId, batchNumber: effectiveBatchNumber, expiryDate: line.expiryDate, costRate: effectiveCostPerBaseUnit, saleRate: finalSaleRate, createdById: actorId,
             purchaseUnitId: line.purchaseUnitId, purchaseUnitConversionToBase: conversionToBase, packagingSnapshotJson: packaging.snapshotChain,
           },
           update: { costRate: effectiveCostPerBaseUnit, saleRate: finalSaleRate },

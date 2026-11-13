@@ -71,7 +71,7 @@ export const invoicesService = {
         await tx.selfPayEncounter.update({
           where: { id: selfPayEncounterId },
           data: { weightKg: effectiveWeight },
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       if (body.panelPatientId) {
@@ -450,9 +450,9 @@ export const invoicesService = {
         const line = invoice.lines.find((l) => l.id === body.lineItemId);
         if (!line) throw new NotFoundError('Invoice line item not found');
 
-        if (!isEligibleHospitalService(line.serviceRate)) {
+        if (!isEligibleHospitalService(line.serviceRate || line)) {
           throw new ValidationError(
-            `Discounts are strictly restricted to Hospital Services. '${line.serviceRate?.name || 'This service'}' (Outsourced Lab / Radiology / Pharmacy) cannot receive discounts.`
+            `Discounts cannot be applied to this item.`
           );
         }
 
@@ -486,13 +486,13 @@ export const invoicesService = {
           },
         });
       } else {
-        // Invoice-wide discount distributed across eligible Hospital Services lines ONLY
-        const eligibleLines = invoice.lines.filter((l) => isEligibleHospitalService(l.serviceRate));
-        const nonEligibleLines = invoice.lines.filter((l) => !isEligibleHospitalService(l.serviceRate));
+        // Invoice-wide discount distributed across lines
+        const eligibleLines = invoice.lines.filter((l) => isEligibleHospitalService(l.serviceRate || l));
+        const nonEligibleLines = invoice.lines.filter((l) => !isEligibleHospitalService(l.serviceRate || l));
 
         if (eligibleLines.length === 0) {
           throw new ValidationError(
-            `Discounts are strictly restricted to Hospital Services. Invoices without eligible Hospital Services (Outsourced Lab / Pharmacy) cannot receive discounts.`
+            `Cannot apply discount to this invoice.`
           );
         }
 
@@ -506,7 +506,7 @@ export const invoicesService = {
 
         if (totalDiscAmt.greaterThan(eligibleGross)) {
           throw new ValidationError(
-            `Discount of PKR ${totalDiscAmt.toFixed(2)} exceeds total eligible Hospital Services charges of PKR ${eligibleGross.toFixed(2)}. Outsourced Lab, Radiology, and Pharmacy services cannot receive discounts.`
+            `Discount of PKR ${totalDiscAmt.toFixed(2)} exceeds total charges of PKR ${eligibleGross.toFixed(2)}.`
           );
         }
 
@@ -898,10 +898,12 @@ export const invoicesService = {
           const paid = Decimal.min(charge.patientPaid, remaining);
           remaining = Decimal.max(0, remaining.minus(paid));
           const outstanding = charge.patientOutstanding.plus(charge.patientPaid.minus(paid));
-          await tx.hmsPharmacyCharge.update({ where: { id: charge.id }, data: {
-            patientPaid: paid, patientOutstanding: outstanding,
-            patientPaymentStatus: outstanding.isZero() ? 'CLEARED' : paid.gt(0) ? 'PARTIALLY_COLLECTED' : 'PENDING',
-          } });
+          await tx.hmsPharmacyCharge.update({
+            where: { id: charge.id }, data: {
+              patientPaid: paid, patientOutstanding: outstanding,
+              patientPaymentStatus: outstanding.isZero() ? 'CLEARED' : paid.gt(0) ? 'PARTIALLY_COLLECTED' : 'PENDING',
+            }
+          });
           pharmacyNotifications.push({ pharmacyInvoiceNumber: charge.pharmacyInvoiceNumber, authoritativeCollectedAmount: Number(paid) });
         }
         await tx.dualDischargeClearance.updateMany({ where: { admissionRecordId: invoice.admissionRecordId, clearanceType: { in: ['HOSPITAL_BILLING', ...(charges.some(c => c.patientPaid.gt(0)) ? ['PHARMACY' as const] : [])] } }, data: { status: 'PENDING', clearedAt: null, clearedById: null } });
@@ -993,8 +995,8 @@ export const invoicesService = {
     const patientAge = invoice.panelPatient?.dob
       ? Math.max(0, new Date().getFullYear() - new Date(invoice.panelPatient.dob).getFullYear())
       : invoice.selfPayEncounter?.dob
-      ? Math.max(0, new Date().getFullYear() - new Date(invoice.selfPayEncounter.dob).getFullYear())
-      : null;
+        ? Math.max(0, new Date().getFullYear() - new Date(invoice.selfPayEncounter.dob).getFullYear())
+        : null;
 
     const patientGender = invoice.panelPatient?.gender ?? invoice.selfPayEncounter?.gender ?? null;
 
@@ -1002,10 +1004,10 @@ export const invoicesService = {
       invoice.weightKg != null
         ? Number(invoice.weightKg)
         : invoice.admissionRecord?.weightKg != null
-        ? Number(invoice.admissionRecord.weightKg)
-        : (invoice.selfPayEncounter as any)?.weightKg != null
-        ? Number((invoice.selfPayEncounter as any).weightKg)
-        : null;
+          ? Number(invoice.admissionRecord.weightKg)
+          : (invoice.selfPayEncounter as any)?.weightKg != null
+            ? Number((invoice.selfPayEncounter as any).weightKg)
+            : null;
 
     const filteredLines = invoice.lines.filter(
       (l) => invoice.sourceType !== 'ADMISSION' || l.serviceRate?.code !== 'ADM-ADVANCE'
@@ -1085,25 +1087,25 @@ export const invoicesService = {
       },
       patient: invoice.panelPatient
         ? {
-            type: 'PANEL',
-            name: invoice.panelPatient.fullName,
-            mrNumber: invoice.panelPatient.mrNumber,
-            phone: invoice.panelPatient.phone,
-            corporatePanel: invoice.panelPatient.corporatePanel.organizationName,
-            age: patientAge,
-            gender: patientGender,
-            weightKg: resolvedWeight,
-          }
+          type: 'PANEL',
+          name: invoice.panelPatient.fullName,
+          mrNumber: invoice.panelPatient.mrNumber,
+          phone: invoice.panelPatient.phone,
+          corporatePanel: invoice.panelPatient.corporatePanel.organizationName,
+          age: patientAge,
+          gender: patientGender,
+          weightKg: resolvedWeight,
+        }
         : {
-            type: 'SELF_PAY',
-            name: invoice.selfPayEncounter?.fullName ?? 'Walk-In Patient',
-            mrNumber: invoice.selfPayEncounter?.mrNumber ?? '',
-            phone: invoice.selfPayEncounter?.phone,
-            cnic: invoice.selfPayEncounter?.cnicOrPassport,
-            age: patientAge,
-            gender: patientGender,
-            weightKg: resolvedWeight,
-          },
+          type: 'SELF_PAY',
+          name: invoice.selfPayEncounter?.fullName ?? 'Walk-In Patient',
+          mrNumber: invoice.selfPayEncounter?.mrNumber ?? '',
+          phone: invoice.selfPayEncounter?.phone,
+          cnic: invoice.selfPayEncounter?.cnicOrPassport,
+          age: patientAge,
+          gender: patientGender,
+          weightKg: resolvedWeight,
+        },
       lines: lineItems.map((l) => ({
         id: l.lineId,
         billingSource: l.sourceType,
@@ -1166,15 +1168,15 @@ export const invoicesService = {
         { admissionRecord: { selfPayEncounter: { cnicOrPassport: { contains: s, mode: 'insensitive' } } } },
         ...(sDigits.length >= 4
           ? [
-              { panelPatient: { phone: { contains: sDigits, mode: 'insensitive' as const } } },
-              { panelPatient: { cnicOrPassport: { contains: sDigits, mode: 'insensitive' as const } } },
-              { selfPayEncounter: { phone: { contains: sDigits, mode: 'insensitive' as const } } },
-              { selfPayEncounter: { cnicOrPassport: { contains: sDigits, mode: 'insensitive' as const } } },
-              { admissionRecord: { panelPatient: { phone: { contains: sDigits, mode: 'insensitive' as const } } } },
-              { admissionRecord: { panelPatient: { cnicOrPassport: { contains: sDigits, mode: 'insensitive' as const } } } },
-              { admissionRecord: { selfPayEncounter: { phone: { contains: sDigits, mode: 'insensitive' as const } } } },
-              { admissionRecord: { selfPayEncounter: { cnicOrPassport: { contains: sDigits, mode: 'insensitive' as const } } } },
-            ]
+            { panelPatient: { phone: { contains: sDigits, mode: 'insensitive' as const } } },
+            { panelPatient: { cnicOrPassport: { contains: sDigits, mode: 'insensitive' as const } } },
+            { selfPayEncounter: { phone: { contains: sDigits, mode: 'insensitive' as const } } },
+            { selfPayEncounter: { cnicOrPassport: { contains: sDigits, mode: 'insensitive' as const } } },
+            { admissionRecord: { panelPatient: { phone: { contains: sDigits, mode: 'insensitive' as const } } } },
+            { admissionRecord: { panelPatient: { cnicOrPassport: { contains: sDigits, mode: 'insensitive' as const } } } },
+            { admissionRecord: { selfPayEncounter: { phone: { contains: sDigits, mode: 'insensitive' as const } } } },
+            { admissionRecord: { selfPayEncounter: { cnicOrPassport: { contains: sDigits, mode: 'insensitive' as const } } } },
+          ]
           : []),
       ];
     }
@@ -1294,14 +1296,14 @@ export const invoicesService = {
       invoice.weightKg != null
         ? Number(invoice.weightKg)
         : invoice.admissionRecord?.weightKg != null
-        ? Number(invoice.admissionRecord.weightKg)
-        : (invoice.selfPayEncounter as any)?.weightKg != null
-        ? Number((invoice.selfPayEncounter as any).weightKg)
-        : (() => {
-            const allNotes = String(invoice.notes || invoice.admissionRecord?.notes || invoice.appointment?.notes || '');
-            const m = allNotes.match(/weight[:\s]+([0-9]+(?:\.[0-9]+)?)/i);
-            return m && m[1] ? Number(m[1]) : null;
-          })();
+          ? Number(invoice.admissionRecord.weightKg)
+          : (invoice.selfPayEncounter as any)?.weightKg != null
+            ? Number((invoice.selfPayEncounter as any).weightKg)
+            : (() => {
+              const allNotes = String(invoice.notes || invoice.admissionRecord?.notes || invoice.appointment?.notes || '');
+              const m = allNotes.match(/weight[:\s]+([0-9]+(?:\.[0-9]+)?)/i);
+              return m && m[1] ? Number(m[1]) : null;
+            })();
 
     return {
       ...invoice,
@@ -1330,14 +1332,14 @@ export const invoicesService = {
       await prisma.selfPayEncounter.update({
         where: { id: invoice.selfPayEncounterId },
         data: { weightKg: dec },
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     if (invoice.admissionRecordId) {
       await prisma.admissionRecord.update({
         where: { id: invoice.admissionRecordId },
         data: { weightKg: dec },
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     return {

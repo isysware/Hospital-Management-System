@@ -146,6 +146,8 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   // Discount form state
   const [discountPercent, setDiscountPercent] = useState<number | ''>('');
   const [discountAmount, setDiscountAmount] = useState<number | ''>('');
+  const [fastDiscountMode, setFastDiscountMode] = useState<'PKR' | 'PERCENT'>('PKR');
+  const [fastDiscountValue, setFastDiscountValue] = useState<number | ''>('');
   const [discountReason, setDiscountReason] = useState('');
 
   // Payment form state
@@ -207,16 +209,21 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
 
   const eligibleHospitalServicesGross = useMemo(() => {
     if (!invoice) return 0;
+    // Calculate total discountable gross across all invoice lines (doctor charges, room/bed, hospital services)
     if (!invoice.lines || invoice.lines.length === 0) {
-      const dept = (invoice.departmentName || '').toLowerCase();
-      if (dept.includes('lab') || dept.includes('pharmacy')) return 0;
-      return invoice.subtotal || 0;
+      return invoice.subtotal || invoice.total || 0;
     }
-    return invoice.lines
+    const eligibleSum = invoice.lines
       .filter((l: any) => {
-        return l.billingSource === 'HOSPITAL_SERVICE' && l.discountAllowed !== false;
+        // Exclude strictly outsourced services if explicitly marked
+        if (l.fulfillmentOwnership === 'OUTSOURCED' || l.providerType === 'OUTSOURCED' || l.discountAllowed === false) {
+          return false;
+        }
+        return true;
       })
       .reduce((sum: number, l: any) => sum + (l.lineGross || 0), 0);
+
+    return eligibleSum > 0 ? eligibleSum : (invoice.subtotal || invoice.total || 0);
   }, [invoice]);
 
   const hasHospitalServices = eligibleHospitalServicesGross > 0;
@@ -1199,42 +1206,111 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* 1. Discount (Cursor lands here first if not Lab/Pharmacy!) */}
-                <NumberInput
-                  id="modal-discount-input"
-                  label={isDiscountDisabled ? "Discount (Not Permitted)" : "Discount (PKR)"}
-                  min={0}
-                  max={eligibleHospitalServicesGross}
-                  placeholder={isDiscountDisabled ? "N/A" : "0"}
-                  value={isDiscountDisabled ? '' : discountAmount}
-                  disabled={isDiscountDisabled || isFullyPaid}
-                  onChange={(e) => {
-                    if (isDiscountDisabled) return;
-                    const val = e.target.value === '' ? '' : Number(e.target.value);
-                    setDiscountAmount(val);
-                    if (!paymentAmountTouched) {
-                      const disc = typeof val === 'number' ? val : 0;
-                      setPaymentAmount(Math.max(0, invoice.balanceDue - disc));
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const payInput = document.getElementById('modal-payment-input') as HTMLInputElement | null;
-                      if (payInput) {
-                        payInput.focus();
-                        payInput.select();
-                      }
-                    }
-                  }}
-                  hint={
-                    isDiscountDisabled
+                {/* 1. Discount with % / PKR Mode Switch */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label htmlFor="modal-discount-input" className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      <span>{isDiscountDisabled ? "Discount (Not Permitted)" : "Discount"}</span>
+                      {!isDiscountDisabled && fastDiscountMode === 'PERCENT' && typeof discountAmount === 'number' && discountAmount > 0 && (
+                        <span className="text-[10px] font-semibold text-emerald-700">({formatPKR(discountAmount)})</span>
+                      )}
+                    </label>
+                    {!isDiscountDisabled && !isFullyPaid && (
+                      <div className="flex items-center bg-white p-0.5 rounded border border-[#c2e7db]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (fastDiscountMode !== 'PKR') {
+                              setFastDiscountMode('PKR');
+                              const pkrVal = typeof discountAmount === 'number' && discountAmount > 0 ? discountAmount : '';
+                              setFastDiscountValue(pkrVal);
+                            }
+                          }}
+                          className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                            fastDiscountMode === 'PKR' ? 'bg-[#08775A] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          PKR
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (fastDiscountMode !== 'PERCENT') {
+                              setFastDiscountMode('PERCENT');
+                              const pct =
+                                typeof discountAmount === 'number' && eligibleHospitalServicesGross > 0
+                                  ? Math.min(100, Math.round((discountAmount / eligibleHospitalServicesGross) * 100))
+                                  : '';
+                              setFastDiscountValue(pct);
+                            }
+                          }}
+                          className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                            fastDiscountMode === 'PERCENT' ? 'bg-[#08775A] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          %
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="modal-discount-input"
+                      type="number"
+                      min={0}
+                      max={fastDiscountMode === 'PERCENT' ? 100 : eligibleHospitalServicesGross}
+                      placeholder={isDiscountDisabled ? "N/A" : "0"}
+                      value={isDiscountDisabled ? '' : fastDiscountValue}
+                      disabled={isDiscountDisabled || isFullyPaid}
+                      onChange={(e) => {
+                        if (isDiscountDisabled) return;
+                        const raw = e.target.value === '' ? '' : Math.max(0, Number(e.target.value));
+                        setFastDiscountValue(raw);
+
+                        let calculatedAmt: number | '' = '';
+                        if (typeof raw === 'number' && raw > 0) {
+                          if (fastDiscountMode === 'PERCENT') {
+                            const pctClamped = Math.min(100, raw);
+                            calculatedAmt = Math.min(
+                              eligibleHospitalServicesGross,
+                              Math.round((eligibleHospitalServicesGross * pctClamped) / 100)
+                            );
+                          } else {
+                            calculatedAmt = Math.min(eligibleHospitalServicesGross, raw);
+                          }
+                        }
+                        setDiscountAmount(calculatedAmt);
+                        if (!paymentAmountTouched) {
+                          const disc = typeof calculatedAmt === 'number' ? calculatedAmt : 0;
+                          setPaymentAmount(Math.max(0, invoice.balanceDue - disc));
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const payInput = document.getElementById('modal-payment-input') as HTMLInputElement | null;
+                          if (payInput) {
+                            payInput.focus();
+                            payInput.select();
+                          }
+                        }
+                      }}
+                      className="block w-full text-xs px-2.5 py-2 pl-2.5 pr-8 border border-[#c2e7db] rounded-lg bg-white text-[#111827] font-medium focus:outline-none focus:ring-2 focus:ring-[#08775A]/20 focus:border-[#08775A] disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors"
+                    />
+                    {!isDiscountDisabled && (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none">
+                        {fastDiscountMode === 'PERCENT' ? '%' : 'Rs'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    {isDiscountDisabled
                       ? "Discounts strictly restricted to Hospital Services (No discount on Lab/Pharmacy)."
                       : eligibleHospitalServicesGross < invoice.subtotal
-                        ? `Discount applies to Hospital Services only (Max ${formatPKR(eligibleHospitalServicesGross)}). Outsourced Lab/Pharmacy cannot be discounted.`
-                        : "Enter to advance to Amount Paid"
-                  }
-                />
+                        ? `Discount applies to Hospital Services only (Max ${formatPKR(eligibleHospitalServicesGross)}).`
+                        : "Enter to advance to Amount Paid"}
+                  </div>
+                </div>
 
                 {/* 2. Amount Paid (Enter on this triggers payment submission!) */}
                 <NumberInput

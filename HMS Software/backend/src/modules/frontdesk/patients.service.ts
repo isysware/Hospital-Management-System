@@ -254,8 +254,16 @@ export const patientsService = {
   },
 
   listSelfPayEncounters(search?: string) {
+    const include = {
+      admissions: {
+        select: { notes: true, weightKg: true },
+        orderBy: { createdAt: 'desc' as const },
+        take: 1,
+      },
+    };
     if (!search || !search.trim()) {
       return prisma.selfPayEncounter.findMany({
+        include,
         orderBy: { createdAt: 'desc' },
         take: 50,
       });
@@ -263,6 +271,7 @@ export const patientsService = {
     const s = search.trim();
     const sDigits = s.replace(/\D/g, '');
     return prisma.selfPayEncounter.findMany({
+      include,
       where: {
         OR: [
           { fullName: { contains: s, mode: 'insensitive' } },

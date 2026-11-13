@@ -88,9 +88,11 @@ async function writePackagingLevels(
 export interface BatchAllocation {
   batchId: string | null;
   quantity: Decimal;
+  saleRate: Decimal;
+  costRate: Decimal;
 }
 
-/** pharmacy.md §9.1 FEFO — earliest valid expiry first, skips expired/zero-stock batches. Shared by POS and (later) HMS dispense. */
+/** FEFO (earliest valid expiry first) with FIFO tie-breaker (oldest batch first), skipping expired/zero-stock batches. */
 async function allocateFefoBatches(
   medicineId: string,
   requestedQuantity: Decimal,
@@ -100,7 +102,7 @@ async function allocateFefoBatches(
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('pharmacy-stock'))`;
   const medicine = await tx.medicineMaster.findUnique({
     where: { id: medicineId },
-    include: { batches: { orderBy: { expiryDate: 'asc' }, include: { stockEntries: { select: { quantityDelta: true } } } } },
+    include: { batches: { orderBy: [{ expiryDate: 'asc' }, { createdAt: 'asc' }], include: { stockEntries: { select: { quantityDelta: true } } } } },
   });
   if (!medicine || !medicine.isActive) throw new NotFoundError(`Medicine ${medicineId} not found or inactive`);
 
@@ -111,14 +113,24 @@ async function allocateFefoBatches(
     if (total.lessThan(requestedQuantity)) {
       throw new ValidationError(`Insufficient stock for "${medicine.name}". Available: ${total}, Requested: ${requestedQuantity}`);
     }
-    return [{ batchId: null, quantity: requestedQuantity }];
+    return [{
+      batchId: null,
+      quantity: requestedQuantity,
+      saleRate: medicine.saleRate,
+      costRate: medicine.purchaseRate ?? new Decimal(0),
+    }];
   }
 
   const now = new Date();
   const withStock = medicine.batches
     .filter((b) => b.expiryDate > now)
-    .map((b) => ({ id: b.id, available: b.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new Decimal(0))
-      .minus(reserved.filter(r => r.medicineId === medicineId && r.batchId === b.id).reduce((sum, r) => sum.plus(r.quantity), new Decimal(0))) }))
+    .map((b) => ({
+      id: b.id,
+      saleRate: b.saleRate ?? medicine.saleRate,
+      costRate: b.costRate,
+      available: b.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new Decimal(0))
+        .minus(reserved.filter(r => r.medicineId === medicineId && r.batchId === b.id).reduce((sum, r) => sum.plus(r.quantity), new Decimal(0))),
+    }))
     .filter((b) => b.available.greaterThan(0));
 
   let remaining = requestedQuantity;
@@ -126,7 +138,12 @@ async function allocateFefoBatches(
   for (const batch of withStock) {
     if (remaining.lessThanOrEqualTo(0)) break;
     const take = remaining.lessThan(batch.available) ? remaining : batch.available;
-    allocations.push({ batchId: batch.id, quantity: take });
+    allocations.push({
+      batchId: batch.id,
+      quantity: take,
+      saleRate: batch.saleRate,
+      costRate: batch.costRate,
+    });
     remaining = remaining.minus(take);
   }
   if (remaining.greaterThan(0)) {
@@ -136,6 +153,38 @@ async function allocateFefoBatches(
   return allocations;
 }
 
+/**
+ * Syncs `medicineMaster.saleRate` to the active FEFO/FIFO batch's selling price
+ * (the earliest-expiring, oldest-created non-expired batch with stock > 0).
+ * Keeps Medicine Master display/fallback pricing aligned with the next batch to dispense.
+ */
+async function syncEffectiveSaleRate(medicineId: string, tx: Prisma.TransactionClient): Promise<void> {
+  const medicine = await tx.medicineMaster.findUnique({
+    where: { id: medicineId },
+    include: {
+      batches: {
+        orderBy: [{ expiryDate: 'asc' }, { createdAt: 'asc' }],
+        include: { stockEntries: { select: { quantityDelta: true } } },
+      },
+    },
+  });
+  if (!medicine || !medicine.batchManaged) return;
+
+  const now = new Date();
+  const activeBatch = medicine.batches.find((b) => {
+    if (b.expiryDate <= now) return false;
+    const available = b.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new Decimal(0));
+    return available.greaterThan(0);
+  });
+
+  if (activeBatch && activeBatch.saleRate !== null && !medicine.saleRate.equals(activeBatch.saleRate)) {
+    await tx.medicineMaster.update({
+      where: { id: medicineId },
+      data: { saleRate: activeBatch.saleRate },
+    });
+  }
+}
+
 async function currentStock(medicineId: string): Promise<Decimal> {
   const entries = await prisma.stockLedgerEntry.findMany({ where: { medicineId }, select: { quantityDelta: true } });
   return entries.reduce((s, e) => s.plus(e.quantityDelta), new Decimal(0));
@@ -143,6 +192,7 @@ async function currentStock(medicineId: string): Promise<Decimal> {
 
 export const pharmacyService = {
   allocateFefoBatches,
+  syncEffectiveSaleRate,
 
   /** Preview only — not reserved. See `peekNextCode` doc comment. */
   async peekNextMedicineCode() {
@@ -358,7 +408,7 @@ export const pharmacyService = {
   },
 
   async getMedicineBatches(medicineId: string) {
-    const batches = await prisma.medicineBatch.findMany({ where: { medicineId }, include: { stockEntries: { select: { quantityDelta: true } }, purchaseUnit: true }, orderBy: { expiryDate: 'asc' } });
+    const batches = await prisma.medicineBatch.findMany({ where: { medicineId }, include: { stockEntries: { select: { quantityDelta: true } }, purchaseUnit: true }, orderBy: [{ expiryDate: 'asc' }, { createdAt: 'asc' }] });
     const now = new Date();
     return batches.map((b) => ({
       id: b.id,
@@ -437,6 +487,7 @@ export const pharmacyService = {
           actorId,
         },
       });
+      await syncEffectiveSaleRate(body.medicineId, tx);
       return adjustment;
     });
   },
@@ -463,14 +514,16 @@ export const pharmacyService = {
         if (!packagingLevel) throw new ValidationError(`Selected unit is not configured as a sale unit for "${medicine.name}"`);
         const conversionToBase = packagingLevel.conversionToBase;
         const reqQty = new Decimal(reqLine.saleUnitQuantity).mul(conversionToBase);
-        const saleRate = packagingLevel.overrideSaleRate ? packagingLevel.overrideSaleRate.div(conversionToBase) : medicine.saleRate;
+        const overrideSaleRate = packagingLevel.overrideSaleRate ? packagingLevel.overrideSaleRate.div(conversionToBase) : null;
         const lineDiscount = new Decimal(reqLine.discountAmount || 0);
         const allocations = await allocateFefoBatches(medicine.id, reqQty, tx, stockDeductions);
-        if (lineDiscount.greaterThan(reqQty.mul(saleRate))) throw new ValidationError('Line discount exceeds medicine value');
+        const lineGrossTotal = allocations.reduce((sum, a) => sum.plus(a.quantity.mul(overrideSaleRate ?? a.saleRate)), new Decimal(0));
+        if (lineDiscount.greaterThan(lineGrossTotal)) throw new ValidationError('Line discount exceeds medicine value');
 
         for (let i = 0; i < allocations.length; i++) {
           const alloc = allocations[i]!;
-          const allocGross = alloc.quantity.mul(saleRate);
+          const allocSaleRate = overrideSaleRate ?? alloc.saleRate;
+          const allocGross = alloc.quantity.mul(allocSaleRate);
           const allocDiscount = lineDiscount.mul(alloc.quantity).div(reqQty);
           const taxable = allocGross.minus(allocDiscount);
           const allocTax = taxable.mul(medicine.taxPercent).div(100);
@@ -484,7 +537,7 @@ export const pharmacyService = {
             medicineId: medicine.id,
             batchId: alloc.batchId,
             quantity: alloc.quantity,
-            rateSnapshot: saleRate,
+            rateSnapshot: allocSaleRate,
             discountAmount: allocDiscount,
             taxAmount: allocTax,
             lineNet: allocNet,
@@ -544,6 +597,10 @@ export const pharmacyService = {
         await tx.stockLedgerEntry.create({
           data: { medicineId: d.medicineId, batchId: d.batchId, movementType: 'POS_SALE_OUT', quantityDelta: d.quantity.negated(), referenceTable: 'pharmacy_invoices', referenceId: invoice.id, actorId },
         });
+      }
+      const uniqueMedIds = Array.from(new Set(stockDeductions.map((d) => d.medicineId)));
+      for (const medId of uniqueMedIds) {
+        await syncEffectiveSaleRate(medId, tx);
       }
 
       if (paidTotal.greaterThan(0)) {
@@ -643,6 +700,7 @@ export const pharmacyService = {
               actorId,
             },
           });
+          await syncEffectiveSaleRate(line.medicineId, tx);
         }
       }
 

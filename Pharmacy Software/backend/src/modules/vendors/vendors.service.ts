@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/db/client';
 import { NotFoundError, ConflictError, ValidationError } from '@/shared/errors/AppError';
 import { nextCode, peekNextCode, SEQUENCE } from '@/shared/sequence';
+import { pharmacyService } from '../pharmacy/pharmacy.service';
 import type { CreateVendorBody, UpdateVendorBody, PayVendorBody, CreatePurchaseBody, PurchaseReturnBody } from './vendors.schemas';
 
 /** pharmacy.md §10.3 — Opening + Purchases - Payments - Returns/Credits +/- Adjustments = Closing. */
@@ -327,9 +328,10 @@ export const vendorsService = {
             data: { medicineId: line.medicineId, batchId: line.batchId, movementType: 'PURCHASE_IN', quantityDelta: line.quantity, referenceTable: 'purchases', referenceId: purchase.id, actorId },
           });
         }
-        // Store selling price default — medicine.saleRate is what POS/HMS dispense actually read; batch.saleRate above keeps the historical snapshot for this exact batch.
-        for (const [medicineId, saleRate] of medicineSaleRateUpdates) {
-          await tx.medicineMaster.update({ where: { id: medicineId }, data: { saleRate } });
+        // FEFO/FIFO: keep medicineMaster.saleRate synced to the earliest active batch's selling price instead of blindly overwriting with the newest batch.
+        const touchedMedicineIds = new Set(lineRows.map((l) => l.medicineId));
+        for (const medicineId of touchedMedicineIds) {
+          await pharmacyService.syncEffectiveSaleRate(medicineId, tx);
         }
         await tx.vendorLedgerEntry.create({
           data: { vendorId: body.vendorId, entryType: 'PURCHASE_CREDIT', amount: total, referenceNo: purchaseNumber, description: `Purchase ${purchaseNumber}`, referenceTable: 'purchases', referenceId: purchase.id, actorId },
@@ -359,9 +361,10 @@ export const vendorsService = {
         await tx.stockLedgerEntry.create({
           data: { medicineId: line.medicineId, batchId: line.batchId, movementType: 'PURCHASE_IN', quantityDelta: line.quantity, referenceTable: 'purchases', referenceId: purchase.id, actorId },
         });
-        if (line.finalSaleRate) {
-          await tx.medicineMaster.update({ where: { id: line.medicineId }, data: { saleRate: line.finalSaleRate } });
-        }
+      }
+      const touchedMedicineIds = new Set(purchase.lines.map((l) => l.medicineId));
+      for (const medicineId of touchedMedicineIds) {
+        await pharmacyService.syncEffectiveSaleRate(medicineId, tx);
       }
       await tx.vendorLedgerEntry.create({
         data: { vendorId: purchase.vendorId, entryType: 'PURCHASE_CREDIT', amount: purchase.total, referenceNo: purchase.purchaseNumber, description: `Purchase ${purchase.purchaseNumber}`, referenceTable: 'purchases', referenceId: purchase.id, actorId },
@@ -442,6 +445,10 @@ export const vendorsService = {
         await tx.stockLedgerEntry.create({
           data: { medicineId: d.medicineId, batchId: d.batchId, movementType: 'PURCHASE_RETURN_OUT', quantityDelta: d.quantity.negated(), referenceTable: 'purchase_returns', referenceId: body.vendorId, note: `${referenceNo}: ${body.reason}`, actorId },
         });
+      }
+      const touchedMedicineIds = new Set(stockDeductions.map((d) => d.medicineId));
+      for (const medicineId of touchedMedicineIds) {
+        await pharmacyService.syncEffectiveSaleRate(medicineId, tx);
       }
       return tx.vendorLedgerEntry.create({
         data: { vendorId: body.vendorId, entryType: 'RETURN_CREDIT', amount: total.negated(), referenceNo, description: body.reason, referenceTable: 'purchase_returns', referenceId: body.vendorId, actorId },

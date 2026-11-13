@@ -38,12 +38,12 @@ export const MANAGEMENT_NAV: NavGroup[] = [
     title: 'MAIN MENU',
     items: [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'pos', label: 'Sales & POS', icon: ShoppingCart },
       { id: 'medicines', label: 'Inventory & Catalog', icon: Pill },
       { id: 'stock-movements', label: 'Stock Movements', icon: RotateCcw },
       { id: 'purchases', label: 'Purchase Orders', icon: Package },
       { id: 'stock-in', label: 'New Purchase / Stock In', icon: PackagePlus },
       { id: 'vendors', label: 'Suppliers Directory', icon: Truck },
-      { id: 'pos', label: 'Sales & POS', icon: ShoppingCart },
       { id: 'invoices', label: 'Sales Invoices', icon: Receipt },
       { id: 'hms-requests', label: 'Prescriptions (HMS)', icon: FileText },
     ],
@@ -58,6 +58,8 @@ export const MANAGEMENT_NAV: NavGroup[] = [
       { id: 'expenses', label: 'Operating Expenses', icon: CreditCard },
     ],
   },
+
+
   {
     id: 'reports',
     title: 'REPORTS',

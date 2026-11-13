@@ -262,7 +262,43 @@ export const hmsRequestsService = {
 
   async estimatedValue(requestId: string): Promise<Decimal> {
     const lines = await prisma.medicineRequestLine.findMany({ where: { medicineRequestId: requestId }, include: { medicine: true } });
-    return lines.reduce((sum, l) => sum.plus(l.requestedQuantity.mul(l.medicine.saleRate)), new Decimal(0));
+    if (lines.length === 0) return new Decimal(0);
+
+    const medicineIds = [...new Set(lines.map((l) => l.medicineId))];
+    const now = new Date();
+    const batches = await prisma.medicineBatch.findMany({
+      where: { medicineId: { in: medicineIds }, expiryDate: { gt: now } },
+      orderBy: [{ expiryDate: 'asc' }, { createdAt: 'asc' }],
+      include: { stockEntries: { select: { quantityDelta: true } } },
+    });
+
+    const poolByMed = new Map<string, Array<{ remaining: Decimal; saleRate: Decimal | null }>>();
+    for (const b of batches) {
+      const available = b.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new Decimal(0));
+      if (available.lte(0)) continue;
+      const list = poolByMed.get(b.medicineId) ?? [];
+      list.push({ remaining: available, saleRate: b.saleRate });
+      poolByMed.set(b.medicineId, list);
+    }
+
+    let total = new Decimal(0);
+    for (const l of lines) {
+      let needed = new Decimal(l.requestedQuantity);
+      const medBatches = poolByMed.get(l.medicineId) ?? [];
+      for (const b of medBatches) {
+        if (needed.lte(0)) break;
+        if (b.remaining.lte(0)) continue;
+        const take = Decimal.min(needed, b.remaining);
+        const rate = b.saleRate ?? l.medicine.saleRate;
+        total = total.plus(take.mul(rate));
+        b.remaining = b.remaining.minus(take);
+        needed = needed.minus(take);
+      }
+      if (needed.gt(0)) {
+        total = total.plus(needed.mul(l.medicine.saleRate));
+      }
+    }
+    return total;
   },
 
   // ── Approvals & Rejections ────────────────────────────────────────────────
@@ -327,7 +363,7 @@ export const hmsRequestsService = {
 
         const allocations = await pharmacyService.allocateFefoBatches(medicine.id, qty, tx);
         for (const alloc of allocations) {
-          const gross = alloc.quantity.mul(medicine.saleRate);
+          const gross = alloc.quantity.mul(alloc.saleRate);
           const tax = gross.mul(medicine.taxPercent).div(100);
           subtotal = subtotal.plus(gross);
           taxTotal = taxTotal.plus(tax);
@@ -335,7 +371,7 @@ export const hmsRequestsService = {
             medicineId: medicine.id,
             batchId: alloc.batchId,
             quantity: alloc.quantity,
-            rateSnapshot: medicine.saleRate,
+            rateSnapshot: alloc.saleRate,
             discountAmount: 0,
             taxAmount: tax,
             lineNet: gross.plus(tax),
@@ -438,6 +474,10 @@ export const hmsRequestsService = {
             actorId,
           },
         });
+      }
+      const touchedMedicineIds = new Set(stockDeductions.map((d) => d.medicineId));
+      for (const medicineId of touchedMedicineIds) {
+        await pharmacyService.syncEffectiveSaleRate(medicineId, tx);
       }
 
       const allLines = await tx.medicineRequestLine.findMany({ where: { medicineRequestId: id } });

@@ -1,3 +1,4 @@
+import { PaymentAccountSelect } from '../components/PaymentAccountSelect';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Plus,
@@ -56,7 +57,9 @@ export const StockInPage: React.FC<Props> = ({ prefill, onConsumedPrefill }) => 
   const [vendorId, setVendorId] = useState('');
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
   const [vendorInvoiceNo, setVendorInvoiceNo] = useState('');
-  const [paymentType, setPaymentType] = useState<'CASH' | 'CARD' | 'ONLINE' | ''>('');
+  const [paymentType, setPaymentType] = useState<'CASH' | 'CARD' | 'ONLINE' | 'BANK' | ''>('');
+  const [purchaseRequestKey, setPurchaseRequestKey] = useState(() => crypto.randomUUID());
+  const [paymentAccountId, setPaymentAccountId] = useState('');
   const [paidNow, setPaidNow] = useState('0');
   const [lines, setLines] = useState<PurchaseLineState[]>([emptyPurchaseLine()]);
   const [saving, setSaving] = useState<'draft' | 'post' | 'postPrint' | null>(null);
@@ -100,6 +103,8 @@ export const StockInPage: React.FC<Props> = ({ prefill, onConsumedPrefill }) => 
   const removeLine = (idx: number) => setLines((prev) => prev.filter((_, i) => i !== idx));
 
   const resetForm = () => {
+    setPurchaseRequestKey(crypto.randomUUID());
+    setPaymentAccountId('');
     setVendorId('');
     setVendorInvoiceNo('');
     setPaymentType('');
@@ -180,9 +185,11 @@ export const StockInPage: React.FC<Props> = ({ prefill, onConsumedPrefill }) => 
     if (validLines.length === 0) return null;
     return {
       vendorId,
+      requestKey: purchaseRequestKey,
       purchaseDate,
       vendorInvoiceNo: vendorInvoiceNo || undefined,
       paymentType: paymentType || undefined,
+      paymentAccountId: paymentType === 'CASH' ? undefined : paymentAccountId || undefined,
       paidNow: Number(paidNow) || 0,
       post,
       lines: validLines.map((l) => {
@@ -411,6 +418,7 @@ export const StockInPage: React.FC<Props> = ({ prefill, onConsumedPrefill }) => 
             </div>
           </div>
 
+          {paymentType && paymentType !== "CASH" && <PaymentAccountSelect value={paymentAccountId} onChange={setPaymentAccountId} />}
           <div className="w-48">
             <label className="block text-[10.5px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
               <CreditCard className="h-3 w-3 text-slate-400" />

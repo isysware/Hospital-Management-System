@@ -1,3 +1,4 @@
+import { incomeExpenseReport } from './incomeExpense';
 import { financialReport, loadFinancialData } from './financialRecognition';
 import { prisma } from '@/db/client';
 import { ValidationError } from '@/shared/errors/AppError';
@@ -27,6 +28,8 @@ export const reportsService = {
   async run(query: ReportQuery) {
     const range = dateRange(query);
     switch (query.type) {
+      case 'INCOME_EXPENSE':
+        return incomeExpenseReport(prisma, range);
       case 'SALES_COLLECTION':
         return financialReport(await loadFinancialData(), range, query);
       case 'HMS_DISPENSE':

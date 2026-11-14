@@ -35461,7 +35461,24 @@ var pharmacyService = {
       const dup = await prisma.medicineMaster.findFirst({ where: { barcode: rawBarcode } });
       if (dup) throw new ConflictError(`Barcode "${rawBarcode}" already exists`);
     }
-    const { baseUnitId, baseIsPurchaseUnit, baseIsSaleUnit, packagingLevels, code: _c, barcode: _b, genericName: _g, strength: _s, dosageForm: _d, category: _cat, categoryId, ...rest } = body;
+    const {
+      baseUnitId,
+      baseIsPurchaseUnit,
+      baseIsSaleUnit,
+      packagingLevels,
+      code: _c,
+      barcode: _b,
+      genericName: _g,
+      strength: _s,
+      dosageForm: _d,
+      category: _cat,
+      categoryId,
+      openingStock,
+      openingBatchNumber,
+      openingExpiryDate,
+      openingCostRate,
+      ...rest
+    } = body;
     return prisma.$transaction(async (tx) => {
       const baseUnit = await tx.unit.findUnique({ where: { id: baseUnitId } });
       if (!baseUnit) throw new NotFoundError("Base unit not found");
@@ -35505,6 +35522,53 @@ var pharmacyService = {
         }
       });
       await writePackagingLevels(tx, medicine.id, baseUnitId, baseIsPurchaseUnit, baseIsSaleUnit, packagingLevels);
+      const opStockNum = Number(openingStock) || 0;
+      if (opStockNum > 0) {
+        if (medicine.batchManaged) {
+          const batchNumber = openingBatchNumber?.trim() || "";
+          let expiryDate = openingExpiryDate ? new Date(openingExpiryDate) : null;
+          if (!expiryDate || isNaN(expiryDate.getTime())) {
+            expiryDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1e3);
+          }
+          const costRate = openingCostRate !== void 0 && openingCostRate !== null ? new import_library.Decimal(openingCostRate) : medicine.purchaseRate ?? medicine.saleRate.mul(0.8);
+          const batch = await tx.medicineBatch.create({
+            data: {
+              medicineId: medicine.id,
+              batchNumber,
+              expiryDate,
+              costRate,
+              saleRate: medicine.saleRate,
+              createdById: actorId
+            }
+          });
+          await tx.stockLedgerEntry.create({
+            data: {
+              medicineId: medicine.id,
+              batchId: batch.id,
+              movementType: "OPENING_STOCK",
+              quantityDelta: new import_library.Decimal(opStockNum),
+              referenceTable: "opening_stock",
+              referenceId: batch.id,
+              note: `Opening stock on creation (${opStockNum} ${baseUnit.name})`,
+              actorId
+            }
+          });
+        } else {
+          await tx.stockLedgerEntry.create({
+            data: {
+              medicineId: medicine.id,
+              batchId: null,
+              movementType: "OPENING_STOCK",
+              quantityDelta: new import_library.Decimal(opStockNum),
+              referenceTable: "opening_stock",
+              referenceId: medicine.id,
+              note: `Opening stock on creation (${opStockNum} ${baseUnit.name})`,
+              actorId
+            }
+          });
+        }
+        await syncEffectiveSaleRate(medicine.id, tx);
+      }
       return medicine;
     });
   },
@@ -35564,7 +35628,16 @@ var pharmacyService = {
     const [medicines, settings] = await Promise.all([
       prisma.medicineMaster.findMany({
         where: query.search ? { OR: [{ name: { contains: query.search, mode: "insensitive" } }, { code: { contains: query.search, mode: "insensitive" } }, { barcode: { contains: query.search, mode: "insensitive" } }] } : void 0,
-        include: { batches: true, stockEntries: { select: { quantityDelta: true } }, baseUnit: true, category: true, packagingLevels: { include: { unit: true }, orderBy: { level: "asc" } } },
+        include: {
+          batches: {
+            include: { stockEntries: { select: { quantityDelta: true } } },
+            orderBy: [{ expiryDate: "asc" }, { createdAt: "asc" }]
+          },
+          stockEntries: { select: { quantityDelta: true } },
+          baseUnit: true,
+          category: true,
+          packagingLevels: { include: { unit: true }, orderBy: { level: "asc" } }
+        },
         orderBy: { name: "asc" }
       }),
       getSettings()
@@ -35577,6 +35650,17 @@ var pharmacyService = {
       const isOut = stock.lessThanOrEqualTo(0);
       const hasExpired = m.batches.some((b) => b.expiryDate <= now);
       const hasNearExpiry = m.batches.some((b) => b.expiryDate > now && b.expiryDate <= nearExpiryCutoff);
+      const activeBatches = m.batches.filter((b) => b.expiryDate > now).map((b) => {
+        const avail = b.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new import_library.Decimal(0));
+        return {
+          id: b.id,
+          batchNumber: b.batchNumber,
+          expiryDate: b.expiryDate,
+          saleRate: b.saleRate ?? m.saleRate,
+          costRate: b.costRate,
+          available: avail
+        };
+      }).filter((b) => b.available.greaterThan(0));
       return {
         id: m.id,
         code: m.code,
@@ -35601,6 +35685,7 @@ var pharmacyService = {
         isActive: m.isActive,
         currentStock: stock,
         batchesCount: m.batches.length,
+        activeBatches,
         isLowStock: isLow && !isOut,
         isOutOfStock: isOut,
         hasExpiredBatch: hasExpired,
@@ -35738,6 +35823,7 @@ var pharmacyService = {
             batchId: alloc.batchId,
             quantity: alloc.quantity,
             rateSnapshot: allocSaleRate,
+            costRateSnapshot: alloc.costRate,
             discountAmount: allocDiscount,
             taxAmount: allocTax,
             lineNet: allocNet,
@@ -35849,19 +35935,53 @@ var pharmacyService = {
     });
   },
   // ── Sales Return (pharmacy.md §9.1 SALES_RETURN_IN) ─────────────────────
-  async salesReturn(body, actorId) {
-    const invoice = await prisma.pharmacyInvoice.findUnique({ where: { id: body.invoiceId }, include: { lines: true } });
-    if (!invoice) throw new NotFoundError("Invoice not found");
-    return prisma.$transaction(async (tx) => {
+  async salesReturn(body, actorId, transaction) {
+    const execute = async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${body.invoiceId}))`;
+      const invoice = await tx.pharmacyInvoice.findUnique({ where: { id: body.invoiceId }, include: { lines: { include: { batch: true } } } });
+      if (!invoice) throw new NotFoundError("Invoice not found");
+      if (invoice.channel === "HMS_LINKED") throw new ValidationError2("HMS-linked returns require the HMS billing/refund workflow; no pharmacy drawer refund is permitted.");
+      if (new Set(body.lines.map((l) => l.invoiceLineId)).size !== body.lines.length) throw new ValidationError2("Duplicate return line");
+      if (body.requestKey) {
+        const previous = await tx.pharmacyFinancialEvent.findUnique({ where: { eventKey: "return:" + body.requestKey } });
+        if (previous) throw new ConflictError("This return request has already been posted");
+      }
+      let returnedCost = new import_library.Decimal(0);
       let refundTotal = new import_library.Decimal(0);
+      let grossRefundTotal = new import_library.Decimal(0);
+      let taxRefundTotal = new import_library.Decimal(0);
+      let discountRefundTotal = new import_library.Decimal(0);
       for (const returnLine of body.lines) {
         const line = invoice.lines.find((l) => l.id === returnLine.invoiceLineId);
         if (!line) throw new NotFoundError(`Invoice line ${returnLine.invoiceLineId} not found on invoice ${invoice.invoiceNumber}`);
         const qty = new import_library.Decimal(returnLine.quantity);
-        if (qty.greaterThan(line.quantity)) throw new ValidationError2(`Return quantity exceeds originally sold quantity (${line.quantity}) for this line`);
+        const previouslyReturned = line.returnedQuantity || new import_library.Decimal(0);
+        const remainingReturnable = line.quantity.minus(previouslyReturned);
+        if (qty.greaterThan(remainingReturnable)) {
+          throw new ValidationError2(
+            `Return quantity (${qty}) exceeds remaining returnable quantity (${remainingReturnable}) for this line`
+          );
+        }
         const proportion = qty.div(line.quantity);
-        const refundAmount = line.lineNet.mul(proportion);
+        const lineGrossRefund = line.rateSnapshot.mul(qty);
+        const lineTaxRefund = line.taxAmount.mul(proportion);
+        const lineDiscountRefund = line.discountAmount.mul(proportion);
+        const originalTotal = invoice.total.plus(invoice.lines.reduce((sum, l) => sum.plus(l.returnedValue), new import_library.Decimal(0)));
+        const originalLinesNet = invoice.lines.reduce((sum, l) => sum.plus(l.lineNet), new import_library.Decimal(0));
+        const invoiceDiscountShare = originalLinesNet.gt(0) ? import_library.Decimal.max(0, originalLinesNet.minus(originalTotal)).mul(line.lineNet).div(originalLinesNet).mul(proportion) : new import_library.Decimal(0);
+        const refundAmount = line.lineNet.mul(proportion).minus(invoiceDiscountShare).toDecimalPlaces(2);
+        if (returnLine.restock) returnedCost = returnedCost.plus(qty.mul(line.costRateSnapshot ?? line.batch?.costRate ?? 0));
+        grossRefundTotal = grossRefundTotal.plus(lineGrossRefund);
+        taxRefundTotal = taxRefundTotal.plus(lineTaxRefund);
+        discountRefundTotal = discountRefundTotal.plus(lineDiscountRefund).plus(invoiceDiscountShare);
         refundTotal = refundTotal.plus(refundAmount);
+        await tx.pharmacyInvoiceLine.update({
+          where: { id: line.id },
+          data: {
+            returnedQuantity: previouslyReturned.plus(qty),
+            returnedValue: (line.returnedValue || new import_library.Decimal(0)).plus(refundAmount)
+          }
+        });
         if (returnLine.restock) {
           await tx.stockLedgerEntry.create({
             data: {
@@ -35878,22 +35998,68 @@ var pharmacyService = {
           await syncEffectiveSaleRate(line.medicineId, tx);
         }
       }
+      const cashRefund = import_library.Decimal.min(refundTotal, invoice.paidTotal);
       const referenceNo = await nextCode(tx, SEQUENCE.RETURN);
       const refund = await tx.cashLedgerEntry.create({
         data: {
           portalUserId: actorId,
           direction: "OUT",
-          amount: refundTotal,
+          amount: cashRefund,
           category: "REFUND",
           referenceNo,
           isPhysicalCash: body.refundMethod === "CASH",
           referenceTable: "pharmacy_invoices",
           referenceId: invoice.id,
-          note: body.reason
+          note: `${referenceNo}: ${body.reason}`
         }
       });
-      return { invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, returnReferenceNo: referenceNo, refundTotal, refundMethod: body.refundMethod, cashLedgerEntryId: refund.id };
-    });
+      await tx.pharmacyFinancialEvent.create({ data: {
+        invoiceId: invoice.id,
+        eventKey: body.requestKey ? "return:" + body.requestKey : referenceNo,
+        kind: "RETURN",
+        occurredAt: refund.occurredAt,
+        collectionDelta: cashRefund.negated(),
+        saleDelta: refundTotal.negated(),
+        taxDelta: taxRefundTotal.negated(),
+        grossDelta: grossRefundTotal.negated(),
+        discountDelta: discountRefundTotal.negated(),
+        costDelta: returnedCost.negated(),
+        method: body.refundMethod,
+        actorId,
+        reference: refund.id
+      } });
+      const newSubtotal = import_library.Decimal.max(0, invoice.subtotal.minus(grossRefundTotal));
+      const newDiscountTotal = import_library.Decimal.max(0, invoice.discountTotal.minus(discountRefundTotal));
+      const newTaxTotal = import_library.Decimal.max(0, invoice.taxTotal.minus(taxRefundTotal));
+      const newTotal = import_library.Decimal.max(0, invoice.total.minus(refundTotal));
+      const newPaidTotal = import_library.Decimal.max(0, invoice.paidTotal.minus(cashRefund));
+      const newOutstanding = import_library.Decimal.max(0, newTotal.minus(newPaidTotal));
+      const newStatus = newTotal.isZero() ? "PAID" : newOutstanding.isZero() ? "PAID" : newPaidTotal.greaterThan(0) ? "PARTIALLY_PAID" : "UNPAID";
+      await tx.pharmacyInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          subtotal: newSubtotal,
+          discountTotal: newDiscountTotal,
+          taxTotal: newTaxTotal,
+          total: newTotal,
+          paidTotal: newPaidTotal,
+          outstanding: newOutstanding,
+          status: newStatus
+        }
+      });
+      return {
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        returnReferenceNo: referenceNo,
+        refundTotal: cashRefund,
+        returnedSaleAmount: refundTotal,
+        refundMethod: body.refundMethod,
+        cashLedgerEntryId: refund.id,
+        newTotal,
+        newPaidTotal
+      };
+    };
+    return transaction ? execute(transaction) : prisma.$transaction(execute);
   },
   async getInvoiceById(id) {
     const invoice = await prisma.pharmacyInvoice.findUnique({
@@ -36089,11 +36255,9 @@ var pharmacyService = {
                 expiryDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1e3);
               }
               const costRate = purchaseRatePerBase !== null ? purchaseRatePerBase : saleRatePerBase * 0.8;
-              let batch = await tx.medicineBatch.findUnique({
-                where: {
-                  medicineId_batchNumber: { medicineId, batchNumber }
-                }
-              });
+              let batch = batchNumber ? await tx.medicineBatch.findFirst({
+                where: { medicineId, batchNumber }
+              }) : null;
               if (!batch) {
                 batch = await tx.medicineBatch.create({
                   data: {
@@ -36262,7 +36426,12 @@ var createMedicineBodySchema = external_exports.object({
   reorderLevel: external_exports.coerce.number().nonnegative().default(0),
   purchaseRate: external_exports.coerce.number().nonnegative().optional(),
   saleRate: external_exports.coerce.number().nonnegative().default(0),
-  taxPercent: external_exports.coerce.number().min(0).max(100).default(0)
+  taxPercent: external_exports.coerce.number().min(0).max(100).default(0),
+  /// Opening Stock fields (optional initial lot when registering a new medicine)
+  openingStock: external_exports.coerce.number().nonnegative().optional(),
+  openingBatchNumber: external_exports.string().max(60).optional(),
+  openingExpiryDate: external_exports.coerce.date().optional(),
+  openingCostRate: external_exports.coerce.number().nonnegative().optional()
 });
 var updateMedicineBodySchema = createMedicineBodySchema.partial().extend({
   isActive: external_exports.boolean().optional()
@@ -36272,7 +36441,7 @@ var listMedicinesQuerySchema = external_exports.object({
   stockStatus: external_exports.enum(["LOW", "OUT", "NEAR_EXPIRY", "EXPIRED"]).optional()
 });
 var createBatchBodySchema = external_exports.object({
-  batchNumber: external_exports.string().min(1).max(60),
+  batchNumber: external_exports.string().max(60).optional().default(""),
   expiryDate: external_exports.coerce.date(),
   costRate: external_exports.coerce.number().nonnegative(),
   saleRate: external_exports.coerce.number().nonnegative().optional()
@@ -36313,6 +36482,7 @@ var stockAdjustmentBodySchema = external_exports.object({
   reason: external_exports.string().min(1).max(500)
 });
 var salesReturnBodySchema = external_exports.object({
+  requestKey: external_exports.string().uuid().optional(),
   invoiceId: external_exports.string().uuid(),
   lines: external_exports.array(external_exports.object({ invoiceLineId: external_exports.string().uuid(), quantity: external_exports.coerce.number().positive(), restock: external_exports.boolean().default(true) })).min(1),
   reason: external_exports.string().min(1).max(500),
@@ -36417,6 +36587,7 @@ setInterval(() => {
 }, 25e3).unref();
 
 // src/modules/hms-requests/hms-requests.service.ts
+var import_node_crypto4 = require("node:crypto");
 var import_library2 = require("@prisma/client/runtime/library");
 
 // src/shared/hmsBridgeClient.ts
@@ -36820,6 +36991,7 @@ var hmsRequestsService = {
             batchId: alloc.batchId,
             quantity: alloc.quantity,
             rateSnapshot: alloc.saleRate,
+            costRateSnapshot: alloc.costRate,
             discountAmount: 0,
             taxAmount: tax,
             lineNet: gross.plus(tax),
@@ -36977,67 +37149,29 @@ var hmsRequestsService = {
   },
   // ── Patient Front Desk Collection Callback ────────────────────────────────
   async handlePatientCollected(body) {
-    const invoice = await prisma.pharmacyInvoice.findUnique({
-      where: { invoiceNumber: body.pharmacyInvoiceNumber }
-    });
-    if (!invoice) throw new NotFoundError(`Invoice ${body.pharmacyInvoiceNumber} not found`);
-    const collectedAmt = new import_library2.Decimal(body.collectedAmount);
-    const newCollectedTotal = invoice.hmsCollectedAmount.plus(collectedAmt);
-    const newReceivable = newCollectedTotal.minus(invoice.hmsSettledAmount);
-    const isFullyCollected = newCollectedTotal.greaterThanOrEqualTo(invoice.total);
-    return prisma.pharmacyInvoice.update({
-      where: { id: invoice.id },
-      data: {
-        hmsCollectedAmount: newCollectedTotal,
-        hmsReceivable: import_library2.Decimal.max(0, newReceivable),
-        internalSettlementStatus: newReceivable.greaterThan(0) ? "PENDING" : "SETTLED",
-        // Only CLEARED once the patient's full pharmacy share is actually
-        // collected at Front Desk — a partial collection must stay
-        // OUTSTANDING (integration.md §1.3 dual-clearance rule), otherwise
-        // Pharmacy staff see a false "Cleared" badge on a half-paid invoice.
-        clearanceStatus: isFullyCollected ? "CLEARED" : "OUTSTANDING",
-        paidTotal: newCollectedTotal,
-        outstanding: import_library2.Decimal.max(0, invoice.total.minus(newCollectedTotal)),
-        status: isFullyCollected ? "PAID" : "PARTIALLY_PAID"
-      }
-    });
+    if (!body.receiptNumber || !body.collectedAt || !Number.isFinite(Date.parse(body.collectedAt)))
+      throw new ValidationError2("A stable HMS receipt number and actual collection date are required");
+    return recordHmsCollection(
+      body.pharmacyInvoiceNumber,
+      new import_library2.Decimal(body.collectedAmount),
+      false,
+      body.receiptNumber,
+      new Date(body.collectedAt),
+      body.method,
+      body.collectedBy
+    );
   },
-  // ── Reconcile HMS Collection (manual resync, idempotent) ──────────────────
-  /**
-   * `handlePatientCollected` above is additive (delta per collection event) —
-   * fine for the normal webhook path, but if that webhook silently fails
-   * (Pharmacy backend unreachable at that moment, a transient network error,
-   * etc.) there is no automatic retry, and `hmsCollectedAmount`/`hmsReceivable`
-   * are stuck wrong forever even though HMS already correctly recorded the
-   * collection on its own side (`HmsPharmacyCharge.patientPaid`). This SETS
-   * `hmsCollectedAmount` to that authoritative value instead of adding to it,
-   * so HMS's "Resync to Pharmacy" action can be retried safely any number of
-   * times without double-counting.
-   */
   async reconcileHmsCollected(body) {
-    const invoice = await prisma.pharmacyInvoice.findUnique({
-      where: { invoiceNumber: body.pharmacyInvoiceNumber }
-    });
-    if (!invoice) throw new NotFoundError(`Invoice ${body.pharmacyInvoiceNumber} not found`);
-    const authoritative = new import_library2.Decimal(body.authoritativeCollectedAmount);
-    const newReceivable = authoritative.minus(invoice.hmsSettledAmount);
-    const isFullyCollected = authoritative.greaterThanOrEqualTo(invoice.total);
-    return prisma.pharmacyInvoice.update({
-      where: { id: invoice.id },
-      data: {
-        hmsCollectedAmount: authoritative,
-        hmsReceivable: import_library2.Decimal.max(0, newReceivable),
-        // Never clobber an in-flight settlement request/release with this
-        // resync — only move status when nothing is already being tracked.
-        internalSettlementStatus: invoice.internalSettlementStatus === "REQUESTED" || invoice.internalSettlementStatus === "PARTIALLY_RELEASED" ? invoice.internalSettlementStatus : newReceivable.greaterThan(0) ? "PENDING" : "SETTLED",
-        clearanceStatus: isFullyCollected ? "CLEARED" : "OUTSTANDING",
-        paidTotal: authoritative,
-        outstanding: import_library2.Decimal.max(0, invoice.total.minus(authoritative)),
-        status: isFullyCollected ? "PAID" : authoritative.greaterThan(0) ? "PARTIALLY_PAID" : "UNPAID"
-      }
-    });
+    return recordHmsCollection(
+      body.pharmacyInvoiceNumber,
+      new import_library2.Decimal(body.authoritativeCollectedAmount),
+      true,
+      body.receiptNumber,
+      body.collectedAt ? new Date(body.collectedAt) : void 0,
+      body.method,
+      body.collectedBy
+    );
   },
-  // ── Request Settlement from HMS ───────────────────────────────────────────
   async createSettlementRequest(body, actorId) {
     const invoice = await prisma.pharmacyInvoice.findUnique({
       where: { invoiceNumber: body.invoiceNumber },
@@ -37203,6 +37337,50 @@ var hmsRequestsService = {
     }
   }
 };
+async function recordHmsCollection(invoiceNumber, amount, authoritative, receipt, occurredAt, method, actorId, transaction) {
+  const execute = async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceNumber}))`;
+    const invoice = await tx.pharmacyInvoice.findUnique({ where: { invoiceNumber } });
+    if (!invoice) throw new NotFoundError("Pharmacy invoice not found");
+    if (invoice.channel !== "HMS_LINKED") throw new ValidationError2("HMS collection must reference an HMS-linked invoice");
+    const key = receipt ? "hms:" + invoice.id + ":" + receipt : null;
+    if (key) {
+      const previous = await tx.pharmacyFinancialEvent.findUnique({ where: { eventKey: key } });
+      if (previous) {
+        if (!authoritative && !previous.collectionDelta.equals(amount) || previous.occurredAt?.getTime() !== occurredAt?.getTime()) throw new ConflictError("HMS receipt identity reused with different values");
+        return invoice;
+      }
+      if (invoice.processedCollectionReceipts.includes(receipt)) return invoice;
+    }
+    const delta = authoritative ? amount.minus(invoice.hmsCollectedAmount) : amount;
+    if (delta.isZero()) return invoice;
+    const collected = invoice.hmsCollectedAmount.plus(delta);
+    if (collected.lt(0)) throw new ValidationError2("HMS collection reversal exceeds collected amount");
+    await tx.pharmacyFinancialEvent.create({ data: {
+      invoiceId: invoice.id,
+      eventKey: key ?? "hms-reconcile:" + invoice.id + ":" + (0, import_node_crypto4.randomUUID)(),
+      kind: "HMS_COLLECTION",
+      occurredAt: occurredAt ?? null,
+      collectionDelta: delta,
+      method,
+      actorId,
+      reference: receipt
+    } });
+    const receivable = import_library2.Decimal.max(0, collected.minus(invoice.hmsSettledAmount));
+    const full = collected.gte(invoice.total);
+    return tx.pharmacyInvoice.update({ where: { id: invoice.id }, data: {
+      hmsCollectedAmount: collected,
+      hmsReceivable: receivable,
+      paidTotal: collected,
+      outstanding: import_library2.Decimal.max(0, invoice.total.minus(collected)),
+      status: full ? "PAID" : collected.gt(0) ? "PARTIALLY_PAID" : "UNPAID",
+      clearanceStatus: full ? "CLEARED" : invoice.clearanceStatus === "APPROVED_CREDIT" ? "APPROVED_CREDIT" : "OUTSTANDING",
+      ...receipt ? { processedCollectionReceipts: { push: receipt } } : {},
+      internalSettlementStatus: ["REQUESTED", "PARTIALLY_RELEASED"].includes(invoice.internalSettlementStatus ?? "") ? invoice.internalSettlementStatus : receivable.gt(0) ? "PENDING" : "SETTLED"
+    } });
+  };
+  return transaction ? execute(transaction) : prisma.$transaction(execute);
+}
 
 // src/modules/hms-requests/hms-requests.controller.ts
 var hmsRequestsController = {
@@ -37321,7 +37499,9 @@ var updateSettingsBodySchema = external_exports.object({
 });
 var patientCollectedCallbackSchema = external_exports.object({
   pharmacyInvoiceNumber: external_exports.string().min(1),
-  collectedAmount: external_exports.coerce.number().positive(),
+  collectedAmount: external_exports.coerce.number().refine((v) => v !== 0, "Collection delta cannot be zero"),
+  method: external_exports.string().max(40).optional(),
+  collectedBy: external_exports.string().max(150).optional(),
   collectedAt: external_exports.string().optional(),
   receiptNumber: external_exports.string().optional()
 });
@@ -37331,6 +37511,10 @@ var createSettlementRequestBodySchema = external_exports.object({
   remarks: external_exports.string().max(500).optional()
 });
 var reconcileCollectionBodySchema = external_exports.object({
+  collectedAt: external_exports.string().datetime().optional(),
+  receiptNumber: external_exports.string().optional(),
+  method: external_exports.string().max(40).optional(),
+  collectedBy: external_exports.string().max(150).optional(),
   pharmacyInvoiceNumber: external_exports.string().min(1),
   authoritativeCollectedAmount: external_exports.coerce.number().nonnegative()
 });
@@ -37370,6 +37554,65 @@ var hms_requests_routes_default = router5;
 
 // src/modules/vendors/vendors.routes.ts
 var import_express6 = __toESM(require_express2());
+
+// src/modules/vendors/vendors.service.ts
+var import_node_crypto5 = require("node:crypto");
+
+// src/modules/vendors/vendorPayments.ts
+var import_client8 = require("@prisma/client");
+async function validatePaymentAccount(tx, method, accountId) {
+  if (!method) throw new ValidationError2("A payment method is required for a paid purchase");
+  if (method === "CASH") {
+    if (accountId) throw new ValidationError2("Cash payments cannot debit a bank account");
+    return;
+  }
+  if (!accountId || !await tx.paymentAccount.findFirst({ where: { id: accountId, isActive: true } })) {
+    throw new ValidationError2("Select an active payment account for a non-cash payment");
+  }
+}
+async function postVendorPayment(tx, vendorId, body, actorId) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${body.requestKey}))`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${vendorId}))`;
+  const signedAmount = body.refundOf ? body.amount : -body.amount;
+  const existing = await tx.vendorLedgerEntry.findUnique({ where: { requestKey: body.requestKey } });
+  if (existing) {
+    const movement = await tx.cashLedgerEntry.findFirst({ where: { referenceTable: "vendor_ledger_entries", referenceId: existing.id } });
+    if (existing.vendorId !== vendorId || existing.actorId !== actorId || !existing.amount.equals(signedAmount) || (body.refundOf ? existing.referenceId !== body.refundOf : existing.referenceTable !== "vendor_payments") || movement?.paymentMethod !== body.method || (movement?.paymentAccountId ?? null) !== (body.paymentAccountId ?? null)) throw new ConflictError("Payment request identity was already used with different details");
+    return existing;
+  }
+  await validatePaymentAccount(tx, body.method, body.paymentAccountId);
+  if (body.refundOf) {
+    const source = await tx.vendorLedgerEntry.findUnique({ where: { id: body.refundOf } });
+    if (!source || source.vendorId !== vendorId || !source.amount.isNegative() || !["PAYMENT", "RETURN_CREDIT"].includes(source.entryType)) throw new ValidationError2("Select the supplier payment or return credit being refunded");
+    const balance = await tx.vendorLedgerEntry.aggregate({ where: { vendorId }, _sum: { amount: true } });
+    const refunded = await tx.vendorLedgerEntry.aggregate({ where: { referenceTable: "vendor_refunds", referenceId: body.refundOf }, _sum: { amount: true } });
+    if (new import_client8.Prisma.Decimal(body.amount).greaterThan((balance._sum.amount ?? new import_client8.Prisma.Decimal(0)).negated()) || new import_client8.Prisma.Decimal(body.amount).plus(refunded._sum.amount ?? 0).greaterThan(source.amount.negated())) throw new ValidationError2("Refund exceeds available supplier advance / credit");
+  }
+  const referenceNo = await nextCode(tx, SEQUENCE.VENDOR_PAYMENT);
+  const entry = await tx.vendorLedgerEntry.create({ data: {
+    vendorId,
+    entryType: "PAYMENT",
+    amount: new import_client8.Prisma.Decimal(signedAmount),
+    referenceNo,
+    requestKey: body.requestKey,
+    description: `Vendor ${body.refundOf ? "refund" : "payment"} (${body.method})${body.reference ? ": " + body.reference : ""}`,
+    referenceTable: body.refundOf ? "vendor_refunds" : "vendor_payments",
+    referenceId: body.refundOf || vendorId,
+    actorId
+  } });
+  await tx.cashLedgerEntry.create({ data: {
+    portalUserId: actorId,
+    direction: body.refundOf ? "IN" : "OUT",
+    amount: body.amount,
+    category: "VENDOR_PAYMENT",
+    isPhysicalCash: body.method === "CASH",
+    paymentMethod: body.method,
+    paymentAccountId: body.paymentAccountId,
+    referenceTable: "vendor_ledger_entries",
+    referenceId: entry.id
+  } });
+  return entry;
+}
 
 // src/modules/vendors/vendors.service.ts
 var import_library3 = require("@prisma/client/runtime/library");
@@ -37523,10 +37766,18 @@ var vendorsService = {
    * ledger, stock movement, actor. A DRAFT (`post:false`) never touches
    * stock/ledger — only a later `post:true` call does.
    */
-  async createPurchase(body, actorId) {
-    const vendor = await prisma.vendor.findUnique({ where: { id: body.vendorId } });
+  async createPurchase(body, actorId, db) {
+    const vendor = await (db ?? prisma).vendor.findUnique({ where: { id: body.vendorId } });
     if (!vendor) throw new NotFoundError("Vendor not found");
-    return prisma.$transaction(async (tx) => {
+    const execute = async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${body.requestKey}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${body.vendorId}))`;
+      const requestHash = (0, import_node_crypto5.createHash)("sha256").update(JSON.stringify(body)).digest("hex");
+      const previous = await tx.purchase.findUnique({ where: { requestKey: body.requestKey }, include: { lines: { include: { medicine: true, batch: true, purchaseUnit: true } }, vendor: true } });
+      if (previous) {
+        if (previous.createdById !== actorId || previous.requestHash !== requestHash) throw new ConflictError("Purchase request identity was already used with different details");
+        return previous;
+      }
       let subtotal = new import_library3.Decimal(0);
       let discountTotal = new import_library3.Decimal(0);
       let taxTotal = new import_library3.Decimal(0);
@@ -37539,12 +37790,13 @@ var vendorsService = {
         const medicine = await tx.medicineMaster.findUnique({ where: { id: line.medicineId } });
         if (!medicine) throw new NotFoundError(`Medicine ${line.medicineId} not found`);
         if (!medicine.isActive) throw new ValidationError2(`"${medicine.name}" is inactive and cannot be purchased`);
-        if (line.expiryDate < today) throw new ValidationError2(`Batch "${line.batchNumber}" expiry date (${line.expiryDate.toISOString().slice(0, 10)}) is in the past`);
+        const effectiveBatchNumber = line.batchNumber?.trim() || "";
+        if (line.expiryDate < today) throw new ValidationError2(`Batch ${effectiveBatchNumber ? `"${effectiveBatchNumber}" ` : ""}expiry date (${line.expiryDate.toISOString().slice(0, 10)}) is in the past`);
         const packaging = await resolvePackaging(line, medicine, tx);
         const conversionToBase = packaging.conversionToBase;
-        const existingBatch = await tx.medicineBatch.findUnique({ where: { medicineId_batchNumber: { medicineId: line.medicineId, batchNumber: line.batchNumber } } });
+        const existingBatch = effectiveBatchNumber ? await tx.medicineBatch.findFirst({ where: { medicineId: line.medicineId, batchNumber: effectiveBatchNumber } }) : null;
         if (existingBatch?.purchaseUnitConversionToBase && !existingBatch.purchaseUnitConversionToBase.equals(conversionToBase)) {
-          throw new ValidationError2(`Batch "${line.batchNumber}" was already received with a different pack size (1 unit = ${existingBatch.purchaseUnitConversionToBase} base units then, ${conversionToBase} now). Use a new batch number for this packaging.`);
+          throw new ValidationError2(`Batch "${effectiveBatchNumber}" was already received with a different pack size (1 unit = ${existingBatch.purchaseUnitConversionToBase} base units then, ${conversionToBase} now). Use a new batch number for this packaging.`);
         }
         const purchaseQty = new import_library3.Decimal(line.purchaseUnitQuantity);
         const baseQty = purchaseQty.mul(conversionToBase);
@@ -37558,21 +37810,32 @@ var vendorsService = {
         const markupPercent = await resolveMarkupPercent(medicine.categoryLabel, tx);
         const suggestedSaleRate = effectiveCostPerBaseUnit.mul(new import_library3.Decimal(1).plus(markupPercent.div(100)));
         const finalSaleRate = line.finalSaleRate != null ? new import_library3.Decimal(line.finalSaleRate) : suggestedSaleRate;
-        const batch = await tx.medicineBatch.upsert({
-          where: { medicineId_batchNumber: { medicineId: line.medicineId, batchNumber: line.batchNumber } },
-          create: {
-            medicineId: line.medicineId,
-            batchNumber: line.batchNumber,
-            expiryDate: line.expiryDate,
-            costRate: effectiveCostPerBaseUnit,
-            saleRate: finalSaleRate,
-            createdById: actorId,
-            purchaseUnitId: line.purchaseUnitId,
-            purchaseUnitConversionToBase: conversionToBase,
-            packagingSnapshotJson: packaging.snapshotChain
-          },
-          update: { costRate: effectiveCostPerBaseUnit, saleRate: finalSaleRate }
-        });
+        let batch = null;
+        if (effectiveBatchNumber) {
+          batch = await tx.medicineBatch.findFirst({
+            where: {
+              medicineId: line.medicineId,
+              batchNumber: effectiveBatchNumber,
+              costRate: effectiveCostPerBaseUnit,
+              saleRate: finalSaleRate
+            }
+          });
+        }
+        if (!batch) {
+          batch = await tx.medicineBatch.create({
+            data: {
+              medicineId: line.medicineId,
+              batchNumber: effectiveBatchNumber,
+              expiryDate: line.expiryDate,
+              costRate: effectiveCostPerBaseUnit,
+              saleRate: finalSaleRate,
+              createdById: actorId,
+              purchaseUnitId: line.purchaseUnitId,
+              purchaseUnitConversionToBase: conversionToBase,
+              packagingSnapshotJson: packaging.snapshotChain
+            }
+          });
+        }
         subtotal = subtotal.plus(grossAmount);
         discountTotal = discountTotal.plus(discountAmount);
         taxTotal = taxTotal.plus(tax);
@@ -37604,10 +37867,13 @@ var vendorsService = {
       const purchase2 = await tx.purchase.create({
         data: {
           purchaseNumber,
+          requestKey: body.requestKey,
+          requestHash,
           vendorId: body.vendorId,
           purchaseDate: body.purchaseDate,
           vendorInvoiceNo: body.vendorInvoiceNo,
           paymentType: body.paymentType,
+          paymentAccountId: body.paymentAccountId,
           notes: body.notes,
           status: body.post ? "POSTED" : "DRAFT",
           subtotal,
@@ -37636,23 +37902,29 @@ var vendorsService = {
           data: { vendorId: body.vendorId, entryType: "PURCHASE_CREDIT", amount: total, referenceNo: purchaseNumber, description: `Purchase ${purchaseNumber}`, referenceTable: "purchases", referenceId: purchase2.id, actorId }
         });
         if (paidNow.greaterThan(0)) {
+          await validatePaymentAccount(tx, body.paymentType, body.paymentAccountId);
           await tx.vendorLedgerEntry.create({
             data: { vendorId: body.vendorId, entryType: "PAYMENT", amount: paidNow.negated(), referenceNo: `${purchaseNumber}-PAY`, description: `Paid on purchase ${purchaseNumber}`, referenceTable: "purchases", referenceId: purchase2.id, actorId }
           });
           await tx.cashLedgerEntry.create({
-            data: { portalUserId: actorId, direction: "OUT", amount: paidNow, category: "VENDOR_PAYMENT", isPhysicalCash: body.paymentType === "CASH", referenceTable: "purchases", referenceId: purchase2.id }
+            data: { portalUserId: actorId, direction: "OUT", amount: paidNow, category: "VENDOR_PAYMENT", isPhysicalCash: body.paymentType === "CASH", paymentMethod: body.paymentType, paymentAccountId: body.paymentAccountId, referenceTable: "purchases", referenceId: purchase2.id }
           });
         }
       }
       return purchase2;
-    });
+    };
+    return db ? execute(db) : prisma.$transaction(execute);
   },
   /** Posts a previously-saved DRAFT purchase — same stock/ledger/price-snapshot effects as `createPurchase({ post: true })`, without re-entering line data. */
-  async postPurchase(purchaseId, actorId) {
-    const purchase2 = await prisma.purchase.findUnique({ where: { id: purchaseId }, include: { lines: true } });
+  async postPurchase(purchaseId, actorId, db) {
+    const purchase2 = await (db ?? prisma).purchase.findUnique({ where: { id: purchaseId }, include: { lines: true } });
     if (!purchase2) throw new NotFoundError("Purchase not found");
     if (purchase2.status === "POSTED") throw new ConflictError("Purchase is already posted");
-    return prisma.$transaction(async (tx) => {
+    const execute = async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${purchaseId}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${purchase2.vendorId}))`;
+      const current = await tx.purchase.findUniqueOrThrow({ where: { id: purchaseId } });
+      if (current.status === "POSTED") throw new ConflictError("Purchase is already posted");
       for (const line of purchase2.lines) {
         await tx.stockLedgerEntry.create({
           data: { medicineId: line.medicineId, batchId: line.batchId, movementType: "PURCHASE_IN", quantityDelta: line.quantity, referenceTable: "purchases", referenceId: purchase2.id, actorId }
@@ -37666,30 +37938,22 @@ var vendorsService = {
         data: { vendorId: purchase2.vendorId, entryType: "PURCHASE_CREDIT", amount: purchase2.total, referenceNo: purchase2.purchaseNumber, description: `Purchase ${purchase2.purchaseNumber}`, referenceTable: "purchases", referenceId: purchase2.id, actorId }
       });
       if (purchase2.paidNow.greaterThan(0)) {
+        await validatePaymentAccount(tx, purchase2.paymentType, purchase2.paymentAccountId);
         await tx.vendorLedgerEntry.create({
           data: { vendorId: purchase2.vendorId, entryType: "PAYMENT", amount: purchase2.paidNow.negated(), referenceNo: `${purchase2.purchaseNumber}-PAY`, description: `Paid on purchase ${purchase2.purchaseNumber}`, referenceTable: "purchases", referenceId: purchase2.id, actorId }
         });
         await tx.cashLedgerEntry.create({
-          data: { portalUserId: actorId, direction: "OUT", amount: purchase2.paidNow, category: "VENDOR_PAYMENT", isPhysicalCash: purchase2.paymentType === "CASH", referenceTable: "purchases", referenceId: purchase2.id }
+          data: { portalUserId: actorId, direction: "OUT", amount: purchase2.paidNow, category: "VENDOR_PAYMENT", isPhysicalCash: purchase2.paymentType === "CASH", paymentMethod: purchase2.paymentType, paymentAccountId: purchase2.paymentAccountId, referenceTable: "purchases", referenceId: purchase2.id }
         });
       }
       return tx.purchase.update({ where: { id: purchaseId }, data: { status: "POSTED" }, include: { lines: { include: { medicine: true, batch: true } }, vendor: true } });
-    });
+    };
+    return db ? execute(db) : prisma.$transaction(execute);
   },
   async payVendor(vendorId, body, actorId) {
     const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
     if (!vendor) throw new NotFoundError("Vendor not found");
-    const amount = new import_library3.Decimal(body.amount);
-    return prisma.$transaction(async (tx) => {
-      const referenceNo = await nextCode(tx, SEQUENCE.VENDOR_PAYMENT);
-      const entry = await tx.vendorLedgerEntry.create({
-        data: { vendorId, entryType: "PAYMENT", amount: amount.negated(), referenceNo, description: `Vendor payment (${body.method})`, referenceTable: "vendor_payments", referenceId: vendorId, actorId }
-      });
-      await tx.cashLedgerEntry.create({
-        data: { portalUserId: actorId, direction: "OUT", amount, category: "VENDOR_PAYMENT", isPhysicalCash: body.method === "CASH", referenceTable: "vendor_ledger_entries", referenceId: entry.id }
-      });
-      return entry;
-    });
+    return prisma.$transaction((tx) => postVendorPayment(tx, vendorId, body, actorId));
   },
   /**
    * pharmacy.md §9.1 PURCHASE_RETURN_OUT + vendor RETURN_CREDIT —
@@ -37698,13 +37962,21 @@ var vendorsService = {
    * medicine's current live packaging/price), and never returns more than
    * that batch currently has in stock.
    */
-  async purchaseReturn(body, actorId) {
-    const vendor = await prisma.vendor.findUnique({ where: { id: body.vendorId } });
+  async purchaseReturn(body, actorId, db) {
+    const vendor = await (db ?? prisma).vendor.findUnique({ where: { id: body.vendorId } });
     if (!vendor) throw new NotFoundError("Vendor not found");
-    return prisma.$transaction(async (tx) => {
+    const execute = async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${body.vendorId}))`;
+      const prior = await tx.vendorLedgerEntry.findUnique({ where: { requestKey: body.requestKey } });
+      if (prior) throw new ConflictError("This purchase return has already been posted");
+      if (new Set(body.lines.map((line) => line.batchId)).size !== body.lines.length) throw new ValidationError2("Combine repeated batch lines before posting a return");
       let total = new import_library3.Decimal(0);
       const stockDeductions = [];
       for (const line of body.lines) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${line.batchId}))`;
+        const bought = await tx.purchaseLine.aggregate({ where: { batchId: line.batchId, purchase: { vendorId: body.vendorId, status: "POSTED" } }, _sum: { quantity: true } });
+        if (!bought._sum.quantity) throw new ValidationError2("This batch has no posted purchase from the selected supplier");
+        const returned = await tx.stockLedgerEntry.aggregate({ where: { batchId: line.batchId, movementType: "PURCHASE_RETURN_OUT", referenceId: body.vendorId }, _sum: { quantityDelta: true } });
         const batch = await tx.medicineBatch.findUnique({ where: { id: line.batchId }, include: { stockEntries: { select: { quantityDelta: true } } } });
         if (!batch || batch.medicineId !== line.medicineId) throw new NotFoundError("Batch not found for this medicine");
         if (!batch.purchaseUnitConversionToBase) throw new ValidationError2("This batch has no packaging snapshot to return against");
@@ -37719,6 +37991,7 @@ var vendorsService = {
         }
         const returnQty = new import_library3.Decimal(line.returnUnitQuantity);
         const baseQty = returnQty.mul(conversionToBase);
+        if (baseQty.greaterThan(bought._sum.quantity.plus(returned._sum.quantityDelta ?? 0))) throw new ValidationError2("Return exceeds quantity purchased from this supplier");
         const availableQty = batch.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new import_library3.Decimal(0));
         if (baseQty.greaterThan(availableQty)) throw new ValidationError2(`Cannot return more than currently in stock for batch "${batch.batchNumber}" (available: ${availableQty})`);
         const lineTotal = baseQty.mul(batch.costRate);
@@ -37736,9 +38009,10 @@ var vendorsService = {
         await pharmacyService.syncEffectiveSaleRate(medicineId, tx);
       }
       return tx.vendorLedgerEntry.create({
-        data: { vendorId: body.vendorId, entryType: "RETURN_CREDIT", amount: total.negated(), referenceNo, description: body.reason, referenceTable: "purchase_returns", referenceId: body.vendorId, actorId }
+        data: { vendorId: body.vendorId, entryType: "RETURN_CREDIT", requestKey: body.requestKey, amount: total.negated(), referenceNo, description: body.reason, referenceTable: "purchase_returns", referenceId: body.vendorId, actorId }
       });
-    });
+    };
+    return db ? execute(db) : prisma.$transaction(execute);
   }
 };
 
@@ -37803,8 +38077,11 @@ var createVendorBodySchema = external_exports.object({
 var updateVendorBodySchema = createVendorBodySchema.partial().extend({ isActive: external_exports.boolean().optional() });
 var payVendorBodySchema = external_exports.object({
   amount: external_exports.coerce.number().positive(),
-  method: external_exports.enum(["CASH", "CARD", "ONLINE"]),
-  reference: external_exports.string().max(100).optional()
+  method: external_exports.enum(["CASH", "CARD", "ONLINE", "BANK"]),
+  reference: external_exports.string().max(100).optional(),
+  requestKey: external_exports.string().uuid(),
+  refundOf: external_exports.string().uuid().optional(),
+  paymentAccountId: external_exports.string().uuid().optional()
 });
 var packagingOverrideSchema = external_exports.object({
   purchaseUnitConversionToBase: external_exports.coerce.number().positive(),
@@ -37813,7 +38090,7 @@ var packagingOverrideSchema = external_exports.object({
 });
 var purchaseLineSchema = external_exports.object({
   medicineId: external_exports.string().uuid(),
-  batchNumber: external_exports.string().min(1).max(60),
+  batchNumber: external_exports.string().max(60).optional().default(""),
   expiryDate: external_exports.coerce.date(),
   /// medicine-packaging-plan — the unit this line was actually bought in (e.g. "Box"); must be a configured purchase unit for the medicine (or the override below).
   purchaseUnitId: external_exports.string().uuid(),
@@ -37832,16 +38109,19 @@ var purchaseLineSchema = external_exports.object({
   finalSaleRate: external_exports.coerce.number().nonnegative().optional()
 });
 var createPurchaseBodySchema = external_exports.object({
+  requestKey: external_exports.string().uuid(),
   vendorId: external_exports.string().uuid(),
   purchaseDate: external_exports.coerce.date(),
   vendorInvoiceNo: external_exports.string().max(100).optional(),
-  paymentType: external_exports.enum(["CASH", "CARD", "ONLINE"]).optional(),
+  paymentType: external_exports.enum(["CASH", "CARD", "ONLINE", "BANK"]).optional(),
   notes: external_exports.string().max(500).optional(),
   lines: external_exports.array(purchaseLineSchema).min(1),
+  paymentAccountId: external_exports.string().uuid().optional(),
   paidNow: external_exports.coerce.number().nonnegative().default(0),
   post: external_exports.boolean().default(true)
 });
 var purchaseReturnBodySchema = external_exports.object({
+  requestKey: external_exports.string().uuid(),
   vendorId: external_exports.string().uuid(),
   lines: external_exports.array(external_exports.object({
     medicineId: external_exports.string().uuid(),
@@ -37858,6 +38138,14 @@ var router6 = (0, import_express6.Router)();
 var view4 = authorize("vendors", "view");
 var create4 = authorize("vendors", "create");
 var edit4 = authorize("vendors", "edit");
+router6.get("/payment-accounts", view4, asyncHandler(async (_req, res) => {
+  const accounts = await prisma.paymentAccount.findMany({ include: { entries: { select: { direction: true, amount: true } } }, orderBy: { name: "asc" } });
+  res.json({ data: accounts.map(({ entries, ...account }) => ({ ...account, netMovement: entries.reduce((sum, entry) => sum + (entry.direction === "IN" ? Number(entry.amount) : -Number(entry.amount)), 0) })) });
+}));
+router6.post("/payment-accounts", create4, validate({ body: external_exports.object({ name: external_exports.string().trim().min(2).max(100) }) }), asyncHandler(async (req, res) => {
+  const account = await prisma.paymentAccount.create({ data: { name: req.body.name } });
+  res.status(201).json({ data: account });
+}));
 router6.post("/", create4, validate({ body: createVendorBodySchema }), asyncHandler(vendorsController.create));
 router6.get("/", view4, asyncHandler(vendorsController.list));
 router6.get("/next-code", create4, asyncHandler(vendorsController.nextCode));
@@ -38005,20 +38293,99 @@ var purchase_orders_routes_default = router7;
 var import_express8 = __toESM(require_express2());
 
 // src/modules/cash/cash.service.ts
+var import_library5 = require("@prisma/client/runtime/library");
+
+// src/modules/cash/balanceSheet.util.ts
 var import_library4 = require("@prisma/client/runtime/library");
-async function expectedCash(portalUserId) {
-  const entries = await prisma.cashLedgerEntry.findMany({
+function summarizeCashEntries(entries) {
+  let vendorPayments = new import_library4.Decimal(0), posCashCollections = new import_library4.Decimal(0), hmsCashCollections = new import_library4.Decimal(0), otherCashIn = new import_library4.Decimal(0), otherCashOut = new import_library4.Decimal(0);
+  let physicalCashIn = new import_library4.Decimal(0), physicalCashOut = new import_library4.Decimal(0), nonPhysicalTotal = new import_library4.Decimal(0);
+  let pettyCash = new import_library4.Decimal(0), cashCollections = new import_library4.Decimal(0), cashExpenses = new import_library4.Decimal(0), cashRefunds = new import_library4.Decimal(0);
+  let totalCollections = new import_library4.Decimal(0), totalRefunds = new import_library4.Decimal(0), adjustments = new import_library4.Decimal(0), remainingAmount = new import_library4.Decimal(0);
+  for (const e of entries) {
+    if (e.category === "SETTLEMENT_HANDOVER") continue;
+    const signed = e.direction === "IN" ? e.amount : e.amount.negated();
+    const collection = ["POS_COLLECTION", "HMS_COLLECTION"].includes(e.category);
+    if (collection) totalCollections = totalCollections.plus(signed);
+    if (e.category === "REFUND") totalRefunds = totalRefunds.minus(signed);
+    if (!e.isPhysicalCash) {
+      nonPhysicalTotal = nonPhysicalTotal.plus(signed);
+      continue;
+    }
+    if (!e.isSettled) remainingAmount = remainingAmount.plus(signed);
+    if (e.direction === "IN") physicalCashIn = physicalCashIn.plus(e.amount);
+    else physicalCashOut = physicalCashOut.plus(e.amount);
+    if (e.category === "POS_COLLECTION") posCashCollections = posCashCollections.plus(signed);
+    if (e.category === "HMS_COLLECTION") hmsCashCollections = hmsCashCollections.plus(signed);
+    if (!["POS_COLLECTION", "HMS_COLLECTION", "REFUND", "EXPENSE_PAYMENT", "VENDOR_PAYMENT"].includes(e.category)) {
+      if (e.direction === "IN") otherCashIn = otherCashIn.plus(e.amount);
+      else otherCashOut = otherCashOut.plus(e.amount);
+    }
+    if (collection) cashCollections = cashCollections.plus(signed);
+    else if (e.category === "REFUND") cashRefunds = cashRefunds.minus(signed);
+    else if (["PETTY_CASH_RECEIVED", "PETTY_CASH_ISSUED"].includes(e.category)) pettyCash = pettyCash.plus(signed);
+    else if (e.category === "EXPENSE_PAYMENT") cashExpenses = cashExpenses.minus(signed);
+    else if (e.category === "VENDOR_PAYMENT") vendorPayments = vendorPayments.minus(signed);
+    else adjustments = adjustments.plus(signed);
+  }
+  return {
+    vendorPayments,
+    posCashCollections,
+    hmsCashCollections,
+    otherCashIn,
+    otherCashOut,
+    physicalCashIn,
+    physicalCashOut,
+    nonPhysicalTotal,
+    pettyCash,
+    cashCollections,
+    cashExpenses,
+    cashRefunds,
+    totalCollections,
+    totalRefunds,
+    adjustments,
+    remainingAmount,
+    expectedPhysicalCash: physicalCashIn.minus(physicalCashOut),
+    unsettledCount: entries.filter((e) => e.isPhysicalCash && !e.isSettled).length
+  };
+}
+function balanceSheetRange(query, now = /* @__PURE__ */ new Date()) {
+  const preset = query.preset || (query.from || query.to ? "legacy" : "shift");
+  if (preset === "shift") return null;
+  if (preset === "legacy") return { gte: query.from, lte: query.to, label: "Selected period" };
+  const today = new Date(now.getTime() + 5 * 36e5).toISOString().slice(0, 10);
+  let from = today, to = today;
+  const day = /* @__PURE__ */ new Date(`${today}T00:00:00Z`);
+  if (preset === "yesterday") {
+    day.setUTCDate(day.getUTCDate() - 1);
+    from = to = day.toISOString().slice(0, 10);
+  }
+  if (preset === "this_week") {
+    day.setUTCDate(day.getUTCDate() - (day.getUTCDay() + 6) % 7);
+    from = day.toISOString().slice(0, 10);
+  }
+  if (preset === "this_month") from = `${today.slice(0, 7)}-01`;
+  if (preset === "custom") {
+    from = query.fromDate;
+    to = query.toDate;
+  }
+  return { gte: /* @__PURE__ */ new Date(`${from}T00:00:00+05:00`), lte: /* @__PURE__ */ new Date(`${to}T23:59:59.999+05:00`), label: `${from} to ${to} (Pakistan time)` };
+}
+
+// src/modules/cash/cash.service.ts
+async function expectedCash(portalUserId, db = prisma) {
+  const entries = await db.cashLedgerEntry.findMany({
     where: { portalUserId, isPhysicalCash: true, isSettled: false },
     select: { direction: true, amount: true }
   });
-  return entries.reduce((sum, e) => sum.plus(e.direction === "IN" ? e.amount : e.amount.negated()), new import_library4.Decimal(0));
+  return entries.reduce((sum, e) => sum.plus(e.direction === "IN" ? e.amount : e.amount.negated()), new import_library5.Decimal(0));
 }
 var cashService = {
   expectedCash,
   async issuePettyCash(body, issuerId) {
     const receiver = await prisma.portalUser.findUnique({ where: { id: body.toUserId } });
     if (!receiver) throw new NotFoundError("Recipient user not found");
-    const amount = new import_library4.Decimal(body.amount);
+    const amount = new import_library5.Decimal(body.amount);
     return prisma.$transaction(async (tx) => {
       const referenceNo = await nextCode(tx, SEQUENCE.PETTY_CASH);
       const issued = await tx.cashLedgerEntry.create({
@@ -38030,26 +38397,78 @@ var cashService = {
       return { referenceNo, issued, received };
     });
   },
-  async getBalanceSheet(userId, query) {
-    const entries = await prisma.cashLedgerEntry.findMany({
-      where: { portalUserId: userId, occurredAt: { gte: query.from, lte: query.to } },
+  async getBalanceSheet(userId, query, db = prisma) {
+    const range = balanceSheetRange(query);
+    const lastSettlement = !range ? await db.accountSettlement.findFirst({
+      where: { portalUserId: userId, status: "ACCEPTED" },
+      orderBy: { submittedAt: "desc" }
+    }) : null;
+    const entries = await db.cashLedgerEntry.findMany({
+      where: {
+        portalUserId: userId,
+        ...range ? { occurredAt: { gte: range.gte, lte: range.lte } } : {
+          isSettled: false,
+          OR: [{ isPhysicalCash: true }, { isPhysicalCash: false, ...lastSettlement ? { occurredAt: { gt: lastSettlement.submittedAt } } : {} }]
+        }
+      },
       orderBy: { occurredAt: "asc" }
     });
+    const activity = entries.filter((e) => e.category !== "SETTLEMENT_HANDOVER");
+    const settlements = range ? await db.accountSettlement.findMany({
+      where: { portalUserId: userId, status: "ACCEPTED", reviewedAt: { gte: range.gte, lte: range.lte } }
+    }) : [];
+    const pendingSettlement = await db.accountSettlement.findFirst({ where: { portalUserId: userId, status: "SUBMITTED" }, select: { id: true } });
+    const referenceIds = (table) => activity.filter((e) => e.referenceTable === table && e.referenceId).map((e) => e.referenceId);
+    const [invoices, purchases, expenses, vendorPayments] = await Promise.all([
+      db.pharmacyInvoice.findMany({ where: { id: { in: referenceIds("pharmacy_invoices") } }, select: { id: true, invoiceNumber: true } }),
+      db.purchase.findMany({ where: { id: { in: referenceIds("purchases") } }, select: { id: true, purchaseNumber: true } }),
+      db.expense.findMany({ where: { id: { in: referenceIds("expenses") } }, select: { id: true, expenseNumber: true } }),
+      db.vendorLedgerEntry.findMany({ where: { id: { in: referenceIds("vendor_ledger_entries") } }, select: { id: true, referenceNo: true } })
+    ]);
+    const references = new Map([
+      ...invoices.map((e) => [e.id, e.invoiceNumber]),
+      ...purchases.map((e) => [e.id, e.purchaseNumber]),
+      ...expenses.map((e) => [e.id, e.expenseNumber]),
+      ...vendorPayments.map((e) => [e.id, e.referenceNo])
+    ]);
+    const summary = summarizeCashEntries(activity);
+    const prior = range?.gte ? await db.cashLedgerEntry.findMany({
+      where: { portalUserId: userId, isPhysicalCash: true, occurredAt: { lt: range.gte } },
+      select: { direction: true, amount: true }
+    }) : [];
+    const priorSettlements = range?.gte ? await db.accountSettlement.findMany({ where: { portalUserId: userId, status: "ACCEPTED", reviewedAt: { lt: range.gte } }, select: { variance: true } }) : [];
+    const priorVariance = priorSettlements.reduce((sum, e) => sum.plus(e.variance), new import_library5.Decimal(0));
+    const openingCash = prior.reduce((sum, e) => sum.plus(e.direction === "IN" ? e.amount : e.amount.negated()), priorVariance);
+    const settledAmount = settlements.reduce((sum, e) => sum.plus(e.settlementAmount), new import_library5.Decimal(0));
+    const settlementVarianceAdjustment = settlements.reduce((sum, e) => sum.plus(e.variance), new import_library5.Decimal(0));
+    const closingCash = openingCash.plus(summary.expectedPhysicalCash).minus(settledAmount).plus(settlementVarianceAdjustment);
     const byCategory = /* @__PURE__ */ new Map();
     for (const e of entries) {
       const signed = e.direction === "IN" ? e.amount : e.amount.negated();
-      byCategory.set(e.category, (byCategory.get(e.category) ?? new import_library4.Decimal(0)).plus(signed));
+      byCategory.set(e.category, (byCategory.get(e.category) ?? new import_library5.Decimal(0)).plus(signed));
     }
     return {
-      expectedCash: await expectedCash(userId),
+      // Keep the legacy property live for the settlement form.
+      expectedCash: range ? await expectedCash(userId, db) : summary.expectedPhysicalCash,
       breakdown: Object.fromEntries(byCategory),
-      entries
+      entries: activity.map((e) => ({ ...e, documentReference: e.referenceNo || references.get(e.referenceId || "") || null })),
+      period: { mode: range ? "period" : "shift", label: range?.label || "Current Shift (unsettled)" },
+      pendingSettlement: Boolean(pendingSettlement),
+      summary: {
+        ...summary,
+        openingCash,
+        closingCash,
+        settlementCount: settlements.length,
+        settledAmount: settlements.reduce((s, e) => s.plus(e.settlementAmount ?? 0), new import_library5.Decimal(0)),
+        physicalCashCounted: settlements.reduce((s, e) => s.plus(e.physicalCash), new import_library5.Decimal(0)),
+        variance: settlements.reduce((s, e) => s.plus(e.variance), new import_library5.Decimal(0))
+      }
     };
   },
   /** pharmacy.md §11.2 — Expected Cash is read-only/system-calculated; user only supplies Physical Cash. */
   async submitSettlement(userId, body) {
     const expected = await expectedCash(userId);
-    const physical = new import_library4.Decimal(body.physicalCash);
+    const physical = new import_library5.Decimal(body.physicalCash);
     const variance = physical.minus(expected);
     if (!variance.equals(0) && !body.varianceReason) {
       throw new ValidationError2("A non-zero variance requires a reason");
@@ -38138,9 +38557,19 @@ var issuePettyCashBodySchema = external_exports.object({
   note: external_exports.string().max(300).optional()
 });
 var balanceSheetQuerySchema = external_exports.object({
+  preset: external_exports.enum(["shift", "today", "yesterday", "this_week", "this_month", "custom"]).optional(),
+  fromDate: external_exports.string().date().optional(),
+  toDate: external_exports.string().date().optional(),
   from: external_exports.coerce.date().optional(),
   to: external_exports.coerce.date().optional(),
   userId: external_exports.string().uuid().optional()
+}).superRefine((query, ctx) => {
+  if (query.preset === "custom" && (!query.fromDate || !query.toDate || query.fromDate > query.toDate)) {
+    ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: "Choose a valid From / To date range.", path: ["fromDate"] });
+  }
+  if (query.from && query.to && query.from > query.to) {
+    ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: "From must not be after To.", path: ["from"] });
+  }
 });
 var submitSettlementBodySchema = external_exports.object({
   periodFrom: external_exports.coerce.date(),
@@ -38173,7 +38602,7 @@ var cash_routes_default = router8;
 var import_express9 = __toESM(require_express2());
 
 // src/modules/expenses/expenses.service.ts
-var import_library5 = require("@prisma/client/runtime/library");
+var import_library6 = require("@prisma/client/runtime/library");
 var expensesService = {
   /** pharmacy.md §12 — entered by the actual logged-in user; a cash expense affects their expected physical cash. */
   async create(body, actorId) {
@@ -38182,7 +38611,7 @@ var expensesService = {
       const expense2 = await tx.expense.create({ data: { ...body, expenseNumber, enteredById: actorId } });
       if (body.paymentMethod === "CASH") {
         await tx.cashLedgerEntry.create({
-          data: { portalUserId: actorId, direction: "OUT", amount: new import_library5.Decimal(body.amount), category: "EXPENSE_PAYMENT", isPhysicalCash: true, referenceTable: "expenses", referenceId: expense2.id }
+          data: { portalUserId: actorId, direction: "OUT", amount: new import_library6.Decimal(body.amount), category: "EXPENSE_PAYMENT", isPhysicalCash: true, referenceTable: "expenses", referenceId: expense2.id }
         });
       }
       return expense2;
@@ -38254,19 +38683,263 @@ var expenses_routes_default = router9;
 // src/modules/dashboard/dashboard.routes.ts
 var import_express10 = __toESM(require_express2());
 
+// src/modules/reports/financialRecognition.ts
+var import_library7 = require("@prisma/client/runtime/library");
+var zero = () => new import_library7.Decimal(0);
+var include = {
+  dispensedByUser: { select: { fullName: true } },
+  lines: { include: { batch: { select: { costRate: true } } } },
+  payments: { include: { collectedByUser: { select: { fullName: true } } } },
+  financialEvents: true
+};
+var inRange = (at, range) => (!range.gte || at >= range.gte) && (!range.lte || at <= range.lte);
+var add = (rows, fn) => rows.reduce((sum, row) => sum.plus(fn(row)), zero());
+function projectInvoice(invoice, range = {}, filters = {}, legacyRefunds = []) {
+  const events = [];
+  const returns = invoice.financialEvents.filter((e) => e.kind === "RETURN");
+  const issues = [];
+  if (invoice.financialEvents.some((e) => !e.occurredAt))
+    issues.push("Undated HMS collection reconciliation");
+  if (invoice.channel === "HMS_LINKED" && !add(
+    invoice.financialEvents.filter((e) => e.kind.startsWith("HMS_")),
+    (e) => e.collectionDelta
+  ).equals(invoice.hmsCollectedAmount))
+    issues.push("HMS collection history incomplete");
+  const unmatchedRefunds = legacyRefunds.filter(
+    (r) => !returns.some((e) => e.reference === r.id)
+  );
+  if (unmatchedRefunds.length)
+    issues.push("Legacy return lacks dated line/tax detail");
+  const originalTotal = invoice.total.minus(add(returns, (e) => e.saleDelta)).plus(add(unmatchedRefunds, (r) => r.amount));
+  const originalTax = invoice.taxTotal.minus(add(returns, (e) => e.taxDelta));
+  const originalGross = invoice.subtotal.minus(
+    add(returns, (e) => e.grossDelta)
+  );
+  const originalDiscount = invoice.discountTotal.minus(
+    add(returns, (e) => e.discountDelta)
+  );
+  const lineNet = add(invoice.lines, (l) => l.lineNet);
+  const discountDifference = lineNet.minus(originalTotal);
+  let missingCost = false;
+  invoice.lines.forEach((l, index) => {
+    const rate = l.costRateSnapshot ?? l.batch?.costRate;
+    if (rate == null && l.quantity.gt(0)) missingCost = true;
+    events.push({
+      id: "line:" + l.id,
+      at: invoice.channel === "RETAIL" ? invoice.createdAt : l.dispensedAt,
+      sale: l.lineNet.minus(index === 0 ? discountDifference : zero()),
+      tax: l.taxAmount,
+      gross: l.quantity.mul(l.rateSnapshot),
+      discount: l.discountAmount.plus(
+        index === 0 ? discountDifference : zero()
+      ),
+      cost: l.quantity.mul(rate ?? 0),
+      collection: zero(),
+      kind: "SALE"
+    });
+  });
+  if (!invoice.lines.length) {
+    if (originalTotal.gt(0)) missingCost = true;
+    events.push({
+      id: "invoice:" + invoice.id,
+      at: invoice.createdAt,
+      sale: originalTotal,
+      tax: originalTax,
+      gross: originalGross,
+      discount: originalDiscount,
+      cost: zero(),
+      collection: zero(),
+      kind: "SALE"
+    });
+  }
+  for (const p of invoice.payments)
+    events.push({
+      id: "payment:" + p.id,
+      at: p.paidAt,
+      sale: zero(),
+      tax: zero(),
+      gross: zero(),
+      discount: zero(),
+      cost: zero(),
+      collection: p.amount,
+      method: p.method,
+      actor: p.collectedById,
+      collector: p.collectedByUser.fullName,
+      kind: "PAYMENT"
+    });
+  for (const e of invoice.financialEvents)
+    if (e.occurredAt)
+      events.push({
+        id: e.eventKey,
+        at: e.occurredAt,
+        sale: e.saleDelta,
+        tax: e.taxDelta,
+        gross: e.grossDelta,
+        discount: e.discountDelta,
+        cost: e.costDelta,
+        collection: e.collectionDelta,
+        method: e.method,
+        actor: e.actorId,
+        collector: e.actorId ?? (e.kind.startsWith("HMS_") ? "HMS Front Desk" : "Unknown"),
+        kind: e.kind
+      });
+  for (const r of unmatchedRefunds)
+    events.push({
+      id: "legacy-refund:" + r.id,
+      at: r.occurredAt,
+      sale: r.amount.negated(),
+      tax: zero(),
+      gross: zero(),
+      discount: zero(),
+      cost: zero(),
+      collection: r.amount.negated(),
+      method: r.isPhysicalCash ? "CASH" : "UNKNOWN",
+      actor: r.portalUserId,
+      kind: "RETURN"
+    });
+  events.sort(
+    (a, b) => a.at.getTime() - b.at.getTime() || (a.kind === "SALE" ? -1 : b.kind === "SALE" ? 1 : a.id.localeCompare(b.id))
+  );
+  let sale = zero(), tax = zero(), paid = zero(), cost = zero(), recognized = zero(), recognizedCost = zero();
+  let grossSales = zero(), netBilling = zero(), taxBilled = zero(), collections = zero(), revenue = zero(), cogs = zero(), refunded = zero();
+  let recognizedAt = null;
+  const collectors = /* @__PURE__ */ new Set();
+  const methods = {};
+  for (const e of events) {
+    if (range.lte && e.at > range.lte) continue;
+    sale = sale.plus(e.sale);
+    tax = tax.plus(e.tax);
+    paid = paid.plus(e.collection);
+    cost = cost.plus(e.cost);
+    const fullyPaid = sale.gt(0) && paid.gte(sale);
+    let target = recognized, targetCost = recognizedCost;
+    if (fullyPaid) {
+      target = import_library7.Decimal.max(0, sale.minus(tax));
+      targetCost = cost;
+    } else if (e.kind === "RETURN") {
+      target = import_library7.Decimal.min(recognized, import_library7.Decimal.max(0, sale.minus(tax)));
+      targetCost = recognizedCost.gt(0) ? import_library7.Decimal.max(0, recognizedCost.plus(e.cost)) : zero();
+    } else if (e.collection.lt(0)) {
+      target = zero();
+      targetCost = zero();
+    }
+    const delta = target.minus(recognized), costChange = targetCost.minus(recognizedCost);
+    recognized = target;
+    recognizedCost = targetCost;
+    if (delta.gt(0)) recognizedAt = e.at;
+    if (!inRange(e.at, range)) continue;
+    if (e.kind === "SALE") grossSales = grossSales.plus(e.gross);
+    netBilling = netBilling.plus(e.sale.minus(e.tax));
+    taxBilled = taxBilled.plus(e.tax);
+    if (!issues.length) {
+      revenue = revenue.plus(delta);
+      cogs = cogs.plus(costChange);
+    }
+    if ((!filters.method || filters.method === e.method) && (!filters.cashierId || filters.cashierId === e.actor)) {
+      collections = collections.plus(e.collection);
+      if (e.collection.lt(0)) refunded = refunded.minus(e.collection);
+      if (!e.collection.isZero()) {
+        const method = e.method ?? "UNKNOWN";
+        methods[method] = (methods[method] ?? zero()).plus(e.collection);
+        if (e.collector) collectors.add(e.collector);
+      }
+    }
+  }
+  if (missingCost) issues.push("Historical sale cost snapshot unavailable");
+  return {
+    invoiceNumber: invoice.invoiceNumber,
+    channel: invoice.channel,
+    customerName: invoice.customerName,
+    grossSales,
+    netBilling,
+    taxBilled,
+    total: netBilling.plus(taxBilled),
+    paidTotal: collections,
+    collections,
+    outstanding: import_library7.Decimal.max(0, sale.minus(paid)),
+    recognizedRevenue: revenue,
+    recognizedCogs: cogs,
+    grossProfit: missingCost || issues.length ? null : revenue.minus(cogs),
+    totalRefunded: refunded,
+    recognitionIssues: issues,
+    recognitionComplete: issues.length === 0,
+    recognizedAt,
+    status: sale.lte(paid) ? "PAID" : paid.gt(0) ? "PARTIALLY_PAID" : "UNPAID",
+    clearanceStatus: invoice.clearanceStatus,
+    soldBy: invoice.dispensedByUser.fullName,
+    collectedBy: [...collectors].join(", "),
+    createdAt: invoice.createdAt,
+    methods
+  };
+}
+async function loadFinancialData(db = prisma) {
+  const [invoices, refunds, expenses] = await Promise.all([
+    db.pharmacyInvoice.findMany({ include, orderBy: { createdAt: "desc" } }),
+    db.cashLedgerEntry.findMany({
+      where: { category: "REFUND", referenceTable: "pharmacy_invoices" },
+      select: {
+        id: true,
+        referenceId: true,
+        amount: true,
+        occurredAt: true,
+        portalUserId: true,
+        isPhysicalCash: true
+      }
+    }),
+    db.expense.findMany({ select: { date: true, amount: true } })
+  ]);
+  return { invoices, refunds, expenses };
+}
+function financialReport(data, range = {}, filters = {}) {
+  const rows = data.invoices.filter((i) => !range.lte || i.createdAt <= range.lte).map(
+    (i) => projectInvoice(
+      i,
+      range,
+      filters,
+      data.refunds.filter((r) => r.referenceId === i.id)
+    )
+  );
+  const expenses = add(
+    data.expenses.filter((e) => inRange(e.date, range)),
+    (e) => e.amount
+  );
+  const recognizedRevenue = add(rows, (r) => r.recognizedRevenue), recognizedCogs = add(rows, (r) => r.recognizedCogs);
+  const incomplete = rows.filter((r) => !r.recognitionComplete).length;
+  const totals = {
+    grossSales: add(rows, (r) => r.grossSales),
+    netBilling: add(rows, (r) => r.netBilling),
+    taxBilled: add(rows, (r) => r.taxBilled),
+    total: add(rows, (r) => r.total),
+    collections: add(rows, (r) => r.collections),
+    paidTotal: add(rows, (r) => r.collections),
+    netCollected: add(rows, (r) => r.collections),
+    totalRefunded: add(rows, (r) => r.totalRefunded),
+    outstanding: add(rows, (r) => r.outstanding),
+    recognizedRevenue,
+    recognizedCogs,
+    operatingExpenses: expenses,
+    operatingProfit: incomplete ? null : recognizedRevenue.minus(recognizedCogs).minus(expenses),
+    incompleteInvoices: incomplete
+  };
+  return { rows, totals };
+}
+
 // src/modules/dashboard/dashboard.service.ts
-var import_library6 = require("@prisma/client/runtime/library");
+var import_library8 = require("@prisma/client/runtime/library");
 async function getNearExpiryWindowDays() {
   const settings = await prisma.pharmacySettings.findFirst();
   return settings?.nearExpiryWindowDays ?? 90;
 }
 function startOfDay(d = /* @__PURE__ */ new Date()) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  return /* @__PURE__ */ new Date(new Date(d.getTime() + 5 * 36e5).toISOString().slice(0, 10) + "T00:00:00+05:00");
 }
 var dashboardService = {
   async getManagementSummary(userId) {
     const today = startOfDay();
     const tomorrow = new Date(today.getTime() + 864e5);
+    const financialData = await loadFinancialData();
+    const todayFinancial = financialReport(financialData, { gte: today, lte: new Date(tomorrow.getTime() - 1) }).totals;
+    const lifetimeFinancial = financialReport(financialData, { lte: /* @__PURE__ */ new Date() }).totals;
     const sixMonthsAgo = /* @__PURE__ */ new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
     sixMonthsAgo.setDate(1);
@@ -38283,7 +38956,6 @@ var dashboardService = {
       totalSalesAllTime,
       recentInvoices,
       recentPurchases,
-      recentExpenses,
       vendorsList,
       openPurchaseOrdersCount
     ] = await Promise.all([
@@ -38308,7 +38980,6 @@ var dashboardService = {
       prisma.pharmacyInvoice.aggregate({ _sum: { total: true }, _count: true }),
       prisma.pharmacyInvoice.findMany({ where: { createdAt: { gte: sixMonthsAgo } }, select: { total: true, createdAt: true } }),
       prisma.purchase.findMany({ where: { createdAt: { gte: sixMonthsAgo } }, select: { total: true, createdAt: true } }),
-      prisma.expense.findMany({ where: { createdAt: { gte: sixMonthsAgo } }, select: { amount: true, createdAt: true } }),
       prisma.vendor.findMany({
         where: { isActive: true },
         take: 6,
@@ -38327,8 +38998,8 @@ var dashboardService = {
     ]);
     const now = /* @__PURE__ */ new Date();
     const nearExpiryCutoff = new Date(now.getTime() + nearExpiryWindowDays * 864e5);
-    let stockValue = new import_library6.Decimal(0);
-    let totalStockUnits = new import_library6.Decimal(0);
+    let stockValue = new import_library8.Decimal(0);
+    let totalStockUnits = new import_library8.Decimal(0);
     let lowStock = 0;
     let outOfStock = 0;
     let nearExpiry = 0;
@@ -38338,12 +39009,12 @@ var dashboardService = {
     const lowStockList = [];
     const nearExpiryList = [];
     for (const m of medicines) {
-      const stock = m.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new import_library6.Decimal(0));
+      const stock = m.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new import_library8.Decimal(0));
       totalStockUnits = totalStockUnits.plus(stock);
       stockValue = stockValue.plus(stock.mul(m.purchaseRate ?? m.saleRate));
       const catName = m.categoryLabel && m.categoryLabel.trim() || "General";
       if (!categoryMap[catName]) {
-        categoryMap[catName] = { count: 0, stock: new import_library6.Decimal(0) };
+        categoryMap[catName] = { count: 0, stock: new import_library8.Decimal(0) };
       }
       categoryMap[catName].count += 1;
       categoryMap[catName].stock = categoryMap[catName].stock.plus(stock);
@@ -38376,7 +39047,7 @@ var dashboardService = {
       let hasExpired = false;
       let hasNearExpiry = false;
       for (const b of m.batches) {
-        const batchStock = b.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new import_library6.Decimal(0)).toNumber();
+        const batchStock = b.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new import_library8.Decimal(0)).toNumber();
         if (batchStock <= 0) continue;
         if (b.expiryDate <= now) {
           expired += 1;
@@ -38425,14 +39096,19 @@ var dashboardService = {
       const mEnd = new Date(Date.UTC(y, mIdx + 1, 1));
       const mInvoices = recentInvoices.filter((inv) => inv.createdAt >= mStart && inv.createdAt < mEnd);
       const mPurchases = recentPurchases.filter((p) => p.createdAt >= mStart && p.createdAt < mEnd);
-      const mExpenses = recentExpenses.filter((e) => e.createdAt >= mStart && e.createdAt < mEnd);
-      const rev = mInvoices.reduce((s, inv) => s.plus(inv.total), new import_library6.Decimal(0)).toNumber();
-      const pur = mPurchases.reduce((s, p) => s.plus(p.total), new import_library6.Decimal(0)).toNumber();
-      const exp = mExpenses.reduce((s, e) => s.plus(e.amount), new import_library6.Decimal(0)).toNumber();
-      const profit = Math.max(0, rev - pur - exp);
+      const financial = financialReport(financialData, { gte: mStart, lte: new Date(Math.min(mEnd.getTime() - 1, now.getTime())) }).totals;
+      const rev = Number(financial.recognizedRevenue);
+      const pur = mPurchases.reduce((s, p) => s.plus(p.total), new import_library8.Decimal(0)).toNumber();
+      const exp = Number(financial.operatingExpenses);
+      const profit = financial.operatingProfit === null ? null : Number(financial.operatingProfit);
       monthlyTrend.push({
         month: `${monthNames[mIdx]} ${String(y).slice(-2)}`,
         revenue: rev,
+        grossSales: Number(financial.grossSales),
+        netBilling: Number(financial.netBilling),
+        collections: Number(financial.collections),
+        outstanding: Number(financial.outstanding),
+        cogs: Number(financial.recognizedCogs),
         purchases: pur,
         expenses: exp,
         profit,
@@ -38450,15 +39126,20 @@ var dashboardService = {
       const dayEnd = new Date(Date.UTC(y, m, dayNum + 1, 0, 0, 0));
       const dInvoices = recentInvoices.filter((inv) => inv.createdAt >= dayStart && inv.createdAt < dayEnd);
       const dPurchases = recentPurchases.filter((p) => p.createdAt >= dayStart && p.createdAt < dayEnd);
-      const dExpenses = recentExpenses.filter((e) => e.createdAt >= dayStart && e.createdAt < dayEnd);
-      const rev = dInvoices.reduce((s, inv) => s.plus(inv.total), new import_library6.Decimal(0)).toNumber();
-      const pur = dPurchases.reduce((s, p) => s.plus(p.total), new import_library6.Decimal(0)).toNumber();
-      const exp = dExpenses.reduce((s, e) => s.plus(e.amount), new import_library6.Decimal(0)).toNumber();
-      const profit = Math.max(0, rev - pur - exp);
+      const financial = financialReport(financialData, { gte: dayStart, lte: new Date(Math.min(dayEnd.getTime() - 1, now.getTime())) }).totals;
+      const rev = Number(financial.recognizedRevenue);
+      const pur = dPurchases.reduce((s, p) => s.plus(p.total), new import_library8.Decimal(0)).toNumber();
+      const exp = Number(financial.operatingExpenses);
+      const profit = financial.operatingProfit === null ? null : Number(financial.operatingProfit);
       dailyTrend.push({
         date: i === 0 ? "Today" : `${dayNum} ${monthNames[m]}`,
         fullDate: d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", year: "numeric" }),
         revenue: rev,
+        grossSales: Number(financial.grossSales),
+        netBilling: Number(financial.netBilling),
+        collections: Number(financial.collections),
+        outstanding: Number(financial.outstanding),
+        cogs: Number(financial.recognizedCogs),
         purchases: pur,
         expenses: exp,
         profit,
@@ -38479,7 +39160,7 @@ var dashboardService = {
       {
         id: "ins-1",
         title: "Sales & Transactions",
-        message: `${salesToday._count} transactions processed today with ${salesToday._sum.total ? salesToday._sum.total.toFixed(0) : "0"} revenue recorded.`,
+        message: `${salesToday._count} transactions processed today with ${salesToday._sum.total ? salesToday._sum.total.toFixed(0) : "0"} billed (not recognized revenue).`,
         type: "revenue"
       },
       {
@@ -38502,7 +39183,7 @@ var dashboardService = {
       }
     ];
     const supplierUpdates = vendorsList.map((v) => {
-      const balance = v.ledgerEntries.reduce((s, e) => s.plus(e.amount), new import_library6.Decimal(0)).toNumber();
+      const balance = v.ledgerEntries.reduce((s, e) => s.plus(e.amount), new import_library8.Decimal(0)).toNumber();
       const openOrdersCount = v.purchaseOrders.length;
       const termsLabel = v.paymentTermsDays === 0 ? "Immediate / COD" : `Net ${v.paymentTermsDays} Days`;
       let statusText = termsLabel;
@@ -38523,11 +39204,16 @@ var dashboardService = {
       };
     });
     return {
-      salesToday: salesToday._sum.total ?? new import_library6.Decimal(0),
+      salesToday: todayFinancial.total,
       salesCountToday: salesToday._count,
-      purchasesToday: purchasesToday._sum.total ?? new import_library6.Decimal(0),
+      purchasesToday: purchasesToday._sum.total ?? new import_library8.Decimal(0),
       purchasesCountToday: purchasesToday._count,
-      totalRevenueAllTime: totalSalesAllTime._sum.total ?? new import_library6.Decimal(0),
+      totalRevenueAllTime: lifetimeFinancial.recognizedRevenue,
+      recognizedRevenueToday: todayFinancial.recognizedRevenue,
+      collectionsToday: todayFinancial.collections,
+      outstanding: todayFinancial.outstanding,
+      operatingProfitToday: todayFinancial.operatingProfit,
+      incompleteInvoices: lifetimeFinancial.incompleteInvoices,
       totalSalesCountAllTime: totalSalesAllTime._count,
       totalMedicines: medicines.length,
       totalStockUnits: totalStockUnits.toNumber(),
@@ -38536,7 +39222,7 @@ var dashboardService = {
       outOfStockCount: outOfStock,
       nearExpiryCount: nearExpiry,
       expiredCount: expired,
-      vendorPayable: vendorLedger2._sum.amount ?? new import_library6.Decimal(0),
+      vendorPayable: vendorLedger2._sum.amount ?? new import_library8.Decimal(0),
       pendingSettlements,
       pendingHmsRequests,
       expectedCash: expected,
@@ -38559,11 +39245,13 @@ var dashboardService = {
       prisma.medicineRequest.count({ where: { status: { in: ["REQUESTED", "PARTIALLY_ACCEPTED"] } } }),
       cashService.expectedCash(userId)
     ]);
-    const payments = await prisma.pharmacyPayment.findMany({ where: { collectedById: userId, paidAt: { gte: today, lt: tomorrow } } });
-    const cash = payments.filter((p) => p.method === "CASH").reduce((s, p) => s.plus(p.amount), new import_library6.Decimal(0));
-    const nonCash = payments.filter((p) => p.method !== "CASH").reduce((s, p) => s.plus(p.amount), new import_library6.Decimal(0));
+    const data = await loadFinancialData();
+    const retailData = { ...data, invoices: data.invoices.filter((i) => i.channel === "RETAIL") };
+    const period = { gte: today, lte: new Date(tomorrow.getTime() - 1) };
+    const cash = financialReport(retailData, period, { cashierId: userId, method: "CASH" }).totals.collections;
+    const nonCash = financialReport(retailData, period, { cashierId: userId }).totals.collections.minus(cash);
     return {
-      mySalesToday: mySales._sum.total ?? new import_library6.Decimal(0),
+      mySalesToday: mySales._sum.total ?? new import_library8.Decimal(0),
       mySalesCountToday: mySales._count,
       cashCollectionToday: cash,
       cardOnlineCollectionToday: nonCash,
@@ -38597,6 +39285,49 @@ var dashboard_routes_default = router10;
 // src/modules/reports/reports.routes.ts
 var import_express11 = __toESM(require_express2());
 
+// src/modules/reports/incomeExpense.ts
+var import_client16 = require("@prisma/client");
+async function incomeExpenseReport(db, range = {}) {
+  const [data, ledger] = await Promise.all([
+    loadFinancialData(db),
+    db.vendorLedgerEntry.findMany({ where: { createdAt: { lte: range.lte } } })
+  ]);
+  const { totals } = financialReport(data, range);
+  let vendorPayments = new import_client16.Prisma.Decimal(0), vendorRefunds = new import_client16.Prisma.Decimal(0);
+  const balances = /* @__PURE__ */ new Map();
+  for (const entry of ledger) {
+    balances.set(entry.vendorId, (balances.get(entry.vendorId) ?? new import_client16.Prisma.Decimal(0)).plus(entry.amount));
+    if (entry.entryType === "PAYMENT" && (!range.gte || entry.createdAt >= range.gte)) {
+      if (entry.amount.isNegative()) vendorPayments = vendorPayments.minus(entry.amount);
+      else vendorRefunds = vendorRefunds.plus(entry.amount);
+    }
+  }
+  let vendorOutstanding = new import_client16.Prisma.Decimal(0), supplierAdvances = new import_client16.Prisma.Decimal(0);
+  for (const balance of balances.values()) {
+    if (balance.isPositive()) vendorOutstanding = vendorOutstanding.plus(balance);
+    else supplierAdvances = supplierAdvances.minus(balance);
+  }
+  const metrics = [
+    ["Income", "Gross Sales", totals.grossSales],
+    ["Income", "Discounts & Returns", totals.grossSales.minus(totals.netBilling)],
+    ["Income", "Net Sales / Billing (excluding tax)", totals.netBilling],
+    ["Income", "Actual Collections", totals.collections],
+    ["Income", "Outstanding Receivables", totals.outstanding],
+    ["Income", "Recognized Revenue", totals.recognizedRevenue],
+    ["Expenses", "Medicine COGS (matched to recognized sales)", totals.recognizedCogs],
+    ["Expenses", "Operating Expenses", totals.operatingExpenses],
+    ["Vendor Payments", "Total Vendor Payments", vendorPayments],
+    ["Vendor Payments", "Supplier Refunds Received", vendorRefunds],
+    ["Vendor Payments", "Vendor Outstanding", vendorOutstanding],
+    ["Vendor Payments", "Supplier Advances / Credits", supplierAdvances],
+    ["Profit", "Net Operating Profit / Loss", totals.operatingProfit]
+  ];
+  return {
+    rows: metrics.map(([section, metric, amount]) => ({ section, metric, amount })),
+    totals: { ...totals, vendorPayments, vendorRefunds, vendorOutstanding, supplierAdvances }
+  };
+}
+
 // src/modules/reports/reports.service.ts
 var ROW_LIMIT = 500;
 function endOfDayIfDateOnly(to) {
@@ -38617,8 +39348,10 @@ var reportsService = {
   async run(query) {
     const range = dateRange(query);
     switch (query.type) {
+      case "INCOME_EXPENSE":
+        return incomeExpenseReport(prisma, range);
       case "SALES_COLLECTION":
-        return salesCollection(range);
+        return financialReport(await loadFinancialData(), range, query);
       case "HMS_DISPENSE":
         return hmsDispense(range);
       case "PURCHASE":
@@ -38638,38 +39371,6 @@ var reportsService = {
     }
   }
 };
-async function salesCollection(range) {
-  const invoices = await prisma.pharmacyInvoice.findMany({
-    where: { createdAt: range },
-    include: {
-      dispensedByUser: { select: { fullName: true, role: true } },
-      payments: { include: { collectedByUser: { select: { fullName: true } } } }
-    },
-    orderBy: { createdAt: "desc" },
-    take: ROW_LIMIT
-  });
-  const rows = invoices.map((inv) => ({
-    invoiceNumber: inv.invoiceNumber,
-    channel: inv.channel,
-    customerName: inv.customerName,
-    subtotal: inv.subtotal,
-    discountTotal: inv.discountTotal,
-    taxTotal: inv.taxTotal,
-    total: inv.total,
-    paidTotal: inv.paidTotal,
-    outstanding: inv.outstanding,
-    status: inv.status,
-    soldBy: inv.dispensedByUser.fullName,
-    collectedBy: [...new Set(inv.payments.map((p) => p.collectedByUser.fullName))].join(", ") || null,
-    createdAt: inv.createdAt
-  }));
-  const totals = {
-    total: sumDecimal(invoices.map((i) => i.total)),
-    paidTotal: sumDecimal(invoices.map((i) => i.paidTotal)),
-    outstanding: sumDecimal(invoices.map((i) => i.outstanding))
-  };
-  return { rows, totals };
-}
 async function hmsDispense(range) {
   const requests = await prisma.medicineRequest.findMany({
     where: { requestedAt: range },
@@ -38783,17 +39484,64 @@ async function returnRefund(range) {
     orderBy: { occurredAt: "desc" },
     take: ROW_LIMIT
   });
-  const rows = refunds.map((r) => ({
-    referenceTable: r.referenceTable,
-    referenceId: r.referenceId,
-    amount: r.amount,
-    isPhysicalCash: r.isPhysicalCash,
-    reason: r.note,
-    processedBy: r.portalUser.fullName,
-    occurredAt: r.occurredAt
+  const invoiceIds = refunds.filter((r) => r.referenceTable === "pharmacy_invoices" && r.referenceId).map((r) => r.referenceId);
+  const invoices = invoiceIds.length > 0 ? await prisma.pharmacyInvoice.findMany({
+    where: { id: { in: invoiceIds } },
+    select: { id: true, invoiceNumber: true, customerName: true }
+  }) : [];
+  const invoiceMap = new Map(invoices.map((i) => [i.id, i]));
+  const salesReturnRows = refunds.map((r) => {
+    const inv = r.referenceId ? invoiceMap.get(r.referenceId) : null;
+    return {
+      type: "Sales Return",
+      returnNumber: r.referenceNo ?? "\u2014",
+      returnReferenceNo: r.referenceNo ?? "\u2014",
+      originalRef: inv?.invoiceNumber ?? "\u2014",
+      invoiceNumber: inv?.invoiceNumber ?? "\u2014",
+      party: inv?.customerName ?? "Walk-In Customer",
+      customerName: inv?.customerName ?? "Walk-In Customer",
+      refundAmount: r.amount,
+      amount: r.amount,
+      isPhysicalCash: r.isPhysicalCash,
+      paymentMethod: r.isPhysicalCash ? "CASH" : "NON_CASH",
+      reason: r.note ? r.note.replace(/^RET-\d+:\s*/, "") : "Sales Return Refund",
+      processedBy: r.portalUser?.fullName ?? "Pharmacy Staff",
+      createdAt: r.occurredAt,
+      occurredAt: r.occurredAt
+    };
+  });
+  const vendorReturns = await prisma.vendorLedgerEntry.findMany({
+    where: { entryType: "RETURN_CREDIT", createdAt: range },
+    include: { vendor: { select: { name: true } }, actor: { select: { fullName: true } } },
+    orderBy: { createdAt: "desc" },
+    take: ROW_LIMIT
+  });
+  const purchaseReturnRows = vendorReturns.map((vr) => ({
+    type: "Purchase Return",
+    returnNumber: vr.referenceNo ?? "\u2014",
+    returnReferenceNo: vr.referenceNo ?? "\u2014",
+    originalRef: vr.referenceTable === "purchases" && vr.referenceId ? vr.referenceId : "\u2014",
+    invoiceNumber: "\u2014",
+    party: vr.vendor?.name ?? "Vendor",
+    customerName: vr.vendor?.name ?? "Vendor",
+    refundAmount: vr.amount,
+    amount: vr.amount,
+    isPhysicalCash: false,
+    paymentMethod: "VENDOR_CREDIT",
+    reason: vr.description ?? "Purchase Return Credit",
+    processedBy: vr.actor?.fullName ?? "Pharmacy Staff",
+    createdAt: vr.createdAt,
+    occurredAt: vr.createdAt
   }));
-  const totals = { amount: sumDecimal(refunds.map((r) => r.amount)) };
-  return { rows, totals };
+  const allRows = [...salesReturnRows, ...purchaseReturnRows].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  const totalRefund = sumDecimal(allRows.map((r) => r.refundAmount));
+  const totals = {
+    refundAmount: totalRefund,
+    amount: totalRefund
+  };
+  return { rows: allRows, totals };
 }
 async function balanceSettlement(range) {
   const settlements = await prisma.accountSettlement.findMany({
@@ -38830,6 +39578,7 @@ var reportsController = {
 
 // src/modules/reports/reports.schemas.ts
 var REPORT_TYPES = [
+  "INCOME_EXPENSE",
   "SALES_COLLECTION",
   "HMS_DISPENSE",
   "PURCHASE",
@@ -38841,6 +39590,8 @@ var REPORT_TYPES = [
 ];
 var reportQuerySchema = external_exports.object({
   type: external_exports.enum(REPORT_TYPES),
+  method: external_exports.enum(["CASH", "CARD", "ONLINE", "BANK", "UNKNOWN"]).optional(),
+  cashierId: external_exports.string().max(150).optional(),
   from: external_exports.coerce.date().optional(),
   to: external_exports.coerce.date().optional()
 });
@@ -39010,8 +39761,16 @@ var updatePharmacySettingsBodySchema = external_exports.object({
   defaultTaxPercent: external_exports.coerce.number().min(0).max(100).optional(),
   maxDiscountPercent: external_exports.coerce.number().min(0).max(100).optional(),
   nearExpiryWindowDays: external_exports.coerce.number().int().min(1).max(3650).optional(),
-  receiptHeaderText: external_exports.string().max(200).optional(),
-  receiptFooterText: external_exports.string().max(200).optional(),
+  receiptHeaderText: external_exports.string().max(200).optional().nullable(),
+  receiptFooterText: external_exports.string().max(500).optional().nullable(),
+  hospitalName: external_exports.string().max(200).optional().nullable(),
+  pharmacySubtitle: external_exports.string().max(200).optional().nullable(),
+  address: external_exports.string().max(300).optional().nullable(),
+  phone: external_exports.string().max(100).optional().nullable(),
+  email: external_exports.string().max(150).optional().nullable(),
+  footerTerms: external_exports.string().max(1e3).optional().nullable(),
+  footerMessage: external_exports.string().max(200).optional().nullable(),
+  footerPoweredBy: external_exports.string().max(200).optional().nullable(),
   /// purchase-costing-plan — global fallback markup when a medicine's category has no MarkupRule.
   defaultMarkupPercent: external_exports.coerce.number().min(0).max(1e3).optional()
 });

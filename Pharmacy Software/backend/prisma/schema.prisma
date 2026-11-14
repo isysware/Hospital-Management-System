@@ -80,6 +80,7 @@ enum MedicineRequestStatus {
 }
 
 enum PaymentMethod {
+  BANK
   CASH
   CARD
   ONLINE
@@ -438,6 +439,7 @@ model Vendor {
 /// +/- Adjustments = Closing. `amount` is the signed payable delta — positive
 /// for PURCHASE_CREDIT (vendor owed more), negative for PAYMENT/RETURN_CREDIT.
 model VendorLedgerEntry {
+  requestKey String? @unique @map("request_key")
   id             String                @id @default(uuid())
   vendorId       String                @map("vendor_id")
   vendor         Vendor                @relation(fields: [vendorId], references: [id])
@@ -457,6 +459,9 @@ model VendorLedgerEntry {
 }
 
 model Purchase {
+  requestKey String? @unique @map("request_key")
+  requestHash String? @map("request_hash")
+  paymentAccountId String? @map("payment_account_id")
   id              String         @id @default(uuid())
   /// System-generated (PO-0001…) — never manually typed, see DocumentSequence. Covers this record's whole lifecycle (Draft = PO stage, Posted = GRN stage); never renamed on posting.
   purchaseNumber  String         @unique @map("purchase_number")
@@ -720,7 +725,18 @@ model PharmacyPayment {
 // (pharmacy.md §19.3) cannot occur here structurally)
 // ═══════════════════════════════════════════════════════════════════════
 
+model PaymentAccount {
+  id String @id @default(uuid())
+  name String @unique
+  isActive Boolean @default(true) @map("is_active")
+  entries CashLedgerEntry[]
+  @@map("payment_accounts")
+}
+
 model CashLedgerEntry {
+  paymentAccountId String? @map("payment_account_id")
+  paymentAccount PaymentAccount? @relation(fields: [paymentAccountId], references: [id])
+  paymentMethod PaymentMethod? @map("payment_method")
   id             String        @id @default(uuid())
   portalUserId   String        @map("portal_user_id")
   portalUser     PortalUser    @relation("CashEntryOwner", fields: [portalUserId], references: [id])

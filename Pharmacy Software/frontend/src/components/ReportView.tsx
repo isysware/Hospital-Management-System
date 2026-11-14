@@ -4,6 +4,7 @@ import apiClient from '../services/apiClient';
 import { formatPKR, formatNumber } from '../utils/format';
 
 export type ReportType =
+  | 'INCOME_EXPENSE'
   | 'SALES_COLLECTION'
   | 'HMS_DISPENSE'
   | 'PURCHASE'
@@ -23,6 +24,7 @@ interface ReportColumn {
 }
 
 export const REPORT_COLUMNS: Record<ReportType, ReportColumn[]> = {
+  INCOME_EXPENSE: [{ key: 'section', label: 'Section' }, { key: 'metric', label: 'Financial Metric' }, { key: 'amount', label: 'Amount (PKR)', money: true, align: 'right' }],
   SALES_COLLECTION: [
     { key: 'invoiceNumber', label: 'Invoice #' },
     { key: 'channel', label: 'Channel' },
@@ -148,12 +150,13 @@ interface Props {
 }
 
 export const ALL_REPORTS_LIST = [
-  { page: 'reports-sales', type: 'SALES_COLLECTION' as ReportType, label: 'Sales & Collection' },
+  { page: 'reports-income-expense', type: 'INCOME_EXPENSE' as ReportType, label: 'Income & Expense' },
+  { page: 'reports-sales', type: 'SALES_COLLECTION' as ReportType, label: 'Detailed Income' },
   { page: 'reports-hms', type: 'HMS_DISPENSE' as ReportType, label: 'HMS Dispense' },
   { page: 'reports-purchase', type: 'PURCHASE' as ReportType, label: 'Purchase Inward' },
   { page: 'reports-stock-movement', type: 'STOCK_MOVEMENT' as ReportType, label: 'Stock Movement Audit' },
   { page: 'reports-vendor-ledger', type: 'VENDOR_LEDGER' as ReportType, label: 'Vendor Payables' },
-  { page: 'reports-expense', type: 'EXPENSE' as ReportType, label: 'Operating Expenses' },
+  { page: 'reports-expense', type: 'EXPENSE' as ReportType, label: 'Detailed Expense' },
   { page: 'reports-returns', type: 'RETURN_REFUND' as ReportType, label: 'Returns & Refunds' },
   { page: 'reports-settlement', type: 'BALANCE_SETTLEMENT' as ReportType, label: 'Drawer Settlement' },
 ];
@@ -166,11 +169,14 @@ export const ALL_REPORTS_LIST = [
  * instead of switched via local state.
  */
 export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate, currentPage }) => {
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const today = new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10);
+  const [from, setFrom] = useState(type === 'INCOME_EXPENSE' ? today : '');
+  const [to, setTo] = useState(type === 'INCOME_EXPENSE' ? today : '');
   const [rows, setRows] = useState<any[]>([]);
   const [totals, setTotals] = useState<Record<string, number | null> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [reportPeriod, setReportPeriod] = useState('');
+  const requestId = useRef(0);
   const [error, setError] = useState<string | null>(null);
 
   const topScrollRef = useRef<HTMLDivElement>(null);
@@ -199,26 +205,30 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
     });
   };
 
-  const load = () => {
+  const load = (start = from, end = to) => {
+    if (start && end && start > end) { setError('Start date must not follow end date.'); return; }
+    const request = ++requestId.current;
     setLoading(true);
     setError(null);
     apiClient
-      .get('/reports', { params: { type, from: from || undefined, to: to || undefined } })
+      .get('/reports', { params: { type, from: start ? `${start}T00:00:00+05:00` : undefined, to: end ? `${end}T23:59:59.999+05:00` : undefined } })
       .then((r) => {
+        if (request !== requestId.current) return;
+        setReportPeriod(`${start || "Beginning"} to ${end || "Present"} (Pakistan time)`);
         setRows(r.data.data.rows || []);
         setTotals(r.data.data.totals || null);
       })
-      .catch(() => setError('Failed to load report data.'))
-      .finally(() => setLoading(false));
+      .catch(() => { if (request === requestId.current) setError('Failed to load report data.'); })
+      .finally(() => { if (request === requestId.current) setLoading(false); });
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(load, [type]);
+  useEffect(() => { load(); }, [type]);
 
   const columns = REPORT_COLUMNS[type];
 
   const handleExportCsv = () => {
-    if (rows.length === 0) return;
+    if (loading || error || rows.length === 0) return;
     const headerRow = columns.map((c) => `"${c.label}"`).join(',');
     const dataRows = rows.map((r) => columns.map((c) => `"${fmtCell(r[c.key], c).replace(/"/g, '""')}"`).join(','));
     const summaryRows = type === 'SALES_COLLECTION' && totals ? Object.entries(totals).map(([key,value]) => `"Summary: ${key}","${value ?? 'Unavailable'}"`) : [];
@@ -233,41 +243,27 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
     document.body.removeChild(link);
   };
 
-  const handleExportExcel = () => {
-    if (rows.length === 0) return;
-    const headerHtml = columns.map((c) => `<th>${c.label}</th>`).join('');
-    const rowsHtml = rows
-      .map(
-        (r) => `
-        <tr>
-          ${columns.map((c) => `<td>${fmtCell(r[c.key], c)}</td>`).join('')}
-        </tr>
-      `
-      )
-      .join('');
-
-    const html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head><meta charset="utf-8"/></head>
-      <body>
-        <h2>${title} Report</h2>
-        <table border="1">
-          <tr style="background:#0e5944;color:#ffffff;font-weight:bold;">${headerHtml}</tr>
-          ${rowsHtml}
-        </table>
-        ${type === 'SALES_COLLECTION' && totals ? `<table>${Object.entries(totals).map(([key,value])=>`<tr><td>${key}</td><td>${value ?? 'Unavailable'}</td></tr>`).join('')}</table>` : ''}
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${type.toLowerCase()}_report_${new Date().toISOString().slice(0, 10)}.xls`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportRows = () => [
+    [title], [reportPeriod], [], columns.map(c => c.label),
+    ...rows.map(row => columns.map(c => c.money && row[c.key] != null ? Number(row[c.key]) : fmtCell(row[c.key],c))),
+    ...(type === 'SALES_COLLECTION' && totals ? [[], ...Object.entries(totals).map(([key,value]) => [key, value ?? 'Unavailable'])] : []),
+  ];
+  const handleExportExcel = async () => {
+    if (loading || error || !rows.length) return;
+    const XLSX = await import('xlsx');
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.aoa_to_sheet(exportRows());
+    sheet['!cols'] = columns.map(c => ({ wch: c.key === 'metric' ? 50 : 26 }));
+    XLSX.utils.book_append_sheet(workbook,sheet,'Report');
+    XLSX.writeFile(workbook,type.toLowerCase() + '.xlsx');
+  };
+  const handlePrint = () => {
+    if (loading || error || !rows.length) return;
+    const popup = window.open('', '_blank', 'width=1100,height=800');
+    if (!popup) { setError('Allow pop-ups to print or save PDF.'); return; }
+    const escape = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
+    popup.document.write('<html><head><title>' + escape(title) + '</title><style>body{font:12px Arial;padding:24px;color:#172033}table{border-collapse:collapse;width:100%}td{border:1px solid #cbd5e1;padding:8px}tr{break-inside:avoid}@media print{body{padding:0}}</style></head><body><table>' + exportRows().map(row => '<tr>'+ row.map(cell => '<td>'+escape(cell)+'</td>').join('')+'</tr>').join('')+'</table></body></html>');
+    popup.document.close(); popup.focus(); popup.print();
   };
 
   return (
@@ -302,10 +298,10 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
             Report
           </span>
         </div>
-        <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
+        <p className="text-xs text-slate-500 mt-1">{subtitle}</p><p className="text-xs text-slate-500 mt-1">{reportPeriod}</p>
       </div>
 
-      {type === 'SALES_COLLECTION' && totals && <div className="p-3 bg-emerald-50 rounded-lg text-sm">
+      {(type === 'SALES_COLLECTION' || type === 'INCOME_EXPENSE') && totals && <div className="p-3 bg-emerald-50 rounded-lg text-sm">
         <p>Recognized Revenue: {formatPKR(totals.recognizedRevenue ?? 0)} | COGS: {formatPKR(totals.recognizedCogs ?? 0)} | Operating Expenses: {formatPKR(totals.operatingExpenses ?? 0)} | Operating Profit / Loss: {totals.operatingProfit == null ? 'Unavailable: incomplete history' : formatPKR(totals.operatingProfit)}</p>
         <p>Revenue is recognized only on full payment. Collections follow payment dates; outstanding includes earlier invoices. Tax and stock purchases are excluded from revenue/profit.</p>
         {!!totals.incompleteInvoices && <p role="alert">{totals.incompleteInvoices} invoices need dated collection/return or historical cost evidence. Revenue includes verified amounts only.</p>}
@@ -313,6 +309,14 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
       {/* Filter Toolbar — date range only; the report type is this page's identity, not a dropdown anymore */}
       <div className="bg-white p-3 rounded-xl border border-slate-300/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+          {type === 'INCOME_EXPENSE' && <select aria-label="Date preset" defaultValue="today" className="h-9 border rounded-lg px-3 text-xs" onChange={e => {
+            if (e.target.value === 'custom') return;
+            const date = new Date(today + 'T12:00:00Z');
+            if (e.target.value === 'yesterday') date.setUTCDate(date.getUTCDate() - 1);
+            const end = date.toISOString().slice(0,10);
+            const start = e.target.value === 'this_month' ? today.slice(0,7) + '-01' : end;
+            setFrom(start); setTo(end); load(start,end);
+          }}><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_month">This Month</option><option value="custom">Custom Date Range</option></select>}
           <div className="w-36">
             <input
               type="date"
@@ -332,7 +336,7 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={load}
+              onClick={() => load()}
               className="px-3.5 py-1.5 bg-[#0e7d5a] hover:bg-[#0c6b50] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
             >
               <Filter className="h-3.5 w-3.5" /> Filter
@@ -342,7 +346,7 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
               onClick={() => {
                 setFrom('');
                 setTo('');
-                load();
+                load('', '');
               }}
               className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
               title="Reset Date Range"
@@ -389,7 +393,7 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
             </button>
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handlePrint}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#dc2626] hover:bg-[#b91c1c] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer whitespace-nowrap"
               title="Export as PDF via Print"
             >
@@ -397,7 +401,7 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
             </button>
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handlePrint}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer whitespace-nowrap"
               title="Print Table"
             >
@@ -411,7 +415,7 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
         </div>
 
         <div ref={bottomScrollRef} onScroll={syncBottomToTop} className="overflow-x-auto max-h-[calc(100vh-380px)] scrollbar-thin">
-          <table className="w-full min-w-[1400px] border-collapse text-left text-xs">
+          <table className={`w-full ${type === "INCOME_EXPENSE" ? "" : "min-w-[1400px]"} border-collapse text-left text-xs}`}>
             <thead className="bg-[#f8fafc] text-slate-700 font-bold sticky top-0 z-10 border-b border-slate-200 uppercase tracking-wider select-none text-xs">
               <tr>
                 <th className="py-3 px-3.5 text-center border-r border-slate-200 w-14 whitespace-nowrap">#</th>
@@ -470,7 +474,7 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
                 ))
               )}
             </tbody>
-            {totals && !loading && !error && rows.length > 0 && (
+            {type !== 'INCOME_EXPENSE' && totals && !loading && !error && rows.length > 0 && (
               <tfoot className="bg-[#f8fafc] font-bold border-t-2 border-b border-slate-300 text-slate-900 text-xs">
                 <tr>
                   <td className="py-4 px-3.5 text-center border-r border-slate-200 whitespace-nowrap">

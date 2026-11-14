@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Decimal } from '@prisma/client/runtime/library';
 
+vi.mock('@/modules/commission/commission.service', () => ({ commissionService: { syncInvoiceCollections: vi.fn() } }));
+
 // Mock prisma client
 vi.mock('@/db/client', () => {
   const mockTx: any = {};
@@ -246,7 +248,7 @@ describe('Phase 8: Panel Billing (Verification, Contract Resolution, Interim Sta
         { id: 'inv-b', invoiceNumber: 'INV-B', panelReceivable: new Decimal('0.03') },
         { id: 'inv-c', invoiceNumber: 'INV-C', panelReceivable: new Decimal('0.03') },
       ]);
-      (prisma.panelRemittance.create as any).mockImplementation((args: any) => ({ id: 'rem-r', ...args.data }));
+      (prisma.panelRemittance.create as any).mockImplementation((args: any) => ({ id: 'rem-r', ...args.data, allocations: args.data.allocations.create }));
 
       await panelBillingService.recordRemittance('panel-1', { amount: 0.08, method: 'CASH' } as any, actorId);
 
@@ -263,7 +265,7 @@ describe('Phase 8: Panel Billing (Verification, Contract Resolution, Interim Sta
         { id: 'inv-a', invoiceNumber: 'INV-A', panelReceivable: new Decimal(24000) },
         { id: 'inv-b', invoiceNumber: 'INV-B', panelReceivable: new Decimal(16000) },
       ]);
-      (prisma.panelRemittance.create as any).mockImplementation((args: any) => ({ id: 'rem-1', ...args.data }));
+      (prisma.panelRemittance.create as any).mockImplementation((args: any) => ({ id: 'rem-1', ...args.data, allocations: args.data.allocations.create }));
 
       const result = await panelBillingService.recordRemittance(
         'panel-1',

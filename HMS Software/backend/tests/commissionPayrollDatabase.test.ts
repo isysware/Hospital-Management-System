@@ -29,6 +29,7 @@ describe.runIf(process.env.HMS_PAYROLL_DB_TEST === '1')('real database + HTTP pa
     const rollback = new Error('ROLLBACK_VERIFICATION');
     try {
       await db.$transaction(async tx => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('hms-commission-regression-fixtures'))`;
         holder.tx = tx;
         const actor = await tx.portalUser.findFirstOrThrow({ where: { role: 'SUPER_ADMIN' } });
         const now = new Date();
@@ -61,7 +62,9 @@ describe.runIf(process.env.HMS_PAYROLL_DB_TEST === '1')('real database + HTTP pa
           await request('/commission/rules', { staffId: doctor.id, serviceRateId: service.id, ruleType: 'PERCENTAGE', rate: 15, basis: 'NET', commissionTaxMethod: 'PERCENTAGE', commissionTaxValue: 10, effectiveFrom: iso(from) }, 201);
           const invoice = await tx.hospitalInvoice.create({ data: { invoiceNumber: marker, sourceType: 'WALK_IN', departmentId: dept.id, createdById: actor.id } });
           const line = await invoicesService.addServiceLine(invoice.id, { serviceRateId: service.id, quantity: 1, discountAmount: 1000, discountReason: 'Approved example discount', performedByStaffId: doctor.id }, actor.id, 'SUPER_ADMIN');
-          const earned = await tx.doctorCommissionAccrual.findUniqueOrThrow({ where: { invoiceLineItemId: line.id } });
+          expect(await tx.doctorCommissionAccrual.count({ where: { invoiceLineItemId: line.id } })).toBe(0);
+          await invoicesService.collectPayment(invoice.id, { amount: 9000, paymentMethod: 'CASH' }, actor.id);
+          const earned = await tx.doctorCommissionAccrual.findFirstOrThrow({ where: { invoiceLineItemId: line.id } });
           expect(earned.commissionAmount.toNumber()).toBe(1350);
 
           const filters = { periodType: 'MONTHLY', periodStart: iso(from), periodEnd: iso(monthEnd), staffId: doctor.id, departmentId: dept.id, serviceRateId: service.id };
@@ -78,7 +81,7 @@ describe.runIf(process.env.HMS_PAYROLL_DB_TEST === '1')('real database + HTTP pa
           const paid = await request(`/commission/accruals/${earned.id}/pay`, { amount: 215, method: 'BANK' }, 201);
           expect(paid.status).toBe('PAID'); expect(paid.balance.remaining).toBe('0');
           await request(`/commission/accruals/${earned.id}/adjustments`, { amount: 85, reason: 'Approved commission correction' }, 201);
-          await commissionService.reverseCommissionAccrual(tx, line.id, '10% partial service refund', actor.id, new Decimal(.1));
+          await invoicesService.refundPayment(invoice.id, { amount: 900, refundMethod: 'CASH', reason: '10% partial service refund' }, actor.id);
           expect((await tx.doctorCommissionAccrual.findUniqueOrThrow({ where: { id: earned.id } })).commissionAmount.toNumber()).toBe(1350);
 
           const salaryFilters = { periodType: 'CUSTOM', periodStart: iso(from), periodEnd: iso(to), staffId: doctor.id };
@@ -101,11 +104,11 @@ describe.runIf(process.env.HMS_PAYROLL_DB_TEST === '1')('real database + HTTP pa
           const appointment = await tx.appointment.create({ data: { departmentId: dept.id, doctorStaffId: doctor.id, serviceRateId: service.id, slotAt: now, estimatedAmount: 10000, status: 'CONFIRMED', createdById: actor.id } });
           const checkedIn = await appointmentsService.checkInAppointment(appointment.id, { encounterType: 'OPD' }, actor.id);
           const appointmentLine = checkedIn.invoice.lines[0]!;
-          expect(await tx.doctorCommissionAccrual.count({ where: { invoiceLineItemId: appointmentLine.id } })).toBe(1);
+          expect(await tx.doctorCommissionAccrual.count({ where: { invoiceLineItemId: appointmentLine.id } })).toBe(0);
 
           const admission = await tx.admissionRecord.create({ data: { admissionNumber: `${marker}-ADM`, departmentId: dept.id, doctorStaffId: doctor.id, status: 'ACTIVE', createdById: actor.id } });
           const admissionLine = await admissionService.addAdmissionService(admission.id, { serviceRateId: service.id, quantity: 1 }, actor.id);
-          expect(await tx.doctorCommissionAccrual.count({ where: { invoiceLineItemId: admissionLine.id } })).toBe(1);
+          expect(await tx.doctorCommissionAccrual.count({ where: { invoiceLineItemId: admissionLine.id } })).toBe(0);
           const selfArranged = await admissionService.addAdmissionService(admission.id, { serviceRateId: service.id, quantity: 1, arrangementMode: 'SELF' }, actor.id);
           expect(await tx.doctorCommissionAccrual.count({ where: { invoiceLineItemId: selfArranged.id } })).toBe(0);
 
@@ -118,6 +121,7 @@ describe.runIf(process.env.HMS_PAYROLL_DB_TEST === '1')('real database + HTTP pa
           await request('/commission/rules', { staffId: daily.id, serviceRateId: service.id, ruleType: 'FIXED_PER_SERVICE', rate: 500, basis: 'NET', effectiveFrom: iso(from) }, 201);
           const dailyInvoice = await tx.hospitalInvoice.create({ data: { invoiceNumber: `${marker}-DAY`, sourceType: 'WALK_IN', createdById: actor.id } });
           for (let i = 0; i < 3; i++) await invoicesService.addServiceLine(dailyInvoice.id, { serviceRateId: service.id, quantity: 1, performedByStaffId: daily.id }, actor.id, 'SUPER_ADMIN');
+          await invoicesService.collectPayment(dailyInvoice.id, { amount: 30000, paymentMethod: 'CASH' }, actor.id);
           const dailyFilters = { periodType: 'DAILY', periodStart: iso(now), periodEnd: iso(now), staffId: daily.id };
           expect((await request('/payroll/preview', dailyFilters)).totalAmount).toBe('2850');
           const dailySalary = await request('/payroll/runs', dailyFilters, 201);
@@ -127,7 +131,6 @@ describe.runIf(process.env.HMS_PAYROLL_DB_TEST === '1')('real database + HTTP pa
           expect(dailyCommission.totalAmount).toBe('1500');
 
           // Real refund API must reverse only 10% of all eligible service lines.
-          await tx.hospitalInvoice.update({ where: { id: dailyInvoice.id }, data: { paidTotal: 30000 } });
           await invoicesService.refundPayment(dailyInvoice.id, { amount: 3000, refundMethod: 'CASH', reason: 'Verification partial refund' }, actor.id);
           const dailyReport = await request(`/reports/management/staff-payroll-commission?period=${iso(from).slice(0, 7)}&staffId=${daily.id}`);
           expect(dailyReport.rows[0]).toMatchObject({ payrollAmount: '2850', commissionAmount: '1500', commissionReversed: '150', commissionPayable: '1350' });

@@ -384,14 +384,10 @@ export const invoicesService = {
         },
       });
 
-      // Automatically accrue doctor commission if doctor is attached (§4.5, §8.6)
-      if (targetLine.performedByStaffId) {
-        await commissionService.calculateAndAccrueCommission(
-          tx,
-          targetLine,
-          targetLine.performedByStaffId,
-          _actorId,
-        );
+      // Adding any invoice line can change the canonical collection allocation
+      // of existing doctor services, even when the new line has no doctor.
+      if (allLines.some(line => line.performedByStaffId)) {
+        await commissionService.syncInvoiceCollections(tx, invoice.id, _actorId);
       }
 
       return targetLine;
@@ -669,6 +665,8 @@ export const invoicesService = {
       });
 
       // ── Pharmacy Charges & Cross-Entity Settlement Reconciliation ──
+      await commissionService.syncInvoiceCollections(tx, invoice.id, actorId);
+
       const pharmacyNotifications: Array<{ pharmacyInvoiceNumber: string; amount: number; receiptNumber: string }> = [];
 
       {
@@ -802,7 +800,7 @@ export const invoicesService = {
       const invoice = await tx.hospitalInvoice.findUnique({
         where: { id: invoiceId },
         include: {
-          lines: { include: { commissionAccrual: true } },
+          lines: { include: { commissionAccruals: true } },
           paymentReceipts: true,
         },
       });
@@ -877,19 +875,7 @@ export const invoicesService = {
         },
       });
 
-      // Reverse doctor commission accruals for lines where commission was accrued
-      const chargePaymentReversed = Decimal.max(0, Decimal.min(invoice.paidTotal, patientResponsibility(invoice)).minus(Decimal.min(newPaidTotal, patientResponsibility(invoice))));
-      for (const line of invoice.lines) {
-        if (line.commissionAccrual) {
-          await commissionService.reverseCommissionAccrual(
-            tx,
-            line.id,
-            `Refund: ${body.reason}`,
-            actorId,
-            invoice.total.gt(0) ? chargePaymentReversed.div(invoice.total) : new Decimal(0),
-          );
-        }
-      }
+      await commissionService.syncInvoiceCollections(tx, invoice.id, actorId);
 
       const pharmacyNotifications: Array<{ pharmacyInvoiceNumber: string; authoritativeCollectedAmount: number }> = [];
       if (invoice.admissionRecordId) {
@@ -1284,7 +1270,7 @@ export const invoicesService = {
               },
             },
             performedBy: true,
-            commissionAccrual: true,
+            commissionAccruals: true,
           },
         },
         paymentReceipts: {

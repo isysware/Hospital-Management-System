@@ -1,93 +1,39 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Decimal } from '@prisma/client/runtime/library';
-vi.mock('@/db/client', () => ({ prisma: {} }));
-import { commissionService } from '@/modules/commission/commission.service';
+import { collectedCommission } from '@/modules/commission/commission.collections';
 import { commissionBalance } from '@/modules/commission/commission.calc';
 import { computeSalaryAmounts, workingDaySet } from '@/modules/payroll/payroll.calc';
 import { createCommissionRuleSchema, commissionRunFiltersSchema, financialAdjustmentSchema } from '@/modules/commission/commission.schemas';
-
 const d = (n: number) => new Decimal(n);
-const line = { id: 'line', serviceRateId: 'service', quantity: d(1), lineGross: d(10000), discountAmount: d(1000), lineNet: d(9000) };
-const now = new Date('2026-09-15T10:00:00Z');
-let tx: any;
-beforeEach(() => {
-  tx = {
-    $queryRaw: vi.fn(),
-    invoiceLineItem: { findUnique: vi.fn().mockResolvedValue({ ...line, isCompleted: true, performedByStaffId: 'doctor', createdAt: now, hospitalInvoice: { status: 'UNPAID', createdById: 'actor' } }) },
-    staffService: { findFirst: vi.fn().mockResolvedValue({ id: 'assignment' }) },
-    staffSalaryProfile: { findFirst: vi.fn().mockResolvedValue({ salaryBasis: 'MONTHLY_COMMISSION' }) },
-    doctorCommissionRule: { findFirst: vi.fn().mockResolvedValue({ id: 'rule', ruleType: 'PERCENTAGE', rate: d(15), basis: 'NET', commissionTaxMethod: 'PERCENTAGE', commissionTaxValue: d(10) }) },
-    doctorCommissionAccrual: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn().mockImplementation(({ data }) => data) },
-    commissionReversal: { create: vi.fn().mockImplementation(({ data }) => data) },
-  };
-});
-
-describe('blueprint service commission eligibility and examples', () => {
-  it.each(['MONTHLY_COMMISSION', 'PER_DAY_COMMISSION'])('%s earns 15%% of 9,000 net, independently of salary tax', async basis => {
-    tx.staffSalaryProfile.findFirst.mockResolvedValue({ salaryBasis: basis });
-    const row = await commissionService.calculateAndAccrueCommission(tx, line, 'doctor', 'posting-actor');
-    expect(row.commissionAmount.toNumber()).toBe(1350);
-    expect(row.ruleSnapshot).toMatchObject({ commissionTaxAmount: 135, postedById: 'posting-actor', hospitalRemainingShare: 7650 });
-    expect(tx.doctorCommissionRule.findFirst.mock.calls[0][0].where.effectiveFrom.lte).toEqual(now);
-    const b = commissionBalance({ ...row, payouts: [], reversals: [] });
-    expect(b.payable.toNumber()).toBe(1215);
+const line = { lineGross: d(10000), lineNet: d(9000), quantity: d(1) };
+// Eligibility, receipt persistence, idempotency and paid recovery are exercised
+// through real transactions in commissionCollectionsDatabase.test.ts.
+describe('collected commission contracts and balances', () => {
+  it.each([0, 4500, 9000, 12000])('caps percentage earnings for collected %s', collected => {
+    const result = collectedCommission({ ruleType: 'PERCENTAGE', basis: 'NET', rate: 15, commissionTaxMethod: 'PERCENTAGE', commissionTaxValue: 10 }, line, d(collected));
+    expect(result.gross.toNumber()).toBe(Math.min(collected, 9000) * .15);
+    expect(result.tax.toNumber()).toBe(Math.min(collected, 9000) * .015);
   });
-  it.each(['MONTHLY', 'PER_DAY', null])('%s cannot earn service commission', async basis => {
-    tx.staffSalaryProfile.findFirst.mockResolvedValue(basis ? { salaryBasis: basis } : null);
-    expect(await commissionService.calculateAndAccrueCommission(tx, line, 'doctor')).toBeNull();
-    expect(tx.doctorCommissionAccrual.create).not.toHaveBeenCalled();
+  it('preserves gross-basis discount policy while prorating actual collections', () => {
+    expect(collectedCommission({ ruleType: 'PERCENTAGE', basis: 'GROSS', rate: 20 }, line, d(4500)).gross.toNumber()).toBe(1000);
   });
-  it.each(['uncompleted', 'void', 'unassigned', 'wrong-doctor', 'no-rule'])('excludes %s services', async scenario => {
-    if (scenario === 'unassigned') tx.staffService.findFirst.mockResolvedValue(null);
-    else if (scenario === 'no-rule') tx.doctorCommissionRule.findFirst.mockResolvedValue(null);
-    else tx.invoiceLineItem.findUnique.mockResolvedValue({ ...line, createdAt: now, isCompleted: scenario !== 'uncompleted', performedByStaffId: scenario === 'wrong-doctor' ? 'other' : 'doctor', hospitalInvoice: { status: scenario === 'void' ? 'VOID' : 'UNPAID' } });
-    expect(await commissionService.calculateAndAccrueCommission(tx, line, 'doctor')).toBeNull();
+  it('prorates fixed service commissions and fixed withholding once per contract', () => {
+    const result = collectedCommission({ ruleType: 'FIXED_PER_SERVICE', rate: 500, commissionTaxMethod: 'FIXED', commissionTaxValue: 100 }, { ...line, quantity: d(12) }, d(4500));
+    expect(result.gross.toNumber()).toBe(3000); expect(result.tax.toNumber()).toBe(50);
   });
-  it('fixed completed quantity: 12 × 500 = 6,000, with independent fixed commission tax', async () => {
-    tx.doctorCommissionRule.findFirst.mockResolvedValue({ id: 'rule', ruleType: 'FIXED_PER_SERVICE', rate: d(500), basis: 'NET', commissionTaxMethod: 'FIXED', commissionTaxValue: d(100) });
-    const row = await commissionService.calculateAndAccrueCommission(tx, { ...line, quantity: d(12) }, 'doctor');
-    expect(row.commissionAmount.toNumber()).toBe(6000);
-    expect(row.ruleSnapshot.commissionTaxAmount).toBe(100);
+  it('zero-value and uncollected services cannot generate fixed commissions', () => {
+    expect(collectedCommission({ ruleType: 'FIXED_PER_SERVICE', rate: 500 }, { ...line, lineNet: d(0) }, d(100)).gross.toNumber()).toBe(0);
+    expect(collectedCommission({ ruleType: 'FIXED_PER_SERVICE', rate: 500 }, line, d(0)).gross.toNumber()).toBe(0);
   });
-  it('is idempotent for an already accrued invoice line', async () => {
-    tx.doctorCommissionAccrual.findUnique.mockResolvedValue({ id: 'existing' });
-    expect(await commissionService.calculateAndAccrueCommission(tx, line, 'doctor')).toEqual({ id: 'existing' });
-    expect(tx.doctorCommissionAccrual.create).not.toHaveBeenCalled();
-  });
-  it('uses an assigned-service default only if no service-specific rule matches', async () => {
-    tx.doctorCommissionRule.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'default', ruleType: 'FIXED_PER_SERVICE', rate: d(500), basis: 'NET' });
-    expect((await commissionService.calculateAndAccrueCommission(tx, line, 'doctor')).commissionAmount.toNumber()).toBe(500);
-    expect(tx.doctorCommissionRule.findFirst.mock.calls[1][0].where.serviceRateId).toBeNull();
-  });
-});
-
-describe('commission reversals and immutable corrections', () => {
-  it('reverses only the refunded proportion and caps repeated refunds', async () => {
-    const accrual = { id: 'accrual', commissionAmount: d(1350), reversals: [] as any[] };
-    tx.doctorCommissionAccrual.findUnique.mockResolvedValue(accrual);
-    const partial = await commissionService.reverseCommissionAccrual(tx, 'line', 'partial refund', 'actor', d(.1));
-    expect(partial.reversalAmount.toNumber()).toBe(135);
-    accrual.reversals.push({ reversalAmount: d(1300), source: 'REFUND' });
-    expect((await commissionService.reverseCommissionAccrual(tx, 'line', 'refund', 'actor')).reversalAmount.toNumber()).toBe(50);
-  });
-  it('exposes recoverable overpayment without rewriting a paid statement', () => {
+  it('exposes recovery without rewriting paid statements', () => {
     const b = commissionBalance({ commissionAmount: d(1350), ruleSnapshot: { commissionTaxAmount: 135, commissionTaxMethod: 'PERCENTAGE', commissionTaxValue: 10 },
       reversals: [{ reversalAmount: d(135) }], payouts: [{ amount: d(1215) }], adjustments: [{ amount: d(85) }] });
-    expect(b.payable.toNumber()).toBe(1178.5);
-    expect(b.tax.toNumber()).toBe(121.5);
-    expect(b.remaining.toNumber()).toBe(0);
-    expect(b.overpaid.toNumber()).toBe(36.5);
+    expect(b.payable.toNumber()).toBe(1178.5); expect(b.tax.toNumber()).toBe(121.5); expect(b.overpaid.toNumber()).toBe(36.5);
   });
-  it('tracks a changed service discount and fully reverses the adjusted service on refund', async () => {
-    const row = { id: 'accrual', commissionAmount: d(1350), ruleSnapshot: { ruleType: 'PERCENTAGE', basis: 'NET', rate: 15, commissionTaxMethod: 'PERCENTAGE', commissionTaxValue: 10, commissionTaxAmount: 135 }, reversals: [] as any[], payouts: [] };
-    tx.doctorCommissionAccrual.findUnique.mockResolvedValue(row);
-    await commissionService.repriceCommission(tx, 'line', d(9000), d(10000), 'actor', 'Discount removed');
-    row.reversals.push(tx.commissionReversal.create.mock.calls[0][0].data);
-    expect(commissionBalance(row).payable.toNumber()).toBe(1350);
-    const reversal = await commissionService.reverseCommissionAccrual(tx, 'line', 'full refund', 'actor');
-    expect(reversal.reversalAmount.toNumber()).toBe(1500);
-    row.reversals.push(reversal);
-    expect(commissionBalance(row).payable.toNumber()).toBe(0);
+  it('uses frozen per-receipt tax cents and explicit refund withholding', () => {
+    const b = commissionBalance({ commissionAmount: d(1), ruleSnapshot: { collectionBased: true, commissionTaxAmount: .03, commissionTaxMethod: 'PERCENTAGE', commissionTaxValue: 2.5 },
+      reversals: [{ reversalAmount: d(.5), taxAmount: d(.02), source: 'COLLECTION' }], payouts: [] });
+    expect(b.tax.toNumber()).toBe(.01); expect(b.payable.toNumber()).toBe(.49);
   });
 });
 

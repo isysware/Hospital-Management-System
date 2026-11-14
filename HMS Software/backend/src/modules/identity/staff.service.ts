@@ -1,3 +1,5 @@
+import { Decimal } from '@prisma/client/runtime/library';
+import { commissionService } from '@/modules/commission/commission.service';
 import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/db/client';
@@ -471,6 +473,13 @@ export const staffService = {
     const profile = await staffRepository.findFullProfile(id);
     if (!profile) throw new NotFoundError('Staff record not found');
 
+    const commissionStatements = await commissionService.listAccruals({ staffId: id });
+    const commission = {
+      generated: commissionStatements.reduce((s, row) => s.plus(row.balance.payable), new Decimal(0)),
+      paid: commissionStatements.reduce((s, row) => s.plus(row.balance.paid), new Decimal(0)),
+      outstanding: commissionStatements.reduce((s, row) => s.plus(row.balance.remaining), new Decimal(0)),
+      recoverable: commissionStatements.reduce((s, row) => s.plus(row.balance.overpaid), new Decimal(0)),
+    };
     const currentSalaryProfile =
       profile.salaryProfiles.find((p) => p.effectiveTo === null) ?? profile.salaryProfiles[0] ?? null;
 
@@ -513,6 +522,7 @@ export const staffService = {
         history: profile.salaryProfiles,
       },
       commissionRules: profile.commissionRules,
+      commission,
       weeklySchedule: [...profile.weeklySchedule].sort(
         (a, b) => WEEK_DAYS.indexOf(a.dayOfWeek as (typeof WEEK_DAYS)[number]) - WEEK_DAYS.indexOf(b.dayOfWeek as (typeof WEEK_DAYS)[number]),
       ),

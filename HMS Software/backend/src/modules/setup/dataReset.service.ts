@@ -54,6 +54,7 @@ export const dataResetService = {
       await tx.commissionPayout.deleteMany();
       await tx.commissionReversal.deleteMany();
       await tx.doctorCommissionAccrual.deleteMany();
+      await tx.commissionCollectionEvent.deleteMany();
 
       // 3. Cashier shifts, settlements & payments
       await tx.settlementTransaction.deleteMany();

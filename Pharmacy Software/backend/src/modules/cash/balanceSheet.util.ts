@@ -1,6 +1,7 @@
 import { Decimal } from '@prisma/client/runtime/library';
 
 export function summarizeCashEntries(entries: { direction: string; amount: Decimal; category: string; isPhysicalCash: boolean; isSettled: boolean }[]) {
+  let vendorPayments = new Decimal(0), posCashCollections = new Decimal(0), hmsCashCollections = new Decimal(0), otherCashIn = new Decimal(0), otherCashOut = new Decimal(0);
   let physicalCashIn = new Decimal(0), physicalCashOut = new Decimal(0), nonPhysicalTotal = new Decimal(0);
   let pettyCash = new Decimal(0), cashCollections = new Decimal(0), cashExpenses = new Decimal(0), cashRefunds = new Decimal(0);
   let totalCollections = new Decimal(0), totalRefunds = new Decimal(0), adjustments = new Decimal(0), remainingAmount = new Decimal(0);
@@ -15,13 +16,19 @@ export function summarizeCashEntries(entries: { direction: string; amount: Decim
     if (!e.isSettled) remainingAmount = remainingAmount.plus(signed);
     if (e.direction === 'IN') physicalCashIn = physicalCashIn.plus(e.amount);
     else physicalCashOut = physicalCashOut.plus(e.amount);
+    if (e.category === "POS_COLLECTION") posCashCollections = posCashCollections.plus(signed);
+    if (e.category === "HMS_COLLECTION") hmsCashCollections = hmsCashCollections.plus(signed);
+    if (!["POS_COLLECTION", "HMS_COLLECTION", "REFUND", "EXPENSE_PAYMENT", "VENDOR_PAYMENT"].includes(e.category)) {
+      if (e.direction === "IN") otherCashIn = otherCashIn.plus(e.amount); else otherCashOut = otherCashOut.plus(e.amount);
+    }
     if (collection) cashCollections = cashCollections.plus(signed);
     else if (e.category === 'REFUND') cashRefunds = cashRefunds.minus(signed);
     else if (['PETTY_CASH_RECEIVED', 'PETTY_CASH_ISSUED'].includes(e.category)) pettyCash = pettyCash.plus(signed);
-    else if (['EXPENSE_PAYMENT', 'VENDOR_PAYMENT'].includes(e.category)) cashExpenses = cashExpenses.minus(signed);
+    else if (e.category === "EXPENSE_PAYMENT") cashExpenses = cashExpenses.minus(signed);
+    else if (e.category === "VENDOR_PAYMENT") vendorPayments = vendorPayments.minus(signed);
     else adjustments = adjustments.plus(signed);
   }
-  return { physicalCashIn, physicalCashOut, nonPhysicalTotal, pettyCash, cashCollections, cashExpenses, cashRefunds,
+  return { vendorPayments, posCashCollections, hmsCashCollections, otherCashIn, otherCashOut, physicalCashIn, physicalCashOut, nonPhysicalTotal, pettyCash, cashCollections, cashExpenses, cashRefunds,
     totalCollections, totalRefunds, adjustments, remainingAmount, expectedPhysicalCash: physicalCashIn.minus(physicalCashOut),
     unsettledCount: entries.filter(e => e.isPhysicalCash && !e.isSettled).length };
 }

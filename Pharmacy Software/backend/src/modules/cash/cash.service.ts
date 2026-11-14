@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '@/db/client';
 import { NotFoundError, ConflictError, ValidationError } from '@/shared/errors/AppError';
@@ -13,8 +14,8 @@ import { balanceSheetRange, summarizeCashEntries } from './balanceSheet.util';
  * into an accepted settlement). Simpler and structurally can't drift the
  * way hms-backend's scattered formula can (pharmacy.md §19.3).
  */
-async function expectedCash(portalUserId: string): Promise<Decimal> {
-  const entries = await prisma.cashLedgerEntry.findMany({
+async function expectedCash(portalUserId: string, db: Prisma.TransactionClient = prisma): Promise<Decimal> {
+  const entries = await db.cashLedgerEntry.findMany({
     where: { portalUserId, isPhysicalCash: true, isSettled: false },
     select: { direction: true, amount: true },
   });
@@ -41,12 +42,12 @@ export const cashService = {
     });
   },
 
-  async getBalanceSheet(userId: string, query: BalanceSheetQuery) {
+  async getBalanceSheet(userId: string, query: BalanceSheetQuery, db: Prisma.TransactionClient = prisma) {
     const range = balanceSheetRange(query);
-    const lastSettlement = !range ? await prisma.accountSettlement.findFirst({
+    const lastSettlement = !range ? await db.accountSettlement.findFirst({
       where: { portalUserId: userId, status: 'ACCEPTED' }, orderBy: { submittedAt: 'desc' },
     }) : null;
-    const entries = await prisma.cashLedgerEntry.findMany({
+    const entries = await db.cashLedgerEntry.findMany({
       where: {
         portalUserId: userId,
         ...(range ? { occurredAt: { gte: range.gte, lte: range.lte } } : {
@@ -57,22 +58,32 @@ export const cashService = {
       orderBy: { occurredAt: 'asc' },
     });
     const activity = entries.filter(e => e.category !== 'SETTLEMENT_HANDOVER');
-    const settlements = range ? await prisma.accountSettlement.findMany({
+    const settlements = range ? await db.accountSettlement.findMany({
       where: { portalUserId: userId, status: 'ACCEPTED', reviewedAt: { gte: range.gte, lte: range.lte } },
     }) : [];
-    const pendingSettlement = await prisma.accountSettlement.findFirst({ where: { portalUserId: userId, status: 'SUBMITTED' }, select: { id: true } });
+    const pendingSettlement = await db.accountSettlement.findFirst({ where: { portalUserId: userId, status: 'SUBMITTED' }, select: { id: true } });
     const referenceIds = (table: string) => activity.filter(e => e.referenceTable === table && e.referenceId).map(e => e.referenceId!);
     const [invoices, purchases, expenses, vendorPayments] = await Promise.all([
-      prisma.pharmacyInvoice.findMany({ where: { id: { in: referenceIds('pharmacy_invoices') } }, select: { id: true, invoiceNumber: true } }),
-      prisma.purchase.findMany({ where: { id: { in: referenceIds('purchases') } }, select: { id: true, purchaseNumber: true } }),
-      prisma.expense.findMany({ where: { id: { in: referenceIds('expenses') } }, select: { id: true, expenseNumber: true } }),
-      prisma.vendorLedgerEntry.findMany({ where: { id: { in: referenceIds('vendor_ledger_entries') } }, select: { id: true, referenceNo: true } }),
+      db.pharmacyInvoice.findMany({ where: { id: { in: referenceIds('pharmacy_invoices') } }, select: { id: true, invoiceNumber: true } }),
+      db.purchase.findMany({ where: { id: { in: referenceIds('purchases') } }, select: { id: true, purchaseNumber: true } }),
+      db.expense.findMany({ where: { id: { in: referenceIds('expenses') } }, select: { id: true, expenseNumber: true } }),
+      db.vendorLedgerEntry.findMany({ where: { id: { in: referenceIds('vendor_ledger_entries') } }, select: { id: true, referenceNo: true } }),
     ]);
     const references = new Map<string, string | null>([
       ...invoices.map(e => [e.id, e.invoiceNumber] as const), ...purchases.map(e => [e.id, e.purchaseNumber] as const),
       ...expenses.map(e => [e.id, e.expenseNumber] as const), ...vendorPayments.map(e => [e.id, e.referenceNo] as const),
     ]);
     const summary = summarizeCashEntries(activity);
+    const prior = range?.gte ? await db.cashLedgerEntry.findMany({
+      where: { portalUserId: userId, isPhysicalCash: true, occurredAt: { lt: range.gte } },
+      select: { direction: true, amount: true },
+    }) : [];
+    const priorSettlements = range?.gte ? await db.accountSettlement.findMany({ where: { portalUserId: userId, status: 'ACCEPTED', reviewedAt: { lt: range.gte } }, select: { variance: true } }) : [];
+    const priorVariance = priorSettlements.reduce((sum, e) => sum.plus(e.variance), new Decimal(0));
+    const openingCash = prior.reduce((sum, e) => sum.plus(e.direction === 'IN' ? e.amount : e.amount.negated()), priorVariance);
+    const settledAmount = settlements.reduce((sum, e) => sum.plus(e.settlementAmount), new Decimal(0));
+    const settlementVarianceAdjustment = settlements.reduce((sum,e) => sum.plus(e.variance), new Decimal(0));
+    const closingCash = openingCash.plus(summary.expectedPhysicalCash).minus(settledAmount).plus(settlementVarianceAdjustment);
 
     const byCategory = new Map<string, Decimal>();
     for (const e of entries) {
@@ -82,13 +93,14 @@ export const cashService = {
 
     return {
       // Keep the legacy property live for the settlement form.
-      expectedCash: range ? await expectedCash(userId) : summary.expectedPhysicalCash,
+      expectedCash: range ? await expectedCash(userId, db) : summary.expectedPhysicalCash,
       breakdown: Object.fromEntries(byCategory),
       entries: activity.map(e => ({ ...e, documentReference: e.referenceNo || references.get(e.referenceId || '') || null })),
       period: { mode: range ? 'period' : 'shift', label: range?.label || 'Current Shift (unsettled)' },
       pendingSettlement: Boolean(pendingSettlement),
       summary: {
         ...summary,
+        openingCash, closingCash,
         settlementCount: settlements.length,
         settledAmount: settlements.reduce((s, e) => s.plus(e.settlementAmount ?? 0), new Decimal(0)),
         physicalCashCounted: settlements.reduce((s, e) => s.plus(e.physicalCash), new Decimal(0)),

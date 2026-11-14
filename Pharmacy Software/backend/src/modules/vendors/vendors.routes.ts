@@ -1,3 +1,5 @@
+import { prisma } from '@/db/client';
+import { z } from 'zod';
 import { Router } from 'express';
 import { authorize } from '@/middleware/authorize';
 import { validate } from '@/middleware/validate';
@@ -10,6 +12,14 @@ const view = authorize('vendors', 'view');
 const create = authorize('vendors', 'create');
 const edit = authorize('vendors', 'edit');
 
+router.get('/payment-accounts', view, asyncHandler(async (_req, res) => {
+  const accounts = await prisma.paymentAccount.findMany({ include: { entries: { select: { direction: true, amount: true } } }, orderBy: { name: 'asc' } });
+  res.json({ data: accounts.map(({ entries, ...account }) => ({ ...account, netMovement: entries.reduce((sum, entry) => sum + (entry.direction === 'IN' ? Number(entry.amount) : -Number(entry.amount)), 0) })) });
+}));
+router.post('/payment-accounts', create, validate({ body: z.object({ name: z.string().trim().min(2).max(100) }) }), asyncHandler(async (req, res) => {
+  const account = await prisma.paymentAccount.create({ data: { name: req.body.name } });
+  res.status(201).json({ data: account });
+}));
 router.post('/', create, validate({ body: s.createVendorBodySchema }), asyncHandler(c.create));
 router.get('/', view, asyncHandler(c.list));
 router.get('/next-code', create, asyncHandler(c.nextCode));

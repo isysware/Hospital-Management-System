@@ -1,3 +1,4 @@
+import { commissionService } from '@/modules/commission/commission.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/db/client';
@@ -310,6 +311,9 @@ export const panelBillingService = {
         include: { allocations: true },
       });
 
+      for (const allocation of remittance.allocations) {
+        await commissionService.syncInvoiceCollections(tx, allocation.hospitalInvoiceId, actorId);
+      }
       return remittance;
     });
   },

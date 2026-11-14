@@ -1,3 +1,4 @@
+import { PaymentAccountSelect } from '../components/PaymentAccountSelect';
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   Loader2,
@@ -40,9 +41,14 @@ export const VendorsPage: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [ledgerSearch, setLedgerSearch] = useState('');
 
   // Payment state
+  const [refundOf, setRefundOf] = useState('');
+  const [refundCredits, setRefundCredits] = useState<any[]>([]);
+  const [returnRequestKey, setReturnRequestKey] = useState('');
+  const [paymentAccountId, setPaymentAccountId] = useState('');
+  const [paymentRequestKey, setPaymentRequestKey] = useState('');
   const [payVendor, setPayVendor] = useState<any | null>(null);
   const [payAmount, setPayAmount] = useState('');
-  const [payMethod, setPayMethod] = useState<'CASH' | 'CARD' | 'ONLINE'>('CASH');
+  const [payMethod, setPayMethod] = useState<'CASH' | 'CARD' | 'ONLINE' | 'BANK'>('CASH');
   const [payReference, setPayReference] = useState('');
   const [paying, setPaying] = useState(false);
 
@@ -125,12 +131,12 @@ export const VendorsPage: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
   const openPayModal = (vendor: any) => {
     const due = Number(vendor.currentPayable || 0);
-    if (due <= 0) {
-      toast.error(`Vendor "${vendor.name}" has no outstanding balance — account is already settled.`);
-      return;
-    }
+    setRefundOf('');
+    apiClient.get('/vendors/' + vendor.id + '/ledger').then(r => setRefundCredits(r.data.data.entries.filter((e: any) => Number(e.amount) < 0 && ['PAYMENT','RETURN_CREDIT'].includes(e.entryType)))).catch(() => setRefundCredits([]));
     setPayVendor(vendor);
-    setPayAmount(String(due));
+    setPaymentAccountId('');
+    setPaymentRequestKey(crypto.randomUUID());
+    setPayAmount(String(Math.max(due, 0)));
     setPayReference(`VND-PAY-${String(Date.now()).slice(-4)}`);
     setPayMethod('CASH');
   };
@@ -147,6 +153,10 @@ export const VendorsPage: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       await apiClient.post(`/vendors/${payVendor.id}/pay`, {
         amount,
         method: payMethod,
+        requestKey: paymentRequestKey,
+        refundOf: refundOf || undefined,
+        reference: payReference || undefined,
+        paymentAccountId: payMethod === 'CASH' ? undefined : paymentAccountId || undefined,
       });
       toast.success(`Payment of ${formatPKR(amount)} recorded for ${payVendor.name}.`);
       setPayVendor(null);
@@ -166,6 +176,7 @@ export const VendorsPage: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   // ── Purchase Return (purchase-costing-plan) ─────────────────────────────
   const openReturnModal = (vendor: any) => {
     setReturnVendor(vendor);
+    setReturnRequestKey(crypto.randomUUID());
     setReturnMedicineId('');
     setReturnBatches([]);
     setReturnBatchId('');
@@ -204,6 +215,7 @@ export const VendorsPage: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     try {
       await apiClient.post('/vendors/purchase-returns', {
         vendorId: returnVendor.id,
+        requestKey: returnRequestKey,
         lines: [{ medicineId: returnMedicineId, batchId: returnBatchId, returnUnitId: selectedReturnBatch.purchaseUnitId, returnUnitQuantity: qty }],
         reason: returnReason.trim(),
       });
@@ -834,7 +846,6 @@ export const VendorsPage: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 <input
                   type="number"
                   min={1}
-                  max={Number(payVendor.currentPayable)}
                   value={payAmount}
                   onChange={(e) => setPayAmount(e.target.value)}
                   placeholder="Enter amount"
@@ -853,10 +864,17 @@ export const VendorsPage: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 >
                   <option value="CASH">Cash Disbursement</option>
                   <option value="CARD">Bank / POS Card</option>
-                  <option value="ONLINE">Online Bank Transfer</option>
+                  <option value="ONLINE">Online Bank Transfer</option><option value="BANK">Bank Transfer</option>
                 </select>
               </div>
 
+              <label className="block font-semibold text-slate-700">Transaction
+                <select value={refundOf} onChange={e => setRefundOf(e.target.value)} className="w-full p-2 border rounded-lg">
+                  <option value="">Pay supplier / Supplier advance</option>
+                  {refundCredits.map(c => <option key={c.id} value={c.id}>Receive refund against {c.referenceNo} ({formatPKR(Math.abs(Number(c.amount)))})</option>)}
+                </select>
+              </label>
+              {payMethod !== "CASH" && <PaymentAccountSelect value={paymentAccountId} onChange={setPaymentAccountId} />}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Voucher / Cheque Reference (Optional)

@@ -7,11 +7,12 @@ type Report = {
 export async function exportBalanceSheet(kind: 'Excel' | 'CSV' | 'PDF' | 'Print', data: Report, user: string, categories: Record<string, string>) {
   const s = data.summary;
   const summary = [
-    ['Petty Cash (net)', s.pettyCash], ['Cash Collections', s.cashCollections],
-    ['Cash Expenses / Vendor Payments', s.cashExpenses], ['Cash Refunds', s.cashRefunds],
-    ['Cash Adjustments', s.adjustments], ['Non-Cash (net)', s.nonPhysicalTotal],
-    [data.period.mode === 'shift' ? 'Expected Physical Cash' : 'Period Cash Movement (before handovers)', s.expectedPhysicalCash],
-    ['Remaining Unsettled Cash', s.remainingAmount],
+    ['Opening / Carry Forward Cash', s.openingCash], ['Cash Sales Collections', s.posCashCollections],
+    ['HMS Pharmacy Cash Collections', s.hmsCashCollections], ['Other Authorized Cash In', s.otherCashIn], ['Other Authorized Cash Out', s.otherCashOut],
+    ['Operating Expenses', s.cashExpenses], ['Vendor / Supplier Payments', s.vendorPayments], ['Cash Refunds', s.cashRefunds],
+    ['Non-Cash (net)', s.nonPhysicalTotal],
+    ['Expected Physical Cash', s.closingCash],
+    ['Closing / Remaining Cash', s.closingCash],
     ...(data.period.mode === 'period' ? [['Accepted Settlements', s.settlementCount], ['Physical Cash Counted', s.physicalCashCounted], ['Variance', s.variance], ['Settled', s.settledAmount]] : []),
   ];
   const rows = [

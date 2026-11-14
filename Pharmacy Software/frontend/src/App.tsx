@@ -30,12 +30,13 @@ import { useHmsNotifications } from './context/HmsNotificationContext';
 // dropdown and no intermediate hub page). See ReportView.tsx for the shared
 // table/export UI and navigation.ts's 'reports' group for the menu entries.
 const REPORT_PAGES: { page: string; type: import('./components/ReportView').ReportType; title: string; subtitle: string }[] = [
-  { page: 'reports-sales', type: 'SALES_COLLECTION', title: 'Sales & Collection', subtitle: 'Every retail and HMS-linked invoice, payment status and collector.' },
+  { page: 'reports-income-expense', type: 'INCOME_EXPENSE', title: 'Income & Expense', subtitle: 'Full-payment revenue, matched medicine cost and supplier payments.' },
+  { page: 'reports-sales', type: 'SALES_COLLECTION', title: 'Detailed Income', subtitle: 'Every retail and HMS-linked invoice, payment status and collector.' },
   { page: 'reports-hms', type: 'HMS_DISPENSE', title: 'HMS Request / Dispense', subtitle: 'Inpatient medicine requests, dispensing status and clearance.' },
   { page: 'reports-purchase', type: 'PURCHASE', title: 'Purchase Inward', subtitle: 'Goods received, landed cost and vendor payment status per GRN.' },
   { page: 'reports-stock-movement', type: 'STOCK_MOVEMENT', title: 'Stock Movement Audit', subtitle: 'Every stock ledger entry — purchases, sales, returns, adjustments.' },
   { page: 'reports-vendor-ledger', type: 'VENDOR_LEDGER', title: 'Vendor Payables Ledger', subtitle: 'Vendor-wise credit, payment and return entries with running balance.' },
-  { page: 'reports-expense', type: 'EXPENSE', title: 'Operational Expense', subtitle: 'Approved and pending operating expenses by category and payee.' },
+  { page: 'reports-expense', type: 'EXPENSE', title: 'Detailed Expense', subtitle: 'Approved and pending operating expenses by category and payee.' },
   { page: 'reports-returns', type: 'RETURN_REFUND', title: 'Sales & Purchase Returns', subtitle: 'Refunds and purchase returns, reason and processed-by audit trail.' },
   { page: 'reports-settlement', type: 'BALANCE_SETTLEMENT', title: 'Balance & Drawer Settlement', subtitle: 'Cashier shift-end reconciliations, variance and review status.' },
 ];
@@ -143,7 +144,7 @@ const App: React.FC = () => {
         return (
           <ReportView
             type="SALES_COLLECTION"
-            title="Sales & Collection"
+            title="Detailed Income"
             subtitle="Every retail and HMS-linked invoice, payment status and collector."
             onNavigate={navigate}
             currentPage="reports-sales"

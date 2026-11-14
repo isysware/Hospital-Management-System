@@ -206,7 +206,8 @@ export function projectInvoice(
     recognizedCost = targetCost;
     if (delta.gt(0)) recognizedAt = e.at;
     if (!inRange(e.at, range)) continue;
-    grossSales = grossSales.plus(e.gross);
+    // Gross sales remain before returns; the difference to net billing exposes discounts and returns.
+    if (e.kind === "SALE") grossSales = grossSales.plus(e.gross);
     netBilling = netBilling.plus(e.sale.minus(e.tax));
     taxBilled = taxBilled.plus(e.tax);
     if (!issues.length) {

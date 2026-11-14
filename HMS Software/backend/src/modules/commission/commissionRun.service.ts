@@ -1,3 +1,4 @@
+import { commissionDepartmentFilter } from './commission.calc';
 import { prisma } from '@/db/client';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -10,10 +11,10 @@ async function preview(tx: Prisma.TransactionClient, filters: CommissionRunFilte
     status: 'ACCRUED', commissionRunId: null,
     periodStart: { gte: filters.periodStart, lte: filters.periodEnd },
     ...(filters.staffId ? { staffId: filters.staffId } : {}),
-    ...(filters.departmentId ? { doctor: { staffDepartments: { some: { departmentId: filters.departmentId } } } } : {}),
-    invoiceLineItem: { isCompleted: true, hospitalInvoice: { status: { not: 'VOID' } }, ...(filters.serviceRateId ? { serviceRateId: filters.serviceRateId } : {}) },
+
+    invoiceLineItem: { ...(filters.departmentId ? commissionDepartmentFilter(filters.departmentId) : {}), isCompleted: true, hospitalInvoice: { status: { not: 'VOID' } }, ...(filters.serviceRateId ? { serviceRateId: filters.serviceRateId } : {}) },
   }, include: commissionInclude, orderBy: [{ periodStart: 'asc' }, { id: 'asc' }] });
-  const eligible = lines.map(commissionStatement);
+  const eligible = lines.map(commissionStatement).filter(line => line.balance.payable.gt(0));
   return { lines: eligible, totalAmount: eligible.reduce((s, r) => s.plus(r.balance.payable), new Decimal(0)), lineCount: eligible.length };
 }
 

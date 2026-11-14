@@ -10,12 +10,13 @@ import type {
 } from './commission.schemas';
 import { isCommissionBasis } from '@/modules/identity/staff.schemas';
 import { commissionBalance } from './commission.calc';
+import { syncLineCollections, collectedCommission } from './commission.collections';
 import { postStaffPaymentCash } from '@/modules/cash/staffPaymentCash';
 
 export const commissionInclude = {
   doctor: { select: { id: true, fullName: true, employeeId: true } },
   invoiceLineItem: { include: { serviceRate: true, hospitalInvoice: { select: { id: true, invoiceNumber: true, status: true } } } },
-  payouts: true, reversals: true, adjustments: true,
+  collectionEvent: true, payouts: true, reversals: true, adjustments: true,
 } as const;
 
 export function commissionStatement<T extends Parameters<typeof commissionBalance>[0]>(row: T) {
@@ -39,23 +40,26 @@ export const commissionService = {
       discountAmount: Decimal;
     },
     doctorStaffId: string,
-    actorId?: string,
+    actorId: string,
   ) {
     if (!lineItem.serviceRateId) return null;
-    // 1. Check if commission is already accrued for this invoice line (enforces 1:1 constraint)
-    const existing = await tx.doctorCommissionAccrual.findUnique({
-      where: { invoiceLineItemId: lineItem.id },
-    });
+    await tx.$queryRaw`SELECT id FROM invoice_line_items WHERE id = ${lineItem.id} FOR UPDATE`;
+    const contract = await tx.commissionCollectionEvent.findUnique({ where: { sourceKey: `CONTRACT:${lineItem.id}` } });
+    if (contract) return syncLineCollections(tx, lineItem.id, actorId);
+    const existing = await tx.doctorCommissionAccrual.findFirst({ where: { invoiceLineItemId: lineItem.id }, orderBy: { createdAt: 'asc' } });
     if (existing) {
-      if (existing.status === 'ACCRUED') {
-        await tx.doctorCommissionAccrual.delete({ where: { id: existing.id } });
-      } else {
-        return existing;
-      }
+      const source = await tx.invoiceLineItem.findUniqueOrThrow({ where: { id: lineItem.id }, include: { hospitalInvoice: { include: { paymentReceipts: true, panelRemittanceAllocations: true } } } });
+      await tx.commissionCollectionEvent.create({ data: {
+        sourceKey: `CONTRACT:${lineItem.id}`, invoiceLineItemId: lineItem.id, occurredAt: source.createdAt,
+        collectedAmount: 0, commissionAmount: 0,
+        ruleSnapshot: { ...(existing.ruleSnapshot as Prisma.JsonObject), staffId: existing.staffId, legacy: true,
+          openingSources: [...source.hospitalInvoice.paymentReceipts.map(r => `RECEIPT:${r.id}`), ...source.hospitalInvoice.panelRemittanceAllocations.map(r => `PANEL:${r.id}`)] },
+      } });
+      return syncLineCollections(tx, lineItem.id, actorId);
     }
 
     const source = await tx.invoiceLineItem.findUnique({ where: { id: lineItem.id }, include: { hospitalInvoice: true } });
-    if (!source?.serviceRateId || !source.isCompleted || source.hospitalInvoice.status === 'VOID' || source.performedByStaffId !== doctorStaffId) return null;
+    if (!source?.serviceRateId || ['PHARMACY', 'ROOM_BED'].includes(source.billingSource) || !source.isCompleted || source.hospitalInvoice.status === 'VOID' || source.performedByStaffId !== doctorStaffId) return null;
     const assignment = await tx.staffService.findFirst({ where: {
       staffId: doctorStaffId, serviceRateId: source.serviceRateId, isActive: true,
       staff: { isActive: true }, serviceRate: { isActive: true, isDeleted: false },
@@ -103,30 +107,13 @@ export const commissionService = {
       return null;
     }
 
-    // 4. Determine eligible base amount: default is NET (Gross - Discount) per D15 §4
-    const eligibleAmount = rule.basis === 'GROSS' ? lineItem.lineGross : lineItem.lineNet;
-
-    // 5. Calculate commission amount
-    let commissionAmount = new Decimal(0);
-    if (rule.ruleType === 'FIXED_PER_SERVICE') {
-      commissionAmount = rule.rate.mul(lineItem.quantity);
-    } else {
-      // PERCENTAGE rule
-      commissionAmount = eligibleAmount.mul(rule.rate).div(100);
-    }
-
-    // 6. Hospital Remaining Share = Net Service Amount - Doctor Commission
-    commissionAmount = commissionAmount.toDecimalPlaces(2);
+    // Freeze the contractual full-collection amount using the same calculator
+    // that recognizes each subsequent receipt. This snapshot is not an accrual.
+    const { gross: commissionAmount, tax: commissionTaxAmount } = collectedCommission(rule, lineItem, lineItem.lineNet);
     const hospitalShare = lineItem.lineNet.minus(commissionAmount);
-    const commissionTaxAmount = Decimal.min(commissionAmount,
-      rule.commissionTaxMethod === 'PERCENTAGE' ? commissionAmount.mul(rule.commissionTaxValue ?? 0).div(100)
-        : rule.commissionTaxMethod === 'FIXED' ? rule.commissionTaxValue ?? new Decimal(0) : new Decimal(0),
-    ).toDecimalPlaces(2);
-
-    const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const endOfDay = startOfDay;
 
     const ruleSnapshot = {
+      staffId: doctorStaffId,
       ruleId: rule.id,
       ruleType: rule.ruleType,
       rate: rule.rate.toNumber(),
@@ -139,24 +126,24 @@ export const commissionService = {
       commissionTaxMethod: rule.commissionTaxMethod,
       commissionTaxValue: rule.commissionTaxValue?.toNumber() ?? null,
       commissionTaxAmount: commissionTaxAmount.toNumber(),
-      postedById: actorId ?? source.hospitalInvoice.createdById,
+      postedById: actorId,
       hospitalRemainingShare: hospitalShare.toNumber(),
       calculatedAt: now.toISOString(),
     };
 
-    // 7. Create DoctorCommissionAccrual record
-    return tx.doctorCommissionAccrual.create({
-      data: {
-        staffId: doctorStaffId,
-        invoiceLineItemId: lineItem.id,
-        periodType: 'DAILY',
-        periodStart: startOfDay,
-        periodEnd: endOfDay,
-        commissionAmount,
-        ruleSnapshot,
-        status: 'ACCRUED',
-      },
-    });
+    await tx.commissionCollectionEvent.create({ data: {
+      sourceKey: `CONTRACT:${lineItem.id}`, invoiceLineItemId: lineItem.id,
+      occurredAt: now, collectedAmount: 0, commissionAmount: 0, ruleSnapshot,
+    } });
+    return syncLineCollections(tx, lineItem.id, actorId);
+  },
+
+  async syncInvoiceCollections(tx: Prisma.TransactionClient, invoiceId: string, actorId: string) {
+    const lines = await tx.invoiceLineItem.findMany({ where: { hospitalInvoiceId: invoiceId }, include: { commissionAccruals: { select: { staffId: true }, take: 1 } }, orderBy: { id: 'asc' } });
+    for (const line of lines) {
+      const doctorId = line.performedByStaffId ?? line.commissionAccruals[0]?.staffId;
+      if (doctorId) await this.calculateAndAccrueCommission(tx, line, doctorId, actorId);
+    }
   },
 
   /**
@@ -166,42 +153,18 @@ export const commissionService = {
   async reverseCommissionAccrual(
     tx: Prisma.TransactionClient,
     invoiceLineItemId: string,
-    reason: string,
+    _reason: string,
     reversedById: string,
-    fraction = new Decimal(1),
+    _fraction = new Decimal(1),
   ) {
-    await tx.$queryRaw`SELECT id FROM doctor_commission_accruals WHERE invoice_line_item_id = ${invoiceLineItemId} FOR UPDATE`;
-    const accrual = await tx.doctorCommissionAccrual.findUnique({
-      where: { invoiceLineItemId }, include: { reversals: true },
-    });
-    if (!accrual) return null;
-
-    const priceChanges = accrual.reversals.filter(r => r.source === 'SERVICE_REPRICE').reduce((s, r) => s.plus(r.reversalAmount), new Decimal(0));
-    const serviceGross = Decimal.max(accrual.commissionAmount.minus(priceChanges), 0);
-    const alreadyReversed = accrual.reversals.filter(r => r.source !== 'SERVICE_REPRICE').reduce((s, r) => s.plus(r.reversalAmount), new Decimal(0));
-    const amount = Decimal.min(serviceGross.minus(alreadyReversed), serviceGross.mul(fraction)).toDecimalPlaces(2);
-    if (amount.lte(0)) return null;
-    return tx.commissionReversal.create({
-      data: {
-        doctorCommissionAccrualId: accrual.id,
-        reversalAmount: amount,
-        reason,
-        reversedById,
-      },
-    });
+    // Receipts are authoritative. Replaying a refund cannot reverse commission twice.
+    return syncLineCollections(tx, invoiceLineItemId, reversedById);
   },
 
-  /** Discount corrections append a signed reversal instead of rewriting earnings. */
-  async repriceCommission(tx: Prisma.TransactionClient, lineId: string, oldNet: Decimal, newNet: Decimal, actorId: string, reason: string) {
-    await tx.$queryRaw`SELECT id FROM doctor_commission_accruals WHERE invoice_line_item_id = ${lineId} FOR UPDATE`;
-    const accrual = await tx.doctorCommissionAccrual.findUnique({ where: { invoiceLineItemId: lineId }, include: { reversals: true } });
-    if (!accrual || oldNet.equals(newNet)) return;
-    const rule = accrual.ruleSnapshot as Record<string, unknown>;
-    if (rule.ruleType !== 'PERCENTAGE' || rule.basis !== 'NET') return;
-    if (accrual.reversals.some(r => r.source === 'REFUND')) throw new ConflictError('A refunded commission service requires a separate commission adjustment, not repricing.');
-    const amount = oldNet.minus(newNet).mul(String(rule.rate)).div(100).toDecimalPlaces(2);
-    if (amount.isZero()) return;
-    await tx.commissionReversal.create({ data: { doctorCommissionAccrualId: accrual.id, reversalAmount: amount, source: 'SERVICE_REPRICE', reason, reversedById: actorId } });
+  async repriceCommission(tx: Prisma.TransactionClient, lineId: string, oldNet: Decimal, newNet: Decimal, actorId: string, _reason: string) {
+    if (oldNet.equals(newNet)) return;
+    const line = await tx.invoiceLineItem.findUniqueOrThrow({ where: { id: lineId } });
+    await this.syncInvoiceCollections(tx, line.hospitalInvoiceId, actorId);
   },
 
   async createCommissionRule(body: CreateCommissionRuleBody, actorId: string) {
@@ -279,6 +242,7 @@ export const commissionService = {
             hospitalInvoice: { select: { id: true, invoiceNumber: true, status: true } },
           },
         },
+        collectionEvent: true,
         reversals: true,
         payouts: true,
         adjustments: true,

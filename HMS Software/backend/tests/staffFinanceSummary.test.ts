@@ -37,6 +37,6 @@ it('recognizes commission net of original tax, discounts/reversals and current a
   expect(db.doctorCommissionAccrual.findMany.mock.calls[0][0].where.approvedById).toBe('user');
   expect(db.commissionPayout.findMany.mock.calls[0][0].where.doctorCommissionAccrual.invoiceLineItem.OR).toEqual([
     { serviceRate: { departmentId: 'dept' } },
-    { serviceRateId: null, hospitalInvoice: { departmentId: 'dept' } },
+    { hospitalInvoice: { departmentId: 'dept' }, OR: [{ serviceRateId: null }, { serviceRate: { departmentId: null } }] },
   ]);
 });

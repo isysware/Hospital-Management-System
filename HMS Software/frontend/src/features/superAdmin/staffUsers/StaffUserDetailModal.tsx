@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { formatPKR } from '../../../utils/formatters';
 import {
   X,
   User,
@@ -31,6 +32,16 @@ export const StaffUserDetailModal: React.FC<StaffUserDetailModalProps> = ({
   onEdit,
   onPrintDossier,
 }) => {
+  const [commission, setCommission] = useState<Record<string, string> | null>(null);
+  const [financeError, setFinanceError] = useState('');
+  useEffect(() => {
+    let active = true;
+    setCommission(null); setFinanceError('');
+    if (isOpen && staff?.id) StaffUserService.fetchFullProfile(staff.id)
+      .then(profile => { if (active) setCommission(profile.commission ?? null); })
+      .catch(() => { if (active) setFinanceError('Unable to load commission balances.'); });
+    return () => { active = false; };
+  }, [isOpen, staff?.id]);
   if (!isOpen || !staff) return null;
 
   const auditHistory = StaffUserService.getAuditLogs().filter(
@@ -93,6 +104,14 @@ export const StaffUserDetailModal: React.FC<StaffUserDetailModalProps> = ({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs text-[#111827]">
+          <section aria-label="Commission balances" className="space-y-2">
+            <h4 className="font-bold">Collection-Based Doctor Commission</h4>
+            {financeError && <p role="alert" className="text-rose-700">{financeError}</p>}
+            {commission ? <dl className="grid grid-cols-2 gap-3">
+              {Object.entries({ generated: 'Commission Generated', paid: 'Commission Paid', outstanding: 'Commission Outstanding', recoverable: 'Recoverable Overpayment' }).map(([key, label]) =>
+                <div key={key}><dt className="text-slate-500">{label}</dt><dd className="font-semibold">{formatPKR(Number(commission[key] ?? 0))}</dd></div>)}
+            </dl> : !financeError && <p>Loading commission balances?</p>}
+          </section>
           {/* Section 1: Personal Information */}
           <div className="space-y-3">
             <div className="flex items-center gap-2 pb-1.5 border-b border-[#e2eae5]">

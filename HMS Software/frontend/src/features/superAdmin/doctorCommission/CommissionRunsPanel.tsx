@@ -45,7 +45,7 @@ export const CommissionRunsPanel: React.FC<{ doctors: Option[]; services: Option
   const lines = detail?.lines ?? preview?.lines ?? [];
   return <section className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
     <h2 className="font-bold text-slate-900">Commission Runs &amp; Statements</h2>
-    <p className="text-xs text-slate-500">Select eligible completed services, preview, generate, then approve. Record payments separately in the table below.</p>
+    <p className="text-xs text-slate-500">Preview commission earned from collections in the selected period, generate, then approve. Later collections create separate entries. Record commission payments below.</p>
     {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
     <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
       <Select label="Run Type" value={filters.periodType} options={['DAILY', 'MONTHLY', 'CUSTOM'].map(value => ({ value, label: value }))}
@@ -69,15 +69,15 @@ export const CommissionRunsPanel: React.FC<{ doctors: Option[]; services: Option
       setDetail(await approveCommissionRun(detail.id)); setRuns(await fetchCommissionRuns()); onChanged(); toast.success('Commission run approved.');
     })}>Approve Commission Run</button>}
     {(preview || detail) && <>
-      <p className="text-sm font-semibold">{lines.length} services · {detail ? 'Generated snapshot total' : 'Preview payable'}: {formatPKR(Number(detail?.totalAmount ?? preview?.totalAmount ?? 0))}</p>
+      <p className="text-sm font-semibold">{lines.length} collection entries · {detail ? 'Generated snapshot total' : 'Preview payable'}: {formatPKR(Number(detail?.totalAmount ?? preview?.totalAmount ?? 0))}</p>
       <div className="overflow-x-auto"><table className="w-full text-xs text-left">
-        <thead><tr>{['Doctor', 'Date', 'Invoice / Service', 'Qty', 'Eligible Net', 'Rule', 'Gross', 'Tax', 'Reversed', 'Adjustments', 'Payable', 'Paid', 'Remaining', 'Overpaid'].map(h => <th key={h} className="p-2 border-b whitespace-nowrap">{h}</th>)}</tr></thead>
+        <thead><tr>{['Doctor', 'Date', 'Invoice / Service', 'Qty', 'Collected To Date', 'Rule', 'Gross', 'Tax', 'Reversed', 'Adjustments', 'Payable', 'Paid', 'Remaining', 'Overpaid'].map(h => <th key={h} className="p-2 border-b whitespace-nowrap">{h}</th>)}</tr></thead>
         <tbody>{lines.map(line => <tr key={line.id}>
           <td className="p-2">{line.doctorName}</td><td className="p-2 whitespace-nowrap">{line.periodStart}</td>
           <td className="p-2">{line.invoiceNumber}<br />{line.serviceName}</td><td className="p-2">{line.quantity}</td>
           <td className="p-2">{formatPKR(line.eligibleNet)}</td><td className="p-2">{line.ruleLabel}</td>
           {[line.commissionAmount, line.tax, line.reversedTotal, line.adjustmentsTotal, line.payable, line.paidTotal, line.remaining, line.overpaid].map((n, i) => <td key={i} className="p-2 whitespace-nowrap">{formatPKR(n)}</td>)}
-        </tr>)}{!lines.length && <tr><td colSpan={14} className="p-4 text-center text-slate-500">No ungenerated eligible services in this period.</td></tr>}</tbody>
+        </tr>)}{!lines.length && <tr><td colSpan={14} className="p-4 text-center text-slate-500">No ungenerated commission earnings in this period.</td></tr>}</tbody>
       </table></div>
     </>}
   </section>;

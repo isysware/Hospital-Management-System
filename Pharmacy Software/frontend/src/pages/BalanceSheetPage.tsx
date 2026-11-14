@@ -30,6 +30,13 @@ interface BalanceSheetData {
     pettyCash: number;
     cashCollections: number;
     cashExpenses: number;
+    vendorPayments: number;
+    openingCash: number;
+    closingCash: number;
+    posCashCollections: number;
+    hmsCashCollections: number;
+    otherCashIn: number;
+    otherCashOut: number;
     cashRefunds: number;
     settledAmount: number;
     remainingAmount: number;
@@ -89,7 +96,7 @@ export const BalanceSheetPage: React.FC<{ onNavigate: (page: string) => void }> 
         transactions: raw.entries.map((entry: any) => ({
           ...entry, amount: Number(entry.amount), receiptNumber: entry.documentReference,
           invoiceNumber: null,
-          paymentMethod: entry.isPhysicalCash ? 'CASH' : 'NON-CASH',
+          paymentMethod: entry.paymentMethod || (entry.isPhysicalCash ? 'CASH' : 'NON-CASH'),
         })),
       });
     } catch (error: any) {
@@ -354,13 +361,17 @@ export const BalanceSheetPage: React.FC<{ onNavigate: (page: string) => void }> 
           {[
             // reporting.md §2 #8 line items. Card/Bank/Online is shown for
             // reference only — it is never part of Expected (physical) Cash.
-            { label: 'Petty Cash Received / Issued (net):', value: summary.pettyCash, tone: 'bg-slate-50 text-slate-900' },
-            { label: '(+) Cash Collections:', value: summary.cashCollections, tone: 'bg-[#dcfce7] text-emerald-900' },
-            { label: '(−) Cash Expenses / Vendor Payments:', value: summary.cashExpenses, tone: 'bg-[#fee2e2] text-rose-900' },
+            { label: 'Opening / Carry Forward Cash:', value: summary.openingCash, tone: 'bg-slate-50 text-slate-900' },
+            { label: 'Vendor / Supplier Payments:', value: summary.vendorPayments, tone: 'bg-rose-50 text-rose-900' },
+            { label: 'HMS Pharmacy Cash Collections:', value: summary.hmsCashCollections, tone: 'bg-emerald-50 text-emerald-900' },
+            { label: 'Other Authorized Cash In:', value: summary.otherCashIn, tone: 'bg-slate-50 text-slate-900' },
+            { label: 'Other Authorized Cash Out:', value: summary.otherCashOut, tone: 'bg-slate-50 text-slate-900' },
+            { label: '(+) Cash Sales Collections:', value: summary.posCashCollections, tone: 'bg-[#dcfce7] text-emerald-900' },
+            { label: '(−) Operating Expenses:', value: summary.cashExpenses, tone: 'bg-[#fee2e2] text-rose-900' },
             { label: '(−) Cash Refunds:', value: summary.cashRefunds, tone: 'bg-[#fee2e2] text-rose-900' },
             { label: 'Non-Cash (Card / Bank / Online) — not physical cash:', value: summary.nonPhysicalTotal, tone: 'bg-blue-50 text-blue-900' },
             { label: '(+/−) Cash Adjustments:', value: summary.adjustments, tone: 'bg-slate-50 text-slate-900' },
-            { label: isShift ? 'Expected Cash (Physical):' : 'Period Cash Movement (before handovers):', value: summary.expectedPhysicalCash, tone: 'bg-[#bbf7d0] text-emerald-950', strong: true },
+            { label: 'Expected Cash (Physical):', value: summary.closingCash, tone: 'bg-[#bbf7d0] text-emerald-950', strong: true },
             ...(!isShift
               ? [
                   { label: `Physical Cash Counted (${summary.settlementCount} settlement${summary.settlementCount === 1 ? '' : 's'}):`, value: summary.physicalCashCounted, tone: 'bg-slate-50 text-slate-900' },
@@ -369,10 +380,10 @@ export const BalanceSheetPage: React.FC<{ onNavigate: (page: string) => void }> 
                     value: summary.variance,
                     tone: summary.variance < 0 ? 'bg-rose-50 text-rose-900' : summary.variance > 0 ? 'bg-amber-50 text-amber-900' : 'bg-slate-50 text-slate-900',
                   },
-                  { label: 'Settled:', value: summary.settledAmount, tone: 'bg-emerald-50 text-emerald-900' },
+                  { label: 'Accepted Account Settlements:', value: summary.settledAmount, tone: 'bg-emerald-50 text-emerald-900' },
                 ]
               : []),
-            { label: isShift ? 'Remaining (Unsettled) Cash:' : 'Unsettled Cash from This Period:', value: summary.remainingAmount, tone: 'bg-amber-50 text-amber-900', strong: true },
+            { label: 'Closing / Remaining Cash:', value: summary.closingCash, tone: 'bg-amber-50 text-amber-900', strong: true },
           ].map((line) => (
             <div key={line.label} className={`flex items-center justify-between ${line.strong ? 'bg-slate-50/50' : ''}`}>
               <span className={`py-2 px-4 ${line.strong ? 'text-slate-900 font-bold' : 'text-slate-600 font-medium'}`}>{line.label}</span>

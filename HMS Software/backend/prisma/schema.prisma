@@ -1555,7 +1555,8 @@ model InvoiceLineItem {
   performedBy        Staff?          @relation("InvoiceLinePerformedBy", fields: [performedByStaffId], references: [id])
   isCompleted        Boolean         @default(false) @map("is_completed")
 
-  commissionAccrual DoctorCommissionAccrual? @relation("CommissionAccrualLine")
+  commissionAccruals DoctorCommissionAccrual[] @relation("CommissionAccrualLine")
+  commissionCollectionEvents CommissionCollectionEvent[]
   roomChargeLog     AdmissionRoomChargeLog?
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -2712,13 +2713,15 @@ model DoctorCommissionAccrual {
   id                String           @id @default(uuid())
   staffId           String           @map("staff_id")
   doctor            Staff            @relation("CommissionAccrualDoctor", fields: [staffId], references: [id])
-  invoiceLineItemId String           @unique @map("invoice_line_item_id") // enforces "one commission statement per service line" (D16 p.21)
+  invoiceLineItemId String           @map("invoice_line_item_id") // one immutable earning entry per collection event
   invoiceLineItem   InvoiceLineItem  @relation("CommissionAccrualLine", fields: [invoiceLineItemId], references: [id])
   periodType        String           @map("period_type")
   periodStart       DateTime         @map("period_start") @db.Date
   periodEnd         DateTime         @map("period_end") @db.Date
   commissionAmount  Decimal          @map("commission_amount") @db.Decimal(14, 2)
   ruleSnapshot      Json             @map("rule_snapshot")
+  collectionEventId String? @unique @map("collection_event_id")
+  collectionEvent CommissionCollectionEvent? @relation(fields: [collectionEventId], references: [id])
   commissionRunId String? @map("commission_run_id")
   commissionRun CommissionRun? @relation(fields: [commissionRunId], references: [id])
   generatedSnapshot Json? @map("generated_snapshot")
@@ -2733,6 +2736,7 @@ model DoctorCommissionAccrual {
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([invoiceLineItemId])
   @@map("doctor_commission_accruals")
 }
 
@@ -2765,6 +2769,9 @@ model CommissionReversal {
   doctorCommissionAccrualId String                  @map("doctor_commission_accrual_id")
   doctorCommissionAccrual   DoctorCommissionAccrual @relation(fields: [doctorCommissionAccrualId], references: [id])
   reversalAmount            Decimal                 @map("reversal_amount") @db.Decimal(14, 2)
+  taxAmount Decimal? @db.Decimal(14, 2) @map("tax_amount")
+  collectionEventId String? @map("collection_event_id")
+  collectionEvent CommissionCollectionEvent? @relation(fields: [collectionEventId], references: [id])
   reason                    String
   source                    String @default("REFUND")
   reversedById              String                  @map("reversed_by")
@@ -2922,4 +2929,21 @@ model Expense {
   @@index([expenseDate])
   @@index([category])
   @@map("expenses")
+}
+
+// Append-only commission recognition journal; CONTRACT events freeze eligibility/rules.
+model CommissionCollectionEvent {
+  id String @id @default(uuid())
+  sourceKey String @unique @map("source_key")
+  invoiceLineItemId String @map("invoice_line_item_id")
+  invoiceLineItem InvoiceLineItem @relation(fields: [invoiceLineItemId], references: [id])
+  occurredAt DateTime @map("occurred_at")
+  collectedAmount Decimal @db.Decimal(14, 2) @map("collected_amount")
+  commissionAmount Decimal @db.Decimal(14, 2) @map("commission_amount")
+  ruleSnapshot Json @map("rule_snapshot")
+  accrual DoctorCommissionAccrual?
+  reversals CommissionReversal[]
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([invoiceLineItemId, occurredAt])
+  @@map("commission_collection_events")
 }

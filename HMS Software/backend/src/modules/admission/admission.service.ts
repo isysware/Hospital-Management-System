@@ -49,12 +49,14 @@ async function recalcInvoiceTotals(
   tx: Prisma.TransactionClient,
   invoice: { id: string; paidTotal: Decimal; panelPatientId?: string | null },
   allLines: {
+    performedByStaffId?: string | null;
     lineGross: Decimal | null;
     discountAmount: Decimal | null;
     lineNet: Decimal | null;
     patientShare: Decimal | null;
     panelReceivable: Decimal | null;
   }[],
+  actorId: string,
 ) {
   if (invoice.panelPatientId && allLines.some(line => !new Decimal(line.patientShare ?? 0).plus(line.panelReceivable ?? 0).equals(line.lineNet ?? 0))) {
     throw new ValidationError('Historical panel lines need payer reconciliation before adding charges');
@@ -83,6 +85,9 @@ async function recalcInvoiceTotals(
       status: newStatus,
     },
   });
+  if (allLines.some(line => line.performedByStaffId)) {
+    await commissionService.syncInvoiceCollections(tx, invoice.id, actorId);
+  }
 }
 
 /**
@@ -199,7 +204,7 @@ async function postWardFixedChargeIfApplicable(
     },
   });
 
-  await recalcInvoiceTotals(tx, invoice, [...linesList, createdLine]);
+  await recalcInvoiceTotals(tx, invoice, [...linesList, createdLine], actorId);
 
   return createdLine;
 }
@@ -317,7 +322,7 @@ async function postDepartmentFixedChargeIfApplicable(
     },
   });
 
-  await recalcInvoiceTotals(tx, invoice, [...linesList, createdLine]);
+  await recalcInvoiceTotals(tx, invoice, [...linesList, createdLine], actorId);
 
   return createdLine;
 }
@@ -368,7 +373,7 @@ async function postInitialRoomChargeIfApplicable(tx: Prisma.TransactionClient, a
       invoiceLineItemId: line.id, ratePosted: rate,
     }
   });
-  await recalcInvoiceTotals(tx, freshInvoice, [...freshInvoice.lines, line]);
+  await recalcInvoiceTotals(tx, freshInvoice, [...freshInvoice.lines, line], actorId);
   return line;
 }
 
@@ -1193,7 +1198,7 @@ export const admissionService = {
         });
 
         const otherLines = invoice.lines.filter((l) => l.id !== existingLine.id);
-        await recalcInvoiceTotals(tx, invoice, [...otherLines, activeLine]);
+        await recalcInvoiceTotals(tx, invoice, [...otherLines, activeLine], actorId);
       } else {
         activeLine = await tx.invoiceLineItem.create({
           data: {
@@ -1214,11 +1219,7 @@ export const admissionService = {
           include: { serviceRate: true, performedBy: true },
         });
 
-        await recalcInvoiceTotals(tx, invoice, [...invoice.lines, activeLine]);
-      }
-
-      if (!isSelf && activeLine.performedByStaffId) {
-        await commissionService.calculateAndAccrueCommission(tx, activeLine, activeLine.performedByStaffId, actorId);
+        await recalcInvoiceTotals(tx, invoice, [...invoice.lines, activeLine], actorId);
       }
 
       // If a billable service charge was added, revert any existing HOSPITAL_BILLING clearance to PENDING

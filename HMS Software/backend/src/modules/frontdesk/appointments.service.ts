@@ -444,10 +444,6 @@ export const appointmentsService = {
           },
         });
 
-        for (const line of invoice.lines) {
-          if (line.performedByStaffId) await commissionService.calculateAndAccrueCommission(tx, line, line.performedByStaffId, actorId);
-        }
-
         // Link the advance receipts to this invoice (kept linked to the
         // appointment too — dual-linked, both reads stay valid).
         if (unlinkedReceipts.length > 0) {
@@ -457,6 +453,8 @@ export const appointmentsService = {
           });
         }
       }
+
+      if (invoice) await commissionService.syncInvoiceCollections(tx, invoice.id, actorId);
 
       const updatedAppointment = await tx.appointment.update({
         where: { id: appointment.id },

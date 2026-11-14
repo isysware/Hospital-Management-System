@@ -185,7 +185,7 @@ export const DoctorCommissionView: React.FC = () => {
   }, [filteredAccruals]);
 
   const pendingTotalAmount = useMemo(() => {
-    return pendingAccruals.reduce((sum, a) => sum + a.commissionAmount, 0);
+    return pendingAccruals.reduce((sum, a) => sum + a.payable, 0);
   }, [pendingAccruals]);
 
   const handleOpenAdd = () => {
@@ -248,18 +248,18 @@ export const DoctorCommissionView: React.FC = () => {
       },
       {
         category: 'EARNED REVENUE',
-        title: 'Accrued Commission',
+        title: 'Commission Generated',
         value: formatPKR(totalAccrued),
         icon: Banknote,
-        subtitle: 'Billed patient share',
+        subtitle: 'Eligible collected services, net of corrections',
         tone: 'warning',
       },
       {
         category: 'PAYOUT SETTLEMENT',
-        title: 'Settled Payouts',
+        title: 'Commission Paid',
         value: formatPKR(totalPaid),
         icon: CheckCircle2,
-        subtitle: `Remaining: ${formatPKR(totalRemainingAccruals)}`,
+        subtitle: `Commission Outstanding: ${formatPKR(totalRemainingAccruals)}`,
         tone: 'success',
       },
     ];
@@ -304,7 +304,7 @@ export const DoctorCommissionView: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-[#52665e] mt-0.5 max-w-2xl">
-                Fixed &amp; percentage commission rules per doctor/service, Gross/Net calculations, and independent Commission Tax
+                Commission accrues as eligible completed services are collected. Partial receipts earn proportional commission; refunds create linked reversals.
               </p>
             </div>
           </div>
@@ -464,7 +464,7 @@ export const DoctorCommissionView: React.FC = () => {
           </div>
         ) : filteredAccruals.length === 0 ? (
           <div className="py-10 text-center text-[#52665e] text-xs">
-            No commission has accrued yet — accruals are generated automatically when a billed invoice matches configured rules.
+            No commission has accrued yet — accruals are generated when eligible completed services receive payment.
           </div>
         ) : (
           <div className="overflow-x-auto">

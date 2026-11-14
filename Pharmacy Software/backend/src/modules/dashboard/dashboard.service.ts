@@ -9,7 +9,7 @@ async function getNearExpiryWindowDays() {
 }
 
 function startOfDay(d = new Date()) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  return new Date(new Date(d.getTime() + 5 * 3600000).toISOString().slice(0,10) + 'T00:00:00+05:00');
 }
 
 /** pharmacy.md §5 — every KPI here is a real Prisma query. No hardcoded numbers. */

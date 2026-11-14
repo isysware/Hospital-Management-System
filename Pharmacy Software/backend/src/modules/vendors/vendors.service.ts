@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { postVendorPayment, validatePaymentAccount } from './vendorPayments';
 import { Decimal } from '@prisma/client/runtime/library';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/db/client';
@@ -210,11 +212,19 @@ export const vendorsService = {
    * ledger, stock movement, actor. A DRAFT (`post:false`) never touches
    * stock/ledger — only a later `post:true` call does.
    */
-  async createPurchase(body: CreatePurchaseBody, actorId: string) {
-    const vendor = await prisma.vendor.findUnique({ where: { id: body.vendorId } });
+  async createPurchase(body: CreatePurchaseBody, actorId: string, db?: Prisma.TransactionClient) {
+    const vendor = await (db ?? prisma).vendor.findUnique({ where: { id: body.vendorId } });
     if (!vendor) throw new NotFoundError('Vendor not found');
 
-    return prisma.$transaction(async (tx) => {
+    const execute = async (tx: Prisma.TransactionClient) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${body.requestKey}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${body.vendorId}))`;
+      const requestHash = createHash('sha256').update(JSON.stringify(body)).digest('hex');
+      const previous = await tx.purchase.findUnique({ where: { requestKey: body.requestKey }, include: { lines: { include: { medicine: true, batch: true, purchaseUnit: true } }, vendor: true } });
+      if (previous) {
+        if (previous.createdById !== actorId || previous.requestHash !== requestHash) throw new ConflictError('Purchase request identity was already used with different details');
+        return previous;
+      }
       let subtotal = new Decimal(0);
       let discountTotal = new Decimal(0);
       let taxTotal = new Decimal(0);
@@ -328,10 +338,12 @@ export const vendorsService = {
       const purchase = await tx.purchase.create({
         data: {
           purchaseNumber,
+          requestKey: body.requestKey, requestHash,
           vendorId: body.vendorId,
           purchaseDate: body.purchaseDate,
           vendorInvoiceNo: body.vendorInvoiceNo,
           paymentType: body.paymentType,
+          paymentAccountId: body.paymentAccountId,
           notes: body.notes,
           status: body.post ? 'POSTED' : 'DRAFT',
           subtotal,
@@ -363,26 +375,32 @@ export const vendorsService = {
           data: { vendorId: body.vendorId, entryType: 'PURCHASE_CREDIT', amount: total, referenceNo: purchaseNumber, description: `Purchase ${purchaseNumber}`, referenceTable: 'purchases', referenceId: purchase.id, actorId },
         });
         if (paidNow.greaterThan(0)) {
+          await validatePaymentAccount(tx, body.paymentType, body.paymentAccountId);
           await tx.vendorLedgerEntry.create({
             data: { vendorId: body.vendorId, entryType: 'PAYMENT', amount: paidNow.negated(), referenceNo: `${purchaseNumber}-PAY`, description: `Paid on purchase ${purchaseNumber}`, referenceTable: 'purchases', referenceId: purchase.id, actorId },
           });
           await tx.cashLedgerEntry.create({
-            data: { portalUserId: actorId, direction: 'OUT', amount: paidNow, category: 'VENDOR_PAYMENT', isPhysicalCash: body.paymentType === 'CASH', referenceTable: 'purchases', referenceId: purchase.id },
+            data: { portalUserId: actorId, direction: 'OUT', amount: paidNow, category: 'VENDOR_PAYMENT', isPhysicalCash: body.paymentType === 'CASH', paymentMethod: body.paymentType, paymentAccountId: body.paymentAccountId, referenceTable: 'purchases', referenceId: purchase.id },
           });
         }
       }
 
       return purchase;
-    });
+    };
+    return db ? execute(db) : prisma.$transaction(execute);
   },
 
   /** Posts a previously-saved DRAFT purchase — same stock/ledger/price-snapshot effects as `createPurchase({ post: true })`, without re-entering line data. */
-  async postPurchase(purchaseId: string, actorId: string) {
-    const purchase = await prisma.purchase.findUnique({ where: { id: purchaseId }, include: { lines: true } });
+  async postPurchase(purchaseId: string, actorId: string, db?: Prisma.TransactionClient) {
+    const purchase = await (db ?? prisma).purchase.findUnique({ where: { id: purchaseId }, include: { lines: true } });
     if (!purchase) throw new NotFoundError('Purchase not found');
     if (purchase.status === 'POSTED') throw new ConflictError('Purchase is already posted');
 
-    return prisma.$transaction(async (tx) => {
+    const execute = async (tx: Prisma.TransactionClient) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${purchaseId}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${purchase.vendorId}))`;
+      const current = await tx.purchase.findUniqueOrThrow({ where: { id: purchaseId } });
+      if (current.status === 'POSTED') throw new ConflictError('Purchase is already posted');
       for (const line of purchase.lines) {
         await tx.stockLedgerEntry.create({
           data: { medicineId: line.medicineId, batchId: line.batchId, movementType: 'PURCHASE_IN', quantityDelta: line.quantity, referenceTable: 'purchases', referenceId: purchase.id, actorId },
@@ -396,32 +414,23 @@ export const vendorsService = {
         data: { vendorId: purchase.vendorId, entryType: 'PURCHASE_CREDIT', amount: purchase.total, referenceNo: purchase.purchaseNumber, description: `Purchase ${purchase.purchaseNumber}`, referenceTable: 'purchases', referenceId: purchase.id, actorId },
       });
       if (purchase.paidNow.greaterThan(0)) {
+        await validatePaymentAccount(tx, purchase.paymentType, purchase.paymentAccountId);
         await tx.vendorLedgerEntry.create({
           data: { vendorId: purchase.vendorId, entryType: 'PAYMENT', amount: purchase.paidNow.negated(), referenceNo: `${purchase.purchaseNumber}-PAY`, description: `Paid on purchase ${purchase.purchaseNumber}`, referenceTable: 'purchases', referenceId: purchase.id, actorId },
         });
         await tx.cashLedgerEntry.create({
-          data: { portalUserId: actorId, direction: 'OUT', amount: purchase.paidNow, category: 'VENDOR_PAYMENT', isPhysicalCash: purchase.paymentType === 'CASH', referenceTable: 'purchases', referenceId: purchase.id },
+          data: { portalUserId: actorId, direction: 'OUT', amount: purchase.paidNow, category: 'VENDOR_PAYMENT', isPhysicalCash: purchase.paymentType === 'CASH', paymentMethod: purchase.paymentType, paymentAccountId: purchase.paymentAccountId, referenceTable: 'purchases', referenceId: purchase.id },
         });
       }
       return tx.purchase.update({ where: { id: purchaseId }, data: { status: 'POSTED' }, include: { lines: { include: { medicine: true, batch: true } }, vendor: true } });
-    });
+    };
+    return db ? execute(db) : prisma.$transaction(execute);
   },
 
   async payVendor(vendorId: string, body: PayVendorBody, actorId: string) {
     const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
     if (!vendor) throw new NotFoundError('Vendor not found');
-    const amount = new Decimal(body.amount);
-
-    return prisma.$transaction(async (tx) => {
-      const referenceNo = await nextCode(tx, SEQUENCE.VENDOR_PAYMENT);
-      const entry = await tx.vendorLedgerEntry.create({
-        data: { vendorId, entryType: 'PAYMENT', amount: amount.negated(), referenceNo, description: `Vendor payment (${body.method})`, referenceTable: 'vendor_payments', referenceId: vendorId, actorId },
-      });
-      await tx.cashLedgerEntry.create({
-        data: { portalUserId: actorId, direction: 'OUT', amount, category: 'VENDOR_PAYMENT', isPhysicalCash: body.method === 'CASH', referenceTable: 'vendor_ledger_entries', referenceId: entry.id },
-      });
-      return entry;
-    });
+    return prisma.$transaction(tx => postVendorPayment(tx, vendorId, body, actorId));
   },
 
   /**
@@ -431,15 +440,23 @@ export const vendorsService = {
    * medicine's current live packaging/price), and never returns more than
    * that batch currently has in stock.
    */
-  async purchaseReturn(body: PurchaseReturnBody, actorId: string) {
-    const vendor = await prisma.vendor.findUnique({ where: { id: body.vendorId } });
+  async purchaseReturn(body: PurchaseReturnBody, actorId: string, db?: Prisma.TransactionClient) {
+    const vendor = await (db ?? prisma).vendor.findUnique({ where: { id: body.vendorId } });
     if (!vendor) throw new NotFoundError('Vendor not found');
 
-    return prisma.$transaction(async (tx) => {
+    const execute = async (tx: Prisma.TransactionClient) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${body.vendorId}))`;
+      const prior = await tx.vendorLedgerEntry.findUnique({ where: { requestKey: body.requestKey } });
+      if (prior) throw new ConflictError('This purchase return has already been posted');
+      if (new Set(body.lines.map(line => line.batchId)).size !== body.lines.length) throw new ValidationError('Combine repeated batch lines before posting a return');
       let total = new Decimal(0);
       const stockDeductions: { medicineId: string; batchId: string; quantity: Decimal }[] = [];
 
       for (const line of body.lines) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${line.batchId}))`;
+        const bought = await tx.purchaseLine.aggregate({ where: { batchId: line.batchId, purchase: { vendorId: body.vendorId, status: 'POSTED' } }, _sum: { quantity: true } });
+        if (!bought._sum.quantity) throw new ValidationError('This batch has no posted purchase from the selected supplier');
+        const returned = await tx.stockLedgerEntry.aggregate({ where: { batchId: line.batchId, movementType: 'PURCHASE_RETURN_OUT', referenceId: body.vendorId }, _sum: { quantityDelta: true } });
         const batch = await tx.medicineBatch.findUnique({ where: { id: line.batchId }, include: { stockEntries: { select: { quantityDelta: true } } } });
         if (!batch || batch.medicineId !== line.medicineId) throw new NotFoundError('Batch not found for this medicine');
         if (!batch.purchaseUnitConversionToBase) throw new ValidationError('This batch has no packaging snapshot to return against');
@@ -457,6 +474,7 @@ export const vendorsService = {
 
         const returnQty = new Decimal(line.returnUnitQuantity);
         const baseQty = returnQty.mul(conversionToBase);
+        if (baseQty.greaterThan(bought._sum.quantity.plus(returned._sum.quantityDelta ?? 0))) throw new ValidationError('Return exceeds quantity purchased from this supplier');
         const availableQty = batch.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new Decimal(0));
         if (baseQty.greaterThan(availableQty)) throw new ValidationError(`Cannot return more than currently in stock for batch "${batch.batchNumber}" (available: ${availableQty})`);
 
@@ -477,8 +495,9 @@ export const vendorsService = {
         await pharmacyService.syncEffectiveSaleRate(medicineId, tx);
       }
       return tx.vendorLedgerEntry.create({
-        data: { vendorId: body.vendorId, entryType: 'RETURN_CREDIT', amount: total.negated(), referenceNo, description: body.reason, referenceTable: 'purchase_returns', referenceId: body.vendorId, actorId },
+        data: { vendorId: body.vendorId, entryType: 'RETURN_CREDIT', requestKey: body.requestKey, amount: total.negated(), referenceNo, description: body.reason, referenceTable: 'purchase_returns', referenceId: body.vendorId, actorId },
       });
-    });
+    };
+    return db ? execute(db) : prisma.$transaction(execute);
   },
 };

@@ -107,7 +107,7 @@ import { appointmentsService } from '@/modules/frontdesk/appointments.service';
 import { invoicesService } from '@/modules/frontdesk/invoices.service';
 import { paymentRequestsService } from '@/modules/frontdesk/paymentRequests.service';
 import { settlementService } from '@/modules/cash/settlement.service';
-import { commissionService } from '@/modules/commission/commission.service';
+
 import { cashService } from '@/modules/cash/cash.service';
 
 describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine', () => {
@@ -685,152 +685,9 @@ describe('Phase 4: Front Desk Billing, Appointments & Doctor Commission Engine',
     });
   });
 
-  describe('3. Doctor Commission Calculation Engine (§4.5, D15 §4, D16 p.21)', () => {
-    it('calculates doctor commission on NET eligible amount and computes hospital share', async () => {
-      const mockTx: any = {
-        invoiceLineItem: { findUnique: vi.fn().mockResolvedValue({ isCompleted: true, performedByStaffId: doctorStaffId, serviceRateId, createdAt: new Date(), hospitalInvoice: { status: 'PAID', createdById: cashierId } }) },
-        staffService: { findFirst: vi.fn().mockResolvedValue({ id: 'assignment' }) },
-        staffSalaryProfile: { findFirst: vi.fn().mockResolvedValue({ salaryBasis: 'MONTHLY_COMMISSION' }) },
-        doctorCommissionAccrual: {
-          findUnique: vi.fn().mockResolvedValue(null),
-          create: vi.fn().mockImplementation((args) => args.data),
-        },
-        doctorCommissionRule: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'rule-001',
-            staffId: doctorStaffId,
-            serviceRateId,
-            ruleType: 'PERCENTAGE',
-            rate: new Decimal(20), // 20%
-            basis: 'NET',
-          }),
-        },
-      };
-
-      // Service Gross = 5,000; Discount = 1,000; Net = 4,000
-      // Commission @20% of Net = 800 PKR
-      // Hospital Remaining Share = 4,000 - 800 = 3,200 PKR
-      const lineItem = {
-        id: 'line-comm-1',
-        serviceRateId,
-        quantity: new Decimal(1),
-        lineGross: new Decimal(5000),
-        discountAmount: new Decimal(1000),
-        lineNet: new Decimal(4000),
-      };
-
-      const accrual: any = await commissionService.calculateAndAccrueCommission(
-        mockTx,
-        lineItem,
-        doctorStaffId,
-      );
-
-      expect(accrual.commissionAmount).toEqual(new Decimal(800));
-      expect(accrual.ruleSnapshot.hospitalRemainingShare).toBe(3200);
-      expect(accrual.status).toBe('ACCRUED');
-    });
-
-    it('calculates FIXED_PER_SERVICE doctor commission', async () => {
-      const mockTx: any = {
-        invoiceLineItem: { findUnique: vi.fn().mockResolvedValue({ isCompleted: true, performedByStaffId: doctorStaffId, serviceRateId, createdAt: new Date(), hospitalInvoice: { status: 'PAID', createdById: cashierId } }) },
-        staffService: { findFirst: vi.fn().mockResolvedValue({ id: 'assignment' }) },
-        staffSalaryProfile: { findFirst: vi.fn().mockResolvedValue({ salaryBasis: 'MONTHLY_COMMISSION' }) },
-        doctorCommissionAccrual: {
-          findUnique: vi.fn().mockResolvedValue(null),
-          create: vi.fn().mockImplementation((args) => args.data),
-        },
-        doctorCommissionRule: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'rule-fixed-1',
-            staffId: doctorStaffId,
-            serviceRateId: null, // default rule
-            ruleType: 'FIXED_PER_SERVICE',
-            rate: new Decimal(900), // PKR 900 fixed per consultation
-            basis: 'NET',
-          }),
-        },
-      };
-
-      const lineItem = {
-        id: 'line-comm-fixed',
-        serviceRateId,
-        quantity: new Decimal(2),
-        lineGross: new Decimal(4000),
-        discountAmount: new Decimal(0),
-        lineNet: new Decimal(4000),
-      };
-
-      const accrual: any = await commissionService.calculateAndAccrueCommission(
-        mockTx,
-        lineItem,
-        doctorStaffId,
-      );
-
-      // 900 * 2 = 1800 PKR
-      expect(accrual.commissionAmount).toEqual(new Decimal(1800));
-      expect(accrual.ruleSnapshot.hospitalRemainingShare).toBe(2200);
-    });
-
-    it('accrues no commission for a doctor on a plain Monthly/Daily salary type (PDF §9)', async () => {
-      const mockTx: any = {
-        invoiceLineItem: { findUnique: vi.fn().mockResolvedValue({ isCompleted: true, performedByStaffId: doctorStaffId, serviceRateId, createdAt: new Date(), hospitalInvoice: { status: 'PAID', createdById: cashierId } }) },
-        staffService: { findFirst: vi.fn().mockResolvedValue({ id: 'assignment' }) },
-        staffSalaryProfile: { findFirst: vi.fn().mockResolvedValue({ salaryBasis: 'MONTHLY' }) },
-        doctorCommissionAccrual: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
-        doctorCommissionRule: { findFirst: vi.fn().mockResolvedValue({ id: 'rule-x', ruleType: 'PERCENTAGE', rate: new Decimal(20), basis: 'NET' }) },
-      };
-      const lineItem = {
-        id: 'line-no-comm',
-        serviceRateId,
-        quantity: new Decimal(1),
-        lineGross: new Decimal(1000),
-        discountAmount: new Decimal(0),
-        lineNet: new Decimal(1000),
-      };
-
-      const accrual = await commissionService.calculateAndAccrueCommission(mockTx, lineItem, doctorStaffId);
-
-      expect(accrual).toBeNull();
-      expect(mockTx.doctorCommissionAccrual.create).not.toHaveBeenCalled();
-    });
-
-    it('creates linked commission reversal on refund without silent delete', async () => {
-      const mockTx: any = {
-        $queryRaw: vi.fn(),
-        doctorCommissionAccrual: {
-          findUnique: vi.fn().mockResolvedValue({
-            id: 'accrual-123',
-            reversals: [],
-            commissionAmount: new Decimal(800),
-          }),
-        },
-        commissionReversal: {
-          create: vi.fn().mockResolvedValue({
-            id: 'rev-001',
-            doctorCommissionAccrualId: 'accrual-123',
-            reversalAmount: new Decimal(800),
-          }),
-        },
-      };
-
-      const reversal = await commissionService.reverseCommissionAccrual(
-        mockTx,
-        'line-comm-1',
-        'Patient refunded consultation',
-        cashierId,
-      );
-
-      expect(mockTx.commissionReversal.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            doctorCommissionAccrualId: 'accrual-123',
-            reversalAmount: new Decimal(800),
-          }),
-        }),
-      );
-      expect(reversal).toBeDefined();
-    });
-  });
+  // Commission receipt/eligibility/run/refund behavior is verified against real
+  // PostgreSQL transactions in commissionCollectionsDatabase.test.ts. The old
+  // invoice-only mock expectations deliberately no longer represent the policy.
 
   describe('4. Final Invoice Payment Collection & Cashier Accountability (§4.6, §4.9, §8.12)', () => {
     it('collects cash payment, marks invoice PAID, and logs cash custody', async () => {

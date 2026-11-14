@@ -15,6 +15,7 @@
     "vercel-build": "prisma migrate deploy && tsx prisma/seed.ts && prisma generate && npm run build",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
+    "test:income-expense": "tsx scripts/test-income-expense.ts",
     "test:revenue": "tsx scripts/test-revenue-recognition.ts",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",

@@ -17,6 +17,31 @@ type Receipt = Prisma.PaymentReceiptGetPayload<{ select: typeof collectionSelect
 type Invoice = Prisma.HospitalInvoiceGetPayload<{ select: typeof collectionInvoiceSelect }>;
 type Basis = 'lineNet' | 'patientShare' | 'panelReceivable';
 
+/** Shared cent allocation for department totals and their service-line children. */
+export function allocateWeightedAmount<T extends { weight: Decimal }>(amount: Decimal, rows: T[]) {
+  const total = rows.reduce((sum, row) => sum.plus(row.weight), new Decimal(0));
+  let allocated = new Decimal(0), cumulative = new Decimal(0);
+  return rows.map((row, index) => {
+    cumulative = cumulative.plus(row.weight);
+    const next = !total.gt(0) ? new Decimal(0) : index === rows.length - 1
+      ? amount : amount.times(cumulative).div(total).toDecimalPlaces(2);
+    const share = next.minus(allocated); allocated = next;
+    return { ...row, amount: share };
+  });
+}
+
+/** Split each canonical department allocation among its service lines. */
+export function allocateInvoiceLines(amount: Decimal, invoice: Omit<Invoice, 'lines'> & { lines: (Invoice['lines'][number] & { id: string })[] }, basis: Basis) {
+  const hasCoverage = invoice.lines.some(line => new Decimal(line[basis] ?? 0).gt(0))
+    && (basis !== 'patientShare' || invoice.lines.some(line => new Decimal(line.panelReceivable ?? 0).gt(0)));
+  return allocateInvoiceAmount(amount, invoice, basis).flatMap(dept => {
+    const lines = invoice.lines.filter(line => (line.serviceRate?.department?.id ?? invoice.department?.id ?? null) === dept.departmentId)
+      .map(line => ({ id: line.id, weight: Decimal.max(hasCoverage ? line[basis] : line.lineNet, 0) }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    return allocateWeightedAmount(dept.amount, lines);
+  });
+}
+
 /** Signed receipt amounts, apportioned in cents; totals always reconcile. */
 export function allocateCollection(receipt: Receipt) {
   const invoice = receipt.hospitalInvoice;
@@ -28,7 +53,8 @@ export function allocateCollection(receipt: Receipt) {
 export function allocateInvoiceAmount(amount: Decimal, invoice: Invoice, basis: Basis) {
   const weights = new Map<string, { departmentId: string | null; name: string; weight: Decimal }>();
   // Older invoices may predate coverage snapshots. Preserve their net-value allocation.
-  const hasCoverage = (invoice.lines ?? []).some(line => new Decimal(line[basis] ?? 0).gt(0));
+  const hasCoverage = (invoice.lines ?? []).some(line => new Decimal(line[basis] ?? 0).gt(0))
+    && (basis !== 'patientShare' || invoice.lines.some(line => new Decimal(line.panelReceivable ?? 0).gt(0)));
   for (const line of invoice?.lines ?? []) {
     const d = line.serviceRate?.department ?? invoice?.department;
     const key = d?.id ?? '';
@@ -42,17 +68,7 @@ export function allocateInvoiceAmount(amount: Decimal, invoice: Invoice, basis: 
     const d = invoice.department;
     return [{ departmentId: d?.id ?? invoice.departmentId ?? null, name: d?.name ?? 'Unassigned', amount }];
   }
-  let allocated = new Decimal(0);
-  let cumulativeWeight = new Decimal(0);
-  return rows.map((r, index) => {
-    cumulativeWeight = cumulativeWeight.plus(r.weight);
-    const cumulativeAmount = index === rows.length - 1
-      ? amount
-      : amount.times(cumulativeWeight).div(total).toDecimalPlaces(2);
-    const share = cumulativeAmount.minus(allocated);
-    allocated = cumulativeAmount;
-    return { departmentId: r.departmentId, name: r.name, amount: share };
-  });
+  return allocateWeightedAmount(amount, rows).map(({ departmentId, name, amount }) => ({ departmentId, name, amount }));
 }
 
 export function invoiceBalance(invoice: {

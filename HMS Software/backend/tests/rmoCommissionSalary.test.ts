@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Decimal } from '@prisma/client/runtime/library';
 vi.mock('@/db/client', () => ({ prisma: {} }));
 import { createStaffBodySchema } from '@/modules/identity/staff.schemas';
-import { commissionService } from '@/modules/commission/commission.service';
+import { collectedCommission } from '@/modules/commission/commission.collections';
 import { commissionBalance } from '@/modules/commission/commission.calc';
 
 const d = (n: number) => new Decimal(n);
@@ -100,44 +100,8 @@ describe('RMO staff Monthly + Commission and Daily + Commission', () => {
     expect(parsed.error?.issues.some(i => i.message.includes('Assigned Service'))).toBe(true);
   });
 
-  it('calculates and accrues commission for an RMO on MONTHLY_COMMISSION', async () => {
-    const tx = {
-      $queryRaw: vi.fn(),
-      invoiceLineItem: {
-        findUnique: vi.fn().mockResolvedValue({
-          ...line,
-          isCompleted: true,
-          performedByStaffId: 'rmo-staff-id',
-          createdAt: now,
-          hospitalInvoice: { status: 'UNPAID', createdById: 'admin-id' },
-        }),
-      },
-      staffService: { findFirst: vi.fn().mockResolvedValue({ id: 'assignment-1' }) },
-      staffSalaryProfile: { findFirst: vi.fn().mockResolvedValue({ salaryBasis: 'MONTHLY_COMMISSION' }) },
-      doctorCommissionRule: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: 'rmo-rule-1',
-          ruleType: 'PERCENTAGE',
-          rate: d(20),
-          basis: 'NET',
-          commissionTaxMethod: 'PERCENTAGE',
-          commissionTaxValue: d(5),
-        }),
-      },
-      doctorCommissionAccrual: {
-        findUnique: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockImplementation(({ data }) => data),
-      },
-      commissionReversal: { create: vi.fn().mockImplementation(({ data }) => data) },
-    };
-
-    const accrual = await commissionService.calculateAndAccrueCommission(tx as any, line, 'rmo-staff-id', 'admin-id');
-    expect(accrual).not.toBeNull();
-    // 20% of 4,500 net = 900
-    expect(accrual!.commissionAmount.toNumber()).toBe(900);
-    // 5% tax of 900 = 45
-    expect(accrual!.ruleSnapshot.commissionTaxAmount).toBe(45);
-    const balance = commissionBalance({ ...accrual!, payouts: [], reversals: [] });
-    expect(balance.payable.toNumber()).toBe(855);
+  it('RMO partial collections earn proportional net commission with separate commission tax', () => {
+    const result = collectedCommission({ ruleType: 'PERCENTAGE', rate: 20, basis: 'NET', commissionTaxMethod: 'PERCENTAGE', commissionTaxValue: 5 }, line, d(2250));
+    expect(result.gross.toNumber()).toBe(450); expect(result.tax.toNumber()).toBe(22.5);
   });
 });

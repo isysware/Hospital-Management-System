@@ -17,8 +17,11 @@ export type UpdateVendorBody = z.infer<typeof updateVendorBodySchema>;
 
 export const payVendorBodySchema = z.object({
   amount: z.coerce.number().positive(),
-  method: z.enum(['CASH', 'CARD', 'ONLINE']),
+  method: z.enum(['CASH', 'CARD', 'ONLINE', 'BANK']),
   reference: z.string().max(100).optional(),
+  requestKey: z.string().uuid(),
+  refundOf: z.string().uuid().optional(),
+  paymentAccountId: z.string().uuid().optional(),
 });
 export type PayVendorBody = z.infer<typeof payVendorBodySchema>;
 
@@ -59,12 +62,14 @@ const purchaseLineSchema = z.object({
 
 /** pharmacy.md §10.1 — Purchase / Stock In. */
 export const createPurchaseBodySchema = z.object({
+  requestKey: z.string().uuid(),
   vendorId: z.string().uuid(),
   purchaseDate: z.coerce.date(),
   vendorInvoiceNo: z.string().max(100).optional(),
-  paymentType: z.enum(['CASH', 'CARD', 'ONLINE']).optional(),
+  paymentType: z.enum(['CASH', 'CARD', 'ONLINE', 'BANK']).optional(),
   notes: z.string().max(500).optional(),
   lines: z.array(purchaseLineSchema).min(1),
+  paymentAccountId: z.string().uuid().optional(),
   paidNow: z.coerce.number().nonnegative().default(0),
   post: z.boolean().default(true),
 });
@@ -77,6 +82,7 @@ export type CreatePurchaseBody = z.infer<typeof createPurchaseBodySchema>;
  * medicine's current live template/price.
  */
 export const purchaseReturnBodySchema = z.object({
+  requestKey: z.string().uuid(),
   vendorId: z.string().uuid(),
   lines: z.array(z.object({
     medicineId: z.string().uuid(),

@@ -333,6 +333,7 @@ async function main() {
           "later return preserves original recognition",
         );
         const ret = await report(retail.id, day("2090-02-02"));
+        eq([Number(ret.totals.grossSales), Number(ret.totals.grossSales.minus(ret.totals.netBilling))], [0, 2000], "Return is a separate deduction from gross sales");
         eq(
           [
             Number(ret.totals.collections),

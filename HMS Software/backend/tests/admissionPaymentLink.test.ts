@@ -61,7 +61,7 @@ describe('admission payment links', () => {
   it('request collection updates its admission bill and notifies Pharmacy', async () => {
     tx.admissionPaymentRequest.findUnique.mockResolvedValue({ id: 'req', admissionRecordId: 'adm', status: 'PENDING', requestedAmount: dec(100), paymentReceipts: [] });
     tx.admissionPaymentRequest.update.mockResolvedValue({ id: 'req', status: 'FULFILLED' });
-    tx.invoiceLineItem.findMany.mockResolvedValue([{ billingSource: 'PHARMACY', patientShare: dec(100) }]);
+    tx.invoiceLineItem.findMany.mockResolvedValue([{ billingSource: 'PHARMACY', patientShare: dec(100), commissionAccruals: [] }]);
     tx.hmsPharmacyCharge.findFirst.mockResolvedValue({ id: 'charge', pharmacyInvoiceNumber: 'PH-1', totalAmount: dec(100), patientPaid: dec(0), settlementStatus: 'NOT_DUE' });
     const result = await paymentRequestsService.collectPaymentRequest('req', { amount: 100, paymentMethod: 'CASH' }, 'cashier');
     expect(result.receipt).toMatchObject({ hospitalInvoiceId: 'inv', admissionRecordId: 'adm', admissionPaymentRequestId: 'req' });

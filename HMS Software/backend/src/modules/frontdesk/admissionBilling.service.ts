@@ -865,6 +865,8 @@ export const admissionBillingService = {
             data: { paidTotal: newPaidTotal, status: newStatus },
           });
 
+          await commissionService.syncInvoiceCollections(tx, invoice.id, actorId);
+
           // Figure out how much of THIS payment lands on pharmacy lines.
           // Charges on the invoice are settled FIFO by posting order (same
           // convention `getLedger` uses), so walk the lines in that order and

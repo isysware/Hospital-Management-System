@@ -145,7 +145,7 @@ function toAccrual(raw: Record<string, any>): CommissionAccrual {
     commissionRunId: raw.commissionRunId ?? null,
     invoiceNumber: raw.invoiceLineItem?.hospitalInvoice?.invoiceNumber ?? '',
     quantity: Number(raw.invoiceLineItem?.quantity ?? 0),
-    eligibleNet: Number(raw.ruleSnapshot?.lineNet ?? 0),
+    eligibleNet: Number(raw.ruleSnapshot?.collectedAmount ?? raw.ruleSnapshot?.lineNet ?? 0),
     ruleLabel: raw.ruleSnapshot?.ruleType === 'PERCENTAGE' ? `${raw.ruleSnapshot.rate}%` : `PKR ${raw.ruleSnapshot?.rate ?? 0}/service`,
     corrections: raw.adjustments ?? [],
     reversals: raw.reversals ?? [],

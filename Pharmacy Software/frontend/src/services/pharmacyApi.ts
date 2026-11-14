@@ -94,6 +94,10 @@ export interface BulkImportResponse {
 
 export interface ManagementDashboard {
   salesToday: string | number;
+  recognizedRevenueToday: string | number;
+  collectionsToday: string | number;
+  outstanding: string | number;
+  incompleteInvoices: number;
   salesCountToday: number;
   purchasesToday: string | number;
   purchasesCountToday: number;
@@ -115,7 +119,7 @@ export interface ManagementDashboard {
     revenue: number;
     purchases: number;
     expenses: number;
-    profit: number;
+    profit: number | null;
     orders: number;
   }>;
   dailyTrend?: Array<{
@@ -124,7 +128,7 @@ export interface ManagementDashboard {
     revenue: number;
     purchases: number;
     expenses: number;
-    profit: number;
+    profit: number | null;
     orders: number;
   }>;
   categoryDistribution?: Array<{

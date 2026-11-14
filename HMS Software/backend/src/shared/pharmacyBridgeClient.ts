@@ -165,6 +165,8 @@ export const pharmacyBridgeClient = {
     collectedAmount: number;
     receiptNumber?: string;
     collectedAt?: string;
+    method?: string;
+    collectedBy?: string;
   }) {
     const urlsToTry = getPharmacyBaseUrls();
     for (const baseUrl of urlsToTry) {
@@ -199,6 +201,10 @@ export const pharmacyBridgeClient = {
   async reconcileCollection(payload: {
     pharmacyInvoiceNumber: string;
     authoritativeCollectedAmount: number;
+    collectedAt?: string;
+    receiptNumber?: string;
+    method?: string;
+    collectedBy?: string;
   }) {
     const urlsToTry = getPharmacyBaseUrls();
     let lastError: any = null;

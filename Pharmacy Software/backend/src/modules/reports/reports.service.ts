@@ -1,3 +1,4 @@
+import { financialReport, loadFinancialData } from './financialRecognition';
 import { prisma } from '@/db/client';
 import { ValidationError } from '@/shared/errors/AppError';
 import type { ReportQuery } from './reports.schemas';
@@ -27,7 +28,7 @@ export const reportsService = {
     const range = dateRange(query);
     switch (query.type) {
       case 'SALES_COLLECTION':
-        return salesCollection(range);
+        return financialReport(await loadFinancialData(), range, query);
       case 'HMS_DISPENSE':
         return hmsDispense(range);
       case 'PURCHASE':
@@ -47,54 +48,6 @@ export const reportsService = {
     }
   },
 };
-
-async function salesCollection(range?: { gte?: Date; lte?: Date }) {
-  const invoices = await prisma.pharmacyInvoice.findMany({
-    where: { createdAt: range },
-    include: {
-      dispensedByUser: { select: { fullName: true, role: true } },
-      payments: { include: { collectedByUser: { select: { fullName: true } } } },
-      lines: { select: { returnedQuantity: true, returnedValue: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: ROW_LIMIT,
-  });
-
-  const refunds = await prisma.cashLedgerEntry.findMany({
-    where: { category: 'REFUND', occurredAt: range },
-    select: { amount: true },
-  });
-  const totalRefundAmount = sumDecimal(refunds.map((r) => r.amount));
-
-  const rows = invoices.map((inv) => {
-    const totalReturnedVal = inv.lines.reduce((s, l) => s + Number(l.returnedValue || 0), 0);
-    return {
-      invoiceNumber: inv.invoiceNumber,
-      channel: inv.channel,
-      customerName: inv.customerName,
-      subtotal: inv.subtotal,
-      discountTotal: inv.discountTotal,
-      taxTotal: inv.taxTotal,
-      total: inv.total,
-      paidTotal: inv.paidTotal,
-      returnedTotal: totalReturnedVal,
-      outstanding: inv.outstanding,
-      status: inv.status,
-      soldBy: inv.dispensedByUser.fullName,
-      collectedBy: [...new Set(inv.payments.map((p) => p.collectedByUser.fullName))].join(', ') || null,
-      createdAt: inv.createdAt,
-    };
-  });
-
-  const totals = {
-    total: sumDecimal(invoices.map((i) => i.total)),
-    paidTotal: sumDecimal(invoices.map((i) => i.paidTotal)),
-    totalRefunded: totalRefundAmount,
-    netCollected: sumDecimal(invoices.map((i) => i.paidTotal)) - totalRefundAmount,
-    outstanding: sumDecimal(invoices.map((i) => i.outstanding)),
-  };
-  return { rows, totals };
-}
 
 async function hmsDispense(range?: { gte?: Date; lte?: Date }) {
   const requests = await prisma.medicineRequest.findMany({

@@ -650,6 +650,7 @@ model PharmacyInvoice {
   internalSettlementStatus InternalSettlementStatus? @map("internal_settlement_status")
   settlements              HmsReceivableSettlement[]
 
+  financialEvents PharmacyFinancialEvent[]
   lines    PharmacyInvoiceLine[]
   payments PharmacyPayment[]
 
@@ -662,6 +663,7 @@ model PharmacyInvoice {
 }
 
 model PharmacyInvoiceLine {
+  costRateSnapshot Decimal? @map("cost_rate_snapshot") @db.Decimal(14, 4)
   returnedQuantity Decimal @default(0) @map("returned_quantity") @db.Decimal(14, 3)
   returnedValue Decimal @default(0) @map("returned_value") @db.Decimal(14, 2)
   id             String          @id @default(uuid())
@@ -888,4 +890,26 @@ model DocumentSequence {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("document_sequences")
+}
+
+/// Append-only reporting evidence. Never posts cash or stock by itself.
+model PharmacyFinancialEvent {
+  id String @id @default(uuid())
+  invoiceId String @map("invoice_id")
+  invoice PharmacyInvoice @relation(fields: [invoiceId], references: [id])
+  eventKey String @unique @map("event_key")
+  kind String
+  occurredAt DateTime? @map("occurred_at")
+  collectionDelta Decimal @default(0) @map("collection_delta") @db.Decimal(14, 2)
+  saleDelta Decimal @default(0) @map("sale_delta") @db.Decimal(14, 2)
+  taxDelta Decimal @default(0) @map("tax_delta") @db.Decimal(14, 2)
+  grossDelta Decimal @default(0) @map("gross_delta") @db.Decimal(14, 2)
+  discountDelta Decimal @default(0) @map("discount_delta") @db.Decimal(14, 2)
+  costDelta Decimal @default(0) @map("cost_delta") @db.Decimal(14, 2)
+  method String?
+  actorId String? @map("actor_id")
+  reference String?
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([invoiceId, occurredAt])
+  @@map("pharmacy_financial_events")
 }

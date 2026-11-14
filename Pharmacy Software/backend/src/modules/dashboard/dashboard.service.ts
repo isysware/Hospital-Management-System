@@ -1,3 +1,4 @@
+import { financialReport, loadFinancialData } from '../reports/financialRecognition';
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '@/db/client';
 import { cashService } from '../cash/cash.service';
@@ -17,6 +18,10 @@ export const dashboardService = {
     const today = startOfDay();
     const tomorrow = new Date(today.getTime() + 86_400_000);
 
+    const financialData = await loadFinancialData();
+    const todayFinancial = financialReport(financialData,{gte:today,lte:new Date(tomorrow.getTime()-1)}).totals;
+    const lifetimeFinancial = financialReport(financialData,{lte:new Date()}).totals;
+
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
     sixMonthsAgo.setDate(1);
@@ -34,7 +39,6 @@ export const dashboardService = {
       totalSalesAllTime,
       recentInvoices,
       recentPurchases,
-      recentExpenses,
       vendorsList,
       openPurchaseOrdersCount,
     ] = await Promise.all([
@@ -59,7 +63,6 @@ export const dashboardService = {
       prisma.pharmacyInvoice.aggregate({ _sum: { total: true }, _count: true }),
       prisma.pharmacyInvoice.findMany({ where: { createdAt: { gte: sixMonthsAgo } }, select: { total: true, createdAt: true } }),
       prisma.purchase.findMany({ where: { createdAt: { gte: sixMonthsAgo } }, select: { total: true, createdAt: true } }),
-      prisma.expense.findMany({ where: { createdAt: { gte: sixMonthsAgo } }, select: { amount: true, createdAt: true } }),
       prisma.vendor.findMany({
         where: { isActive: true },
         take: 6,
@@ -222,16 +225,17 @@ export const dashboardService = {
 
       const mInvoices = recentInvoices.filter((inv) => inv.createdAt >= mStart && inv.createdAt < mEnd);
       const mPurchases = recentPurchases.filter((p) => p.createdAt >= mStart && p.createdAt < mEnd);
-      const mExpenses = recentExpenses.filter((e) => e.createdAt >= mStart && e.createdAt < mEnd);
+      const financial = financialReport(financialData,{gte:mStart,lte:new Date(Math.min(mEnd.getTime()-1,now.getTime()))}).totals;
 
-      const rev = mInvoices.reduce((s, inv) => s.plus(inv.total), new Decimal(0)).toNumber();
+      const rev = Number(financial.recognizedRevenue);
       const pur = mPurchases.reduce((s, p) => s.plus(p.total), new Decimal(0)).toNumber();
-      const exp = mExpenses.reduce((s, e) => s.plus(e.amount), new Decimal(0)).toNumber();
-      const profit = Math.max(0, rev - pur - exp);
+      const exp = Number(financial.operatingExpenses);
+      const profit = financial.operatingProfit === null ? null : Number(financial.operatingProfit);
 
       monthlyTrend.push({
         month: `${monthNames[mIdx]} ${String(y).slice(-2)}`,
         revenue: rev,
+        grossSales:Number(financial.grossSales), netBilling:Number(financial.netBilling), collections:Number(financial.collections), outstanding:Number(financial.outstanding), cogs:Number(financial.recognizedCogs),
         purchases: pur,
         expenses: exp,
         profit,
@@ -252,17 +256,18 @@ export const dashboardService = {
 
       const dInvoices = recentInvoices.filter((inv) => inv.createdAt >= dayStart && inv.createdAt < dayEnd);
       const dPurchases = recentPurchases.filter((p) => p.createdAt >= dayStart && p.createdAt < dayEnd);
-      const dExpenses = recentExpenses.filter((e) => e.createdAt >= dayStart && e.createdAt < dayEnd);
+      const financial = financialReport(financialData,{gte:dayStart,lte:new Date(Math.min(dayEnd.getTime()-1,now.getTime()))}).totals;
 
-      const rev = dInvoices.reduce((s, inv) => s.plus(inv.total), new Decimal(0)).toNumber();
+      const rev = Number(financial.recognizedRevenue);
       const pur = dPurchases.reduce((s, p) => s.plus(p.total), new Decimal(0)).toNumber();
-      const exp = dExpenses.reduce((s, e) => s.plus(e.amount), new Decimal(0)).toNumber();
-      const profit = Math.max(0, rev - pur - exp);
+      const exp = Number(financial.operatingExpenses);
+      const profit = financial.operatingProfit === null ? null : Number(financial.operatingProfit);
 
       dailyTrend.push({
         date: i === 0 ? 'Today' : `${dayNum} ${monthNames[m]}`,
         fullDate: d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }),
         revenue: rev,
+        grossSales:Number(financial.grossSales), netBilling:Number(financial.netBilling), collections:Number(financial.collections), outstanding:Number(financial.outstanding), cogs:Number(financial.recognizedCogs),
         purchases: pur,
         expenses: exp,
         profit,
@@ -287,7 +292,7 @@ export const dashboardService = {
       {
         id: 'ins-1',
         title: 'Sales & Transactions',
-        message: `${salesToday._count} transactions processed today with ${salesToday._sum.total ? salesToday._sum.total.toFixed(0) : '0'} revenue recorded.`,
+        message: `${salesToday._count} transactions processed today with ${salesToday._sum.total ? salesToday._sum.total.toFixed(0) : '0'} billed (not recognized revenue).`,
         type: 'revenue',
       },
       {
@@ -334,11 +339,16 @@ export const dashboardService = {
     });
 
     return {
-      salesToday: salesToday._sum.total ?? new Decimal(0),
+      salesToday: todayFinancial.total,
       salesCountToday: salesToday._count,
       purchasesToday: purchasesToday._sum.total ?? new Decimal(0),
       purchasesCountToday: purchasesToday._count,
-      totalRevenueAllTime: totalSalesAllTime._sum.total ?? new Decimal(0),
+      totalRevenueAllTime: lifetimeFinancial.recognizedRevenue,
+      recognizedRevenueToday: todayFinancial.recognizedRevenue,
+      collectionsToday: todayFinancial.collections,
+      outstanding: todayFinancial.outstanding,
+      operatingProfitToday: todayFinancial.operatingProfit,
+      incompleteInvoices: lifetimeFinancial.incompleteInvoices,
       totalSalesCountAllTime: totalSalesAllTime._count,
       totalMedicines: medicines.length,
       totalStockUnits: totalStockUnits.toNumber(),
@@ -373,9 +383,11 @@ export const dashboardService = {
       cashService.expectedCash(userId),
     ]);
 
-    const payments = await prisma.pharmacyPayment.findMany({ where: { collectedById: userId, paidAt: { gte: today, lt: tomorrow } } });
-    const cash = payments.filter((p) => p.method === 'CASH').reduce((s, p) => s.plus(p.amount), new Decimal(0));
-    const nonCash = payments.filter((p) => p.method !== 'CASH').reduce((s, p) => s.plus(p.amount), new Decimal(0));
+    const data=await loadFinancialData();
+    const retailData={...data,invoices:data.invoices.filter(i=>i.channel==='RETAIL')};
+    const period={gte:today,lte:new Date(tomorrow.getTime()-1)};
+    const cash=financialReport(retailData,period,{cashierId:userId,method:'CASH'}).totals.collections;
+    const nonCash=financialReport(retailData,period,{cashierId:userId}).totals.collections.minus(cash);
 
     return {
       mySalesToday: mySales._sum.total ?? new Decimal(0),

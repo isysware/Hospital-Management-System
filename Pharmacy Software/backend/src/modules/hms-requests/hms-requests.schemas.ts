@@ -64,7 +64,9 @@ export type UpdateSettingsBody = z.infer<typeof updateSettingsBodySchema>;
 
 export const patientCollectedCallbackSchema = z.object({
   pharmacyInvoiceNumber: z.string().min(1),
-  collectedAmount: z.coerce.number().positive(),
+  collectedAmount: z.coerce.number().refine(v=>v!==0, 'Collection delta cannot be zero'),
+  method: z.string().max(40).optional(),
+  collectedBy: z.string().max(150).optional(),
   collectedAt: z.string().optional(),
   receiptNumber: z.string().optional(),
 });
@@ -87,6 +89,10 @@ export type CreateSettlementRequestBody = z.infer<typeof createSettlementRequest
  * double-counting.
  */
 export const reconcileCollectionBodySchema = z.object({
+  collectedAt: z.string().datetime().optional(),
+  receiptNumber: z.string().optional(),
+  method: z.string().max(40).optional(),
+  collectedBy: z.string().max(150).optional(),
   pharmacyInvoiceNumber: z.string().min(1),
   authoritativeCollectedAmount: z.coerce.number().nonnegative(),
 });

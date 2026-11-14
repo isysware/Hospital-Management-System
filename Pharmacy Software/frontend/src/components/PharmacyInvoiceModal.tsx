@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   X,
   Printer,
@@ -58,6 +58,7 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
   // Return states
   const [showReturn, setShowReturn] = useState(initialAction === 'return');
   const [returnLines, setReturnLines] = useState<Record<string, { qty: string; restock: boolean }>>({});
+  const returnRequest = useRef<{ fingerprint:string; key:string } | null>(null);
   const [refundMethod, setRefundMethod] = useState<'CASH' | 'CARD' | 'ONLINE'>('CASH');
   const [returnReason, setReturnReason] = useState('');
   const [returning, setReturning] = useState(false);
@@ -150,13 +151,17 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
     }
     setReturning(true);
     try {
+      const fingerprint = JSON.stringify({invoiceId:invoice.id,lines,returnReason,refundMethod});
+      if (returnRequest.current?.fingerprint !== fingerprint) returnRequest.current = {fingerprint,key:crypto.randomUUID()};
       const res = await pharmacyApi.salesReturn({
+        requestKey:returnRequest.current.key,
         invoiceId: invoice.id,
         lines,
         reason: returnReason,
         refundMethod,
       });
       toast.success(`Return processed — Refund of ${formatPKR(res.refundTotal)} issued.`);
+      returnRequest.current = null;
       setShowReturn(false);
       setReturnLines({});
       setReturnReason('');

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Decimal } from '@prisma/client/runtime/library';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/db/client';
@@ -372,6 +373,7 @@ export const hmsRequestsService = {
             batchId: alloc.batchId,
             quantity: alloc.quantity,
             rateSnapshot: alloc.saleRate,
+            costRateSnapshot: alloc.costRate,
             discountAmount: 0,
             taxAmount: tax,
             lineNet: gross.plus(tax),
@@ -559,78 +561,17 @@ export const hmsRequestsService = {
 
   // ── Patient Front Desk Collection Callback ────────────────────────────────
   async handlePatientCollected(body: PatientCollectedCallbackBody) {
-    const invoice = await prisma.pharmacyInvoice.findUnique({
-      where: { invoiceNumber: body.pharmacyInvoiceNumber },
-    });
-    if (!invoice) throw new NotFoundError(`Invoice ${body.pharmacyInvoiceNumber} not found`);
-
-    const collectedAmt = new Decimal(body.collectedAmount);
-    const newCollectedTotal = invoice.hmsCollectedAmount.plus(collectedAmt);
-    const newReceivable = newCollectedTotal.minus(invoice.hmsSettledAmount);
-    const isFullyCollected = newCollectedTotal.greaterThanOrEqualTo(invoice.total);
-
-    return prisma.pharmacyInvoice.update({
-      where: { id: invoice.id },
-      data: {
-        hmsCollectedAmount: newCollectedTotal,
-        hmsReceivable: Decimal.max(0, newReceivable),
-        internalSettlementStatus: newReceivable.greaterThan(0) ? 'PENDING' : 'SETTLED',
-        // Only CLEARED once the patient's full pharmacy share is actually
-        // collected at Front Desk — a partial collection must stay
-        // OUTSTANDING (integration.md §1.3 dual-clearance rule), otherwise
-        // Pharmacy staff see a false "Cleared" badge on a half-paid invoice.
-        clearanceStatus: isFullyCollected ? 'CLEARED' : 'OUTSTANDING',
-        paidTotal: newCollectedTotal,
-        outstanding: Decimal.max(0, invoice.total.minus(newCollectedTotal)),
-        status: isFullyCollected ? 'PAID' : 'PARTIALLY_PAID',
-      },
-    });
+    if (!body.receiptNumber || !body.collectedAt || !Number.isFinite(Date.parse(body.collectedAt)))
+      throw new ValidationError('A stable HMS receipt number and actual collection date are required');
+    return recordHmsCollection(body.pharmacyInvoiceNumber, new Decimal(body.collectedAmount), false,
+      body.receiptNumber, new Date(body.collectedAt), body.method, body.collectedBy);
   },
-
-  // ── Reconcile HMS Collection (manual resync, idempotent) ──────────────────
-  /**
-   * `handlePatientCollected` above is additive (delta per collection event) —
-   * fine for the normal webhook path, but if that webhook silently fails
-   * (Pharmacy backend unreachable at that moment, a transient network error,
-   * etc.) there is no automatic retry, and `hmsCollectedAmount`/`hmsReceivable`
-   * are stuck wrong forever even though HMS already correctly recorded the
-   * collection on its own side (`HmsPharmacyCharge.patientPaid`). This SETS
-   * `hmsCollectedAmount` to that authoritative value instead of adding to it,
-   * so HMS's "Resync to Pharmacy" action can be retried safely any number of
-   * times without double-counting.
-   */
   async reconcileHmsCollected(body: ReconcileCollectionBody) {
-    const invoice = await prisma.pharmacyInvoice.findUnique({
-      where: { invoiceNumber: body.pharmacyInvoiceNumber },
-    });
-    if (!invoice) throw new NotFoundError(`Invoice ${body.pharmacyInvoiceNumber} not found`);
-
-    const authoritative = new Decimal(body.authoritativeCollectedAmount);
-    const newReceivable = authoritative.minus(invoice.hmsSettledAmount);
-    const isFullyCollected = authoritative.greaterThanOrEqualTo(invoice.total);
-
-    return prisma.pharmacyInvoice.update({
-      where: { id: invoice.id },
-      data: {
-        hmsCollectedAmount: authoritative,
-        hmsReceivable: Decimal.max(0, newReceivable),
-        // Never clobber an in-flight settlement request/release with this
-        // resync — only move status when nothing is already being tracked.
-        internalSettlementStatus:
-          invoice.internalSettlementStatus === 'REQUESTED' || invoice.internalSettlementStatus === 'PARTIALLY_RELEASED'
-            ? invoice.internalSettlementStatus
-            : newReceivable.greaterThan(0)
-              ? 'PENDING'
-              : 'SETTLED',
-        clearanceStatus: isFullyCollected ? 'CLEARED' : 'OUTSTANDING',
-        paidTotal: authoritative,
-        outstanding: Decimal.max(0, invoice.total.minus(authoritative)),
-        status: isFullyCollected ? 'PAID' : authoritative.greaterThan(0) ? 'PARTIALLY_PAID' : 'UNPAID',
-      },
-    });
+    // Undated totals repair operational balances, but cannot establish a revenue period.
+    return recordHmsCollection(body.pharmacyInvoiceNumber,new Decimal(body.authoritativeCollectedAmount),true,
+      body.receiptNumber, body.collectedAt ? new Date(body.collectedAt) : undefined,body.method,body.collectedBy);
   },
 
-  // ── Request Settlement from HMS ───────────────────────────────────────────
   async createSettlementRequest(body: CreateSettlementRequestBody, actorId: string) {
     const invoice = await prisma.pharmacyInvoice.findUnique({
       where: { invoiceNumber: body.invoiceNumber },
@@ -819,3 +760,37 @@ export const hmsRequestsService = {
     }
   },
 };
+
+export async function recordHmsCollection(invoiceNumber: string, amount: Decimal, authoritative: boolean,
+  receipt?: string, occurredAt?: Date, method?: string, actorId?: string, transaction?: Prisma.TransactionClient) {
+  const execute = async (tx: Prisma.TransactionClient) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceNumber}))`;
+    const invoice=await tx.pharmacyInvoice.findUnique({where:{invoiceNumber}});
+    if(!invoice) throw new NotFoundError('Pharmacy invoice not found');
+    if(invoice.channel!=='HMS_LINKED') throw new ValidationError('HMS collection must reference an HMS-linked invoice');
+    const key=receipt?'hms:'+invoice.id+':'+receipt:null;
+    if(key) {
+      const previous=await tx.pharmacyFinancialEvent.findUnique({where:{eventKey:key}});
+      if(previous) {
+        if((!authoritative && !previous.collectionDelta.equals(amount)) || previous.occurredAt?.getTime()!==occurredAt?.getTime()) throw new ConflictError('HMS receipt identity reused with different values');
+        return invoice;
+      }
+      if(invoice.processedCollectionReceipts.includes(receipt!)) return invoice;
+    }
+    const delta=authoritative?amount.minus(invoice.hmsCollectedAmount):amount;
+    if(delta.isZero()) return invoice;
+    const collected=invoice.hmsCollectedAmount.plus(delta);
+    if(collected.lt(0)) throw new ValidationError('HMS collection reversal exceeds collected amount');
+    await tx.pharmacyFinancialEvent.create({data:{invoiceId:invoice.id,
+      eventKey:key??'hms-reconcile:'+invoice.id+':'+randomUUID(),kind:'HMS_COLLECTION',occurredAt:occurredAt??null,
+      collectionDelta:delta,method,actorId,reference:receipt}});
+    const receivable=Decimal.max(0,collected.minus(invoice.hmsSettledAmount));
+    const full=collected.gte(invoice.total);
+    return tx.pharmacyInvoice.update({where:{id:invoice.id},data:{hmsCollectedAmount:collected,hmsReceivable:receivable,
+      paidTotal:collected,outstanding:Decimal.max(0,invoice.total.minus(collected)),status:full?'PAID':collected.gt(0)?'PARTIALLY_PAID':'UNPAID',
+      clearanceStatus:full?'CLEARED':invoice.clearanceStatus==='APPROVED_CREDIT'?'APPROVED_CREDIT':'OUTSTANDING',
+      ...(receipt?{processedCollectionReceipts:{push:receipt}}:{}),
+      internalSettlementStatus:['REQUESTED','PARTIALLY_RELEASED'].includes(invoice.internalSettlementStatus??'')?invoice.internalSettlementStatus:receivable.gt(0)?'PENDING':'SETTLED'}});
+  };
+  return transaction ? execute(transaction) : prisma.$transaction(execute);
+}

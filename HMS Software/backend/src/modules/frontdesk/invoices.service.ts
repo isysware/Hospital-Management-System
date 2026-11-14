@@ -778,7 +778,9 @@ export const invoicesService = {
         pharmacyInvoiceNumber: notif.pharmacyInvoiceNumber,
         collectedAmount: notif.amount,
         receiptNumber: notif.receiptNumber,
-        collectedAt: new Date().toISOString(),
+        collectedAt: result.receipt.collectedAt.toISOString(),
+        method: result.receipt.method,
+        collectedBy: result.receipt.collectedById,
       }).catch((err) => {
         // eslint-disable-next-line no-console
         console.error('[invoicesService] Failed to notify pharmacy of patient collection:', err);
@@ -915,7 +917,9 @@ export const invoicesService = {
       };
     });
     for (const notification of result.pharmacyNotifications) {
-      await pharmacyBridgeClient.reconcileCollection(notification).catch(err => {
+      await pharmacyBridgeClient.reconcileCollection({ ...notification,
+        collectedAt: result.refundReceipt.collectedAt.toISOString(),receiptNumber:result.refundReceipt.receiptNumber,
+        method:result.refundReceipt.method,collectedBy:result.refundReceipt.collectedById }).catch(err => {
         console.error('[refundPayment] Pharmacy reconciliation failed:', err);
       });
     }

@@ -15,6 +15,8 @@ export type ReportType = (typeof REPORT_TYPES)[number];
 
 export const reportQuerySchema = z.object({
   type: z.enum(REPORT_TYPES),
+  method: z.enum(['CASH','CARD','ONLINE','BANK','UNKNOWN']).optional(),
+  cashierId: z.string().max(150).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
 });

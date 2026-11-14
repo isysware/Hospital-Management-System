@@ -118,6 +118,7 @@ export type StockAdjustmentBody = z.infer<typeof stockAdjustmentBodySchema>;
 
 /** pharmacy.md §9.1 SALES_RETURN_IN — controlled return against an original completed invoice line. */
 export const salesReturnBodySchema = z.object({
+  requestKey: z.string().uuid().optional(),
   invoiceId: z.string().uuid(),
   lines: z.array(z.object({ invoiceLineId: z.string().uuid(), quantity: z.coerce.number().positive(), restock: z.boolean().default(true) })).min(1),
   reason: z.string().min(1).max(500),

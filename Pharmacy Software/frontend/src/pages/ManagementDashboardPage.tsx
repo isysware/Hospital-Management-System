@@ -176,7 +176,7 @@ export const ManagementDashboardPage: React.FC<Props> = ({ onNavigate }) => {
   const periodPurchases = activeTrendItems.reduce((s, p) => s + p.purchases, 0);
   const periodExpenses = activeTrendItems.reduce((s, p) => s + p.expenses, 0);
   const periodOrders = activeTrendItems.reduce((s, p) => s + p.orders, 0);
-  const periodProfit = Math.max(0, periodRevenue - periodPurchases - periodExpenses);
+  const periodProfit = activeTrendItems.some(p => p.profit == null) ? null : activeTrendItems.reduce((sum,p)=>sum+(p.profit ?? 0),0);
 
   // Month-over-month / period growth rate
   const lastPt = activeTrendItems[activeTrendItems.length - 1];
@@ -286,6 +286,10 @@ export const ManagementDashboardPage: React.FC<Props> = ({ onNavigate }) => {
       {/* ═════════════════════════════════════════════════════════════════════
           2. SIX KEY METRIC CARDS (Matches Reference Photo 1)
           ═════════════════════════════════════════════════════════════════════ */}
+      <div className="p-3 bg-emerald-50 rounded-lg text-sm">
+        <p>Gross/Net billing remains separate from revenue. Today's collections: {formatPKR(data.collectionsToday)} | Outstanding: {formatPKR(data.outstanding)}.</p>
+        {data.incompleteInvoices > 0 && <p role="alert">{data.incompleteInvoices} invoices have incomplete financial history. Revenue shows verified amounts only; profit is unavailable until reconciled.</p>}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {/* Card 1: Total Revenue (Blue top accent) */}
         <div
@@ -304,10 +308,10 @@ export const ManagementDashboardPage: React.FC<Props> = ({ onNavigate }) => {
                 {momGrowth > 0 ? `+${momGrowth}%` : `${momGrowth}%`}
               </span>
             </div>
-            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Revenue</div>
-            <div className="text-xl font-bold text-slate-900 mt-1 truncate">{formatPKR(data.totalRevenueAllTime ?? data.salesToday)}</div>
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Recognized Revenue</div>
+            <div className="text-xl font-bold text-slate-900 mt-1 truncate">{formatPKR(data.totalRevenueAllTime ?? 0)}</div>
             <div className="text-[11px] text-slate-400 mt-0.5">
-              {Number(data.salesToday) > 0 ? `Today: ${formatPKR(data.salesToday)}` : `${data.totalSalesCountAllTime ?? 0} total sales`}
+              {Number(data.salesToday) > 0 ? `Recognized today: ${formatPKR(data.recognizedRevenueToday)}` : `${data.totalSalesCountAllTime ?? 0} total sales`}
             </div>
           </div>
           <div className="mt-3 pt-2">
@@ -451,8 +455,8 @@ export const ManagementDashboardPage: React.FC<Props> = ({ onNavigate }) => {
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {timeframe === '6m'
-                    ? 'Monthly revenue, stock purchases, and operational margin overview'
-                    : 'Day-by-day dispensed sales, stock purchases, and net margin'}
+                    ? 'Full-payment revenue and matched COGS; purchases shown separately'
+                    : 'Revenue follows full clearance; collections follow receipt dates'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -481,7 +485,7 @@ export const ManagementDashboardPage: React.FC<Props> = ({ onNavigate }) => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-4">
               <div>
                 <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" /> Period Revenue
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" /> Recognized Revenue
                 </div>
                 <div className="text-lg font-bold text-slate-900 mt-1">{formatPKR(periodRevenue)}</div>
                 <div className="text-[10px] text-emerald-600 font-semibold">{periodOrders} invoices</div>
@@ -506,9 +510,9 @@ export const ManagementDashboardPage: React.FC<Props> = ({ onNavigate }) => {
                 <div className="flex items-center gap-1.5 text-xs text-slate-400">
                   <span className="h-2 w-2 rounded-full bg-blue-500" /> Net Margin
                 </div>
-                <div className="text-lg font-bold text-slate-900 mt-1">{formatPKR(periodProfit)}</div>
+                <div className="text-lg font-bold text-slate-900 mt-1">{periodProfit == null ? 'Unavailable' : formatPKR(periodProfit)}</div>
                 <div className="text-[10px] text-blue-600 font-medium">
-                  {periodRevenue > 0 ? `${Math.round((periodProfit / periodRevenue) * 100)}% margin` : '0% margin'}
+                  {periodProfit != null && periodRevenue > 0 ? `${Math.round((periodProfit / periodRevenue) * 100)}% margin` : '0% margin'}
                 </div>
               </div>
             </div>
@@ -560,7 +564,7 @@ export const ManagementDashboardPage: React.FC<Props> = ({ onNavigate }) => {
                               <div className="space-y-1.5 text-[11px]">
                                 <div className="flex items-center justify-between">
                                   <span className="text-slate-500 flex items-center gap-1.5">
-                                    <span className="h-2 w-2 rounded-full bg-emerald-600 shrink-0" /> Sales Revenue:
+                                    <span className="h-2 w-2 rounded-full bg-emerald-600 shrink-0" /> Recognized Revenue:
                                   </span>
                                   <span className="font-bold text-emerald-700 font-mono text-xs">{formatPKR(item.revenue)}</span>
                                 </div>
@@ -580,7 +584,7 @@ export const ManagementDashboardPage: React.FC<Props> = ({ onNavigate }) => {
                                   <span className="text-[#0e7d5a] flex items-center gap-1.5 font-bold">
                                     Net Profit:
                                   </span>
-                                  <span className="text-[#0e7d5a] font-mono font-extrabold text-xs">{formatPKR(item.profit)}</span>
+                                  <span className="text-[#0e7d5a] font-mono font-extrabold text-xs">{item.profit == null ? 'Unavailable' : formatPKR(item.profit)}</span>
                                 </div>
                               </div>
                             </div>
@@ -602,7 +606,7 @@ export const ManagementDashboardPage: React.FC<Props> = ({ onNavigate }) => {
                     <Area
                       type="monotone"
                       dataKey="revenue"
-                      name="Sales Revenue"
+                      name="Recognized Revenue"
                       stroke="#0e7d5a"
                       strokeWidth={2.5}
                       fillOpacity={1}
@@ -618,7 +622,7 @@ export const ManagementDashboardPage: React.FC<Props> = ({ onNavigate }) => {
                 <div className="flex items-center gap-3 text-[11px] flex-wrap">
                   <span className="flex items-center gap-1.5 font-medium text-slate-700">
                     <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
-                    Sales Revenue
+                    Recognized Revenue
                   </span>
                   <span className="flex items-center gap-1.5 font-medium text-slate-700">
                     <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />

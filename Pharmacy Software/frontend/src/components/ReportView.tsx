@@ -27,9 +27,15 @@ export const REPORT_COLUMNS: Record<ReportType, ReportColumn[]> = {
     { key: 'invoiceNumber', label: 'Invoice #' },
     { key: 'channel', label: 'Channel' },
     { key: 'customerName', label: 'Customer / Patient' },
-    { key: 'total', label: 'Net Total', align: 'right', money: true },
-    { key: 'paidTotal', label: 'Paid Amount', align: 'right', money: true },
+    { key: 'grossSales', label: 'Gross Sales', align: 'right', money: true },
+    { key: 'netBilling', label: 'Net Billing (ex tax)', align: 'right', money: true },
+    { key: 'taxBilled', label: 'Tax Liability', align: 'right', money: true },
+    { key: 'collections', label: 'Collections (payment date)', align: 'right', money: true },
     { key: 'outstanding', label: 'Outstanding', align: 'right', money: true },
+    { key: 'recognizedRevenue', label: 'Recognized Revenue', align: 'right', money: true },
+    { key: 'recognizedCogs', label: 'Recognized COGS', align: 'right', money: true },
+    { key: 'grossProfit', label: 'Gross Profit / Loss', align: 'right', money: true },
+    { key: 'recognitionIssues', label: 'History Exceptions' },
     { key: 'status', label: 'Status' },
     { key: 'soldBy', label: 'Sold By' },
     { key: 'collectedBy', label: 'Collected By' },
@@ -163,7 +169,7 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [rows, setRows] = useState<any[]>([]);
-  const [totals, setTotals] = useState<Record<string, number> | null>(null);
+  const [totals, setTotals] = useState<Record<string, number | null> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -215,7 +221,8 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
     if (rows.length === 0) return;
     const headerRow = columns.map((c) => `"${c.label}"`).join(',');
     const dataRows = rows.map((r) => columns.map((c) => `"${fmtCell(r[c.key], c).replace(/"/g, '""')}"`).join(','));
-    const csvContent = [headerRow, ...dataRows].join('\n');
+    const summaryRows = type === 'SALES_COLLECTION' && totals ? Object.entries(totals).map(([key,value]) => `"Summary: ${key}","${value ?? 'Unavailable'}"`) : [];
+    const csvContent = [headerRow, ...dataRows, ...summaryRows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -248,6 +255,7 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
           <tr style="background:#0e5944;color:#ffffff;font-weight:bold;">${headerHtml}</tr>
           ${rowsHtml}
         </table>
+        ${type === 'SALES_COLLECTION' && totals ? `<table>${Object.entries(totals).map(([key,value])=>`<tr><td>${key}</td><td>${value ?? 'Unavailable'}</td></tr>`).join('')}</table>` : ''}
       </body>
       </html>
     `;
@@ -297,6 +305,11 @@ export const ReportView: React.FC<Props> = ({ type, title, subtitle, onNavigate,
         <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
       </div>
 
+      {type === 'SALES_COLLECTION' && totals && <div className="p-3 bg-emerald-50 rounded-lg text-sm">
+        <p>Recognized Revenue: {formatPKR(totals.recognizedRevenue ?? 0)} | COGS: {formatPKR(totals.recognizedCogs ?? 0)} | Operating Expenses: {formatPKR(totals.operatingExpenses ?? 0)} | Operating Profit / Loss: {totals.operatingProfit == null ? 'Unavailable: incomplete history' : formatPKR(totals.operatingProfit)}</p>
+        <p>Revenue is recognized only on full payment. Collections follow payment dates; outstanding includes earlier invoices. Tax and stock purchases are excluded from revenue/profit.</p>
+        {!!totals.incompleteInvoices && <p role="alert">{totals.incompleteInvoices} invoices need dated collection/return or historical cost evidence. Revenue includes verified amounts only.</p>}
+      </div>}
       {/* Filter Toolbar — date range only; the report type is this page's identity, not a dropdown anymore */}
       <div className="bg-white p-3 rounded-xl border border-slate-300/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">

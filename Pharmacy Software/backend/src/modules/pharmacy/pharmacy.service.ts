@@ -633,6 +633,7 @@ export const pharmacyService = {
             batchId: alloc.batchId,
             quantity: alloc.quantity,
             rateSnapshot: allocSaleRate,
+            costRateSnapshot: alloc.costRate,
             discountAmount: allocDiscount,
             taxAmount: allocTax,
             lineNet: allocNet,
@@ -766,11 +767,18 @@ export const pharmacyService = {
   },
 
   // ── Sales Return (pharmacy.md §9.1 SALES_RETURN_IN) ─────────────────────
-  async salesReturn(body: SalesReturnBody, actorId: string) {
-    const invoice = await prisma.pharmacyInvoice.findUnique({ where: { id: body.invoiceId }, include: { lines: true } });
-    if (!invoice) throw new NotFoundError('Invoice not found');
-
-    return prisma.$transaction(async (tx) => {
+  async salesReturn(body: SalesReturnBody, actorId: string, transaction?: Prisma.TransactionClient) {
+    const execute = async (tx: Prisma.TransactionClient) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${body.invoiceId}))`;
+      const invoice = await tx.pharmacyInvoice.findUnique({ where: { id: body.invoiceId }, include: { lines: { include: { batch: true } } } });
+      if (!invoice) throw new NotFoundError('Invoice not found');
+      if (invoice.channel === 'HMS_LINKED') throw new ValidationError('HMS-linked returns require the HMS billing/refund workflow; no pharmacy drawer refund is permitted.');
+      if (new Set(body.lines.map(l=>l.invoiceLineId)).size !== body.lines.length) throw new ValidationError('Duplicate return line');
+      if (body.requestKey) {
+        const previous = await tx.pharmacyFinancialEvent.findUnique({ where: { eventKey: 'return:'+body.requestKey } });
+        if (previous) throw new ConflictError('This return request has already been posted');
+      }
+      let returnedCost = new Decimal(0);
       let refundTotal = new Decimal(0);
       let grossRefundTotal = new Decimal(0);
       let taxRefundTotal = new Decimal(0);
@@ -793,11 +801,15 @@ export const pharmacyService = {
         const lineGrossRefund = line.rateSnapshot.mul(qty);
         const lineTaxRefund = line.taxAmount.mul(proportion);
         const lineDiscountRefund = line.discountAmount.mul(proportion);
-        const refundAmount = line.lineNet.mul(proportion);
+        const originalTotal = invoice.total.plus(invoice.lines.reduce((sum,l)=>sum.plus(l.returnedValue),new Decimal(0)));
+        const originalLinesNet = invoice.lines.reduce((sum,l)=>sum.plus(l.lineNet),new Decimal(0));
+        const invoiceDiscountShare = originalLinesNet.gt(0) ? Decimal.max(0,originalLinesNet.minus(originalTotal)).mul(line.lineNet).div(originalLinesNet).mul(proportion) : new Decimal(0);
+        const refundAmount = line.lineNet.mul(proportion).minus(invoiceDiscountShare).toDecimalPlaces(2);
+        if(returnLine.restock) returnedCost = returnedCost.plus(qty.mul(line.costRateSnapshot ?? line.batch?.costRate ?? 0));
 
         grossRefundTotal = grossRefundTotal.plus(lineGrossRefund);
         taxRefundTotal = taxRefundTotal.plus(lineTaxRefund);
-        discountRefundTotal = discountRefundTotal.plus(lineDiscountRefund);
+        discountRefundTotal = discountRefundTotal.plus(lineDiscountRefund).plus(invoiceDiscountShare);
         refundTotal = refundTotal.plus(refundAmount);
 
         // Update returned metrics on line
@@ -826,12 +838,13 @@ export const pharmacyService = {
         }
       }
 
+      const cashRefund = Decimal.min(refundTotal, invoice.paidTotal);
       const referenceNo = await nextCode(tx, SEQUENCE.RETURN);
       const refund = await tx.cashLedgerEntry.create({
         data: {
           portalUserId: actorId,
           direction: 'OUT',
-          amount: refundTotal,
+          amount: cashRefund,
           category: 'REFUND',
           referenceNo,
           isPhysicalCash: body.refundMethod === 'CASH',
@@ -841,12 +854,18 @@ export const pharmacyService = {
         },
       });
 
+      await tx.pharmacyFinancialEvent.create({ data: {
+        invoiceId:invoice.id,eventKey:body.requestKey?'return:'+body.requestKey:referenceNo,kind:'RETURN',occurredAt:refund.occurredAt,
+        collectionDelta:cashRefund.negated(),saleDelta:refundTotal.negated(),taxDelta:taxRefundTotal.negated(),
+        grossDelta:grossRefundTotal.negated(),discountDelta:discountRefundTotal.negated(),costDelta:returnedCost.negated(),
+        method:body.refundMethod,actorId,reference:refund.id,
+      } });
       // Update invoice totals reflecting the reversal
       const newSubtotal = Decimal.max(0, invoice.subtotal.minus(grossRefundTotal));
       const newDiscountTotal = Decimal.max(0, invoice.discountTotal.minus(discountRefundTotal));
       const newTaxTotal = Decimal.max(0, invoice.taxTotal.minus(taxRefundTotal));
       const newTotal = Decimal.max(0, invoice.total.minus(refundTotal));
-      const newPaidTotal = Decimal.max(0, invoice.paidTotal.minus(refundTotal));
+      const newPaidTotal = Decimal.max(0, invoice.paidTotal.minus(cashRefund));
       const newOutstanding = Decimal.max(0, newTotal.minus(newPaidTotal));
       const newStatus = newTotal.isZero()
         ? 'PAID'
@@ -873,13 +892,15 @@ export const pharmacyService = {
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
         returnReferenceNo: referenceNo,
-        refundTotal,
+        refundTotal: cashRefund,
+        returnedSaleAmount: refundTotal,
         refundMethod: body.refundMethod,
         cashLedgerEntryId: refund.id,
         newTotal,
         newPaidTotal,
       };
-    });
+    };
+    return transaction ? execute(transaction) : prisma.$transaction(execute);
   },
 
   async getInvoiceById(id: string) {

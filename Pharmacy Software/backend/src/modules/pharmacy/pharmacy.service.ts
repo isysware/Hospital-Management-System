@@ -416,7 +416,16 @@ export const pharmacyService = {
         where: query.search
           ? { OR: [{ name: { contains: query.search, mode: 'insensitive' } }, { code: { contains: query.search, mode: 'insensitive' } }, { barcode: { contains: query.search, mode: 'insensitive' } }] }
           : undefined,
-        include: { batches: true, stockEntries: { select: { quantityDelta: true } }, baseUnit: true, category: true, packagingLevels: { include: { unit: true }, orderBy: { level: 'asc' } } },
+        include: {
+          batches: {
+            include: { stockEntries: { select: { quantityDelta: true } } },
+            orderBy: [{ expiryDate: 'asc' }, { createdAt: 'asc' }],
+          },
+          stockEntries: { select: { quantityDelta: true } },
+          baseUnit: true,
+          category: true,
+          packagingLevels: { include: { unit: true }, orderBy: { level: 'asc' } },
+        },
         orderBy: { name: 'asc' },
       }),
       getSettings(),
@@ -431,6 +440,20 @@ export const pharmacyService = {
       const isOut = stock.lessThanOrEqualTo(0);
       const hasExpired = m.batches.some((b) => b.expiryDate <= now);
       const hasNearExpiry = m.batches.some((b) => b.expiryDate > now && b.expiryDate <= nearExpiryCutoff);
+      const activeBatches = m.batches
+        .filter((b) => b.expiryDate > now)
+        .map((b) => {
+          const avail = b.stockEntries.reduce((s, e) => s.plus(e.quantityDelta), new Decimal(0));
+          return {
+            id: b.id,
+            batchNumber: b.batchNumber,
+            expiryDate: b.expiryDate,
+            saleRate: b.saleRate ?? m.saleRate,
+            costRate: b.costRate,
+            available: avail,
+          };
+        })
+        .filter((b) => b.available.greaterThan(0));
       return {
         id: m.id,
         code: m.code,
@@ -455,6 +478,7 @@ export const pharmacyService = {
         isActive: m.isActive,
         currentStock: stock,
         batchesCount: m.batches.length,
+        activeBatches,
         isLowStock: isLow && !isOut,
         isOutOfStock: isOut,
         hasExpiredBatch: hasExpired,
@@ -1098,11 +1122,11 @@ export const pharmacyService = {
                 ? purchaseRatePerBase
                 : saleRatePerBase * 0.8;
 
-              let batch = await tx.medicineBatch.findUnique({
-                where: {
-                  medicineId_batchNumber: { medicineId, batchNumber },
-                },
-              });
+              let batch = batchNumber
+                ? await tx.medicineBatch.findFirst({
+                    where: { medicineId, batchNumber },
+                  })
+                : null;
               if (!batch) {
                 batch = await tx.medicineBatch.create({
                   data: {

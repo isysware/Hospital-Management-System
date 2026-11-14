@@ -197,7 +197,7 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                CH Sharif &amp; Saeed Hospital · Central Pharmacy POS Slip
+                {pharmacySettings?.hospitalName || pharmacySettings?.receiptHeaderText || hospitalProfile?.name || 'CH Sharif & Saeed Hospital'} · {pharmacySettings?.pharmacySubtitle || 'Central Pharmacy POS Slip'}
               </p>
             </div>
           </div>
@@ -352,18 +352,23 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
                         </div>
                       )}
                       <h1 className="text-lg font-black tracking-tight text-slate-900 uppercase">
-                        {pharmacySettings?.receiptHeaderText || hospitalProfile?.name || 'CH Sharif & Saeed Hospital'}
+                        {pharmacySettings?.hospitalName || pharmacySettings?.receiptHeaderText || hospitalProfile?.name || 'CH Sharif & Saeed Hospital'}
                       </h1>
                     </div>
                     <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">
-                      Central Pharmacy &amp; Retail Dispensary
+                      {pharmacySettings?.pharmacySubtitle || 'Central Pharmacy & Retail Dispensary'}
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      {hospitalProfile?.address || 'Main Boulevard, Near Jail Road · 24/7 Pharmacy Care'}
+                      {pharmacySettings?.address || hospitalProfile?.address || 'Main Boulevard, Near Jail Road · 24/7 Pharmacy Care'}
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      {hospitalProfile?.primaryPhone ? `Phone: ${hospitalProfile.primaryPhone}` : 'UAN: +92 42 111-467-748'}
+                      {pharmacySettings?.phone || (hospitalProfile?.primaryPhone ? `Phone: ${hospitalProfile.primaryPhone}` : 'UAN: +92 42 111-467-748')}
                     </p>
+                    {pharmacySettings?.email && (
+                      <p className="text-[11px] text-slate-500">
+                        {pharmacySettings.email}
+                      </p>
+                    )}
                   </div>
 
                   <div className="text-right space-y-1">
@@ -491,9 +496,16 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
                       <div className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">
                         Pharmacy Terms &amp; Return Conditions:
                       </div>
-                      <p>1. Returns accepted within 3 days with this computer-generated bill.</p>
-                      <p>2. Cut strips, syringes, ampoules, and cold chain items cannot be returned.</p>
-                      <p>3. Keep all medicines out of reach of children and direct sunlight.</p>
+                      <p className="whitespace-pre-line leading-relaxed">
+                        {pharmacySettings?.footerTerms ||
+                          pharmacySettings?.receiptFooterText ||
+                          '1. Returns accepted within 3 days with this original receipt.\n2. Cut strips, syringes, ampoules, and cold chain items cannot be returned.\n3. Keep all medicines out of reach of children.'}
+                      </p>
+                      {pharmacySettings?.footerMessage && (
+                        <p className="font-semibold text-emerald-800 pt-1.5 border-t border-slate-200/80 text-[11px]">
+                          {pharmacySettings.footerMessage}
+                        </p>
+                      )}
                     </div>
 
                     <div className="pt-8 grid grid-cols-2 gap-4 text-center">
@@ -541,6 +553,12 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {pharmacySettings?.footerPoweredBy && (
+                  <div className="text-[10px] text-slate-400 text-center pt-3 border-t border-slate-100">
+                    {pharmacySettings.footerPoweredBy}
+                  </div>
+                )}
               </div>
             </div>
           )}

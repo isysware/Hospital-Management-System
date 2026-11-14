@@ -58,6 +58,80 @@ function effectiveBaseRateFor(med: MedicineRow, unitId: string): number {
   return Number(med.saleRate);
 }
 
+export interface BatchAllocationPreview {
+  batchId: string;
+  batchNumber: string;
+  quantity: number;
+  rate: number;
+  gross: number;
+}
+
+/** Computes accurate FEFO / FIFO tier pricing across batches for a cart line. */
+export function computeLineAllocations(
+  med: MedicineRow,
+  saleUnitId: string,
+  saleQty: number
+): { totalGross: number; allocations: BatchAllocationPreview[] } {
+  const conversion = conversionFor(med, saleUnitId);
+  const reqBaseQty = saleQty * conversion;
+  const lvl = med.packagingLevels?.find((l) => l.unitId === saleUnitId && l.isSaleUnit);
+  const overridePerBase = lvl?.overrideSaleRate ? Number(lvl.overrideSaleRate) / Number(lvl.conversionToBase) : null;
+
+  const batches = (med.activeBatches || [])
+    .map((b) => ({
+      id: b.id,
+      batchNumber: b.batchNumber,
+      rate: overridePerBase ?? Number(b.saleRate || med.saleRate),
+      available: Number(b.available || 0),
+    }))
+    .filter((b) => b.available > 0);
+
+  if (!med.batchManaged || batches.length === 0) {
+    const rate = overridePerBase ?? Number(med.saleRate);
+    const gross = reqBaseQty * rate;
+    return {
+      totalGross: gross,
+      allocations: [{ batchId: '', batchNumber: '', quantity: reqBaseQty, rate, gross }],
+    };
+  }
+
+  let remaining = reqBaseQty;
+  const allocations: BatchAllocationPreview[] = [];
+  let totalGross = 0;
+
+  for (const b of batches) {
+    if (remaining <= 0) break;
+    const take = Math.min(remaining, b.available);
+    if (take > 0) {
+      const lineGross = take * b.rate;
+      allocations.push({
+        batchId: b.id,
+        batchNumber: b.batchNumber,
+        quantity: take,
+        rate: b.rate,
+        gross: lineGross,
+      });
+      totalGross += lineGross;
+      remaining -= take;
+    }
+  }
+
+  if (remaining > 0) {
+    const fallbackRate = overridePerBase ?? Number(med.saleRate);
+    const lineGross = remaining * fallbackRate;
+    allocations.push({
+      batchId: '',
+      batchNumber: '',
+      quantity: remaining,
+      rate: fallbackRate,
+      gross: lineGross,
+    });
+    totalGross += lineGross;
+  }
+
+  return { totalGross, allocations };
+}
+
 const PAYMENT_METHODS: { value: PaymentRow['method']; label: string }[] = [
   { value: 'CASH', label: 'Cash' },
   { value: 'CARD', label: 'Card' },
@@ -217,8 +291,8 @@ export const PosPage: React.FC = () => {
     let lineDiscounts = 0;
     let tax = 0;
     for (const l of cart) {
-      const baseQty = l.quantity * conversionFor(l.medicine, l.saleUnitId);
-      const gross = baseQty * effectiveBaseRateFor(l.medicine, l.saleUnitId);
+      const { totalGross } = computeLineAllocations(l.medicine, l.saleUnitId, l.quantity);
+      const gross = totalGross;
       const disc = Math.min(l.discountAmount, gross);
       const taxable = gross - disc;
       const lineTax = (taxable * Number(l.medicine.taxPercent)) / 100;
@@ -684,8 +758,8 @@ export const PosPage: React.FC = () => {
               ) : (
                 cart.map((line) => {
                   const unitOptions = saleUnitsFor(line.medicine);
-                  const baseQty = line.quantity * conversionFor(line.medicine, line.saleUnitId);
-                  const gross = baseQty * effectiveBaseRateFor(line.medicine, line.saleUnitId);
+                  const allocationInfo = computeLineAllocations(line.medicine, line.saleUnitId, line.quantity);
+                  const gross = allocationInfo.totalGross;
                   const disc = Math.min(line.discountAmount, gross);
                   const taxable = gross - disc;
                   const lineTax = (taxable * Number(line.medicine.taxPercent)) / 100;
@@ -710,14 +784,32 @@ export const PosPage: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <div className="text-[10.5px] text-slate-500 font-mono mt-0.5">
-                            <span className="text-slate-700 font-semibold">
-                              {formatPKR(gross / Math.max(1, line.quantity))}
-                            </span>
-                            <span className="text-slate-400">
-                              {' '}× {line.quantity} {selectedUnitName}
-                            </span>
-                          </div>
+                          {allocationInfo.allocations.length > 1 ? (
+                            <div className="mt-1 space-y-0.5">
+                              <span className="text-[9.5px] font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-1.5 py-0.2 rounded inline-block">
+                                FEFO Multi-Batch Split ({line.quantity} {selectedUnitName})
+                              </span>
+                              <div className="text-[10px] text-slate-500 font-mono space-y-0.5 pt-0.5">
+                                {allocationInfo.allocations.map((a, i) => (
+                                  <div key={i} className="flex items-center justify-between text-[10px] text-slate-600">
+                                    <span>
+                                      • {a.quantity} {selectedUnitName} {a.batchNumber ? `(Batch: ${a.batchNumber})` : '(Batch 1)'} @ {formatPKR(a.rate)}
+                                    </span>
+                                    <span className="font-semibold text-slate-800">{formatPKR(a.gross)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-[10.5px] text-slate-500 font-mono mt-0.5">
+                              <span className="text-slate-700 font-semibold">
+                                {formatPKR(gross / Math.max(1, line.quantity))}
+                              </span>
+                              <span className="text-slate-400">
+                                {' '}× {line.quantity} {selectedUnitName}
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -780,7 +872,7 @@ export const PosPage: React.FC = () => {
                               type="button"
                               onClick={() => {
                                 const newType = (line.discountType || 'PKR') === 'PKR' ? 'PERCENT' : 'PKR';
-                                const lineGross = line.quantity * conversionFor(line.medicine, line.saleUnitId) * effectiveBaseRateFor(line.medicine, line.saleUnitId);
+                                const lineGross = computeLineAllocations(line.medicine, line.saleUnitId, line.quantity).totalGross;
                                 const currAmt = line.discountAmount || 0;
                                 let newAmt = currAmt;
                                 let newVal = line.discountValue || 0;
@@ -815,7 +907,7 @@ export const PosPage: React.FC = () => {
                               }
                               onChange={(e) => {
                                 const inputVal = Math.max(0, Number(e.target.value) || 0);
-                                const lineGross = line.quantity * conversionFor(line.medicine, line.saleUnitId) * effectiveBaseRateFor(line.medicine, line.saleUnitId);
+                                const lineGross = computeLineAllocations(line.medicine, line.saleUnitId, line.quantity).totalGross;
                                 if ((line.discountType || 'PKR') === 'PERCENT') {
                                   const clampedPct = Math.min(100, inputVal);
                                   const calcAmount = Math.min(lineGross, (lineGross * clampedPct) / 100);

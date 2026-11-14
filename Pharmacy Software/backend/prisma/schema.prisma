@@ -365,7 +365,7 @@ model MedicineBatch {
   createdByUser PortalUser? @relation("BatchCreatedBy", fields: [createdById], references: [id])
   createdAt     DateTime    @default(now()) @map("created_at")
 
-  @@unique([medicineId, batchNumber])
+  @@index([medicineId, batchNumber])
   @@index([medicineId, expiryDate])
   @@map("medicine_batches")
 }
@@ -612,6 +612,7 @@ model MedicineRequestLine {
   requestedQuantity Decimal         @map("requested_quantity") @db.Decimal(14, 3)
   dispensedQuantity Decimal         @default(0) @map("dispensed_quantity") @db.Decimal(14, 3)
   notes             String?
+  
 
   /// What unit the request/dispense was actually expressed in (medicine-packaging-plan). Null = base unit (backward-compatible default).
   saleUnitId       String?  @map("sale_unit_id")
@@ -827,6 +828,14 @@ model PharmacySettings {
   nearExpiryWindowDays     Int      @default(90) @map("near_expiry_window_days")
   receiptHeaderText        String?  @map("receipt_header_text")
   receiptFooterText        String?  @map("receipt_footer_text")
+  hospitalName             String?  @map("hospital_name")
+  pharmacySubtitle         String?  @map("pharmacy_subtitle")
+  address                  String?  @map("address")
+  phone                    String?  @map("phone")
+  email                    String?  @map("email")
+  footerTerms              String?  @map("footer_terms")
+  footerMessage            String?  @map("footer_message")
+  footerPoweredBy          String?  @map("footer_powered_by")
   /// purchase-costing-plan — global fallback markup when a medicine's category has no MarkupRule row. Suggested Sale Price = Effective Cost/Base Unit x (1 + this/100).
   defaultMarkupPercent     Decimal  @default(20) @map("default_markup_percent") @db.Decimal(6, 2)
   updatedAt                DateTime @updatedAt @map("updated_at")

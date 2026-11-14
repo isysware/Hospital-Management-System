@@ -29,6 +29,14 @@ type FormState = {
   nearExpiryWindowDays: string;
   receiptHeaderText: string;
   receiptFooterText: string;
+  hospitalName: string;
+  pharmacySubtitle: string;
+  address: string;
+  phone: string;
+  email: string;
+  footerTerms: string;
+  footerMessage: string;
+  footerPoweredBy: string;
 };
 
 function toForm(s: PharmacySettings): FormState {
@@ -40,6 +48,14 @@ function toForm(s: PharmacySettings): FormState {
     nearExpiryWindowDays: String(s.nearExpiryWindowDays),
     receiptHeaderText: s.receiptHeaderText ?? '',
     receiptFooterText: s.receiptFooterText ?? '',
+    hospitalName: s.hospitalName ?? (s.receiptHeaderText ?? ''),
+    pharmacySubtitle: s.pharmacySubtitle ?? 'Central Pharmacy & Retail Dispensary',
+    address: s.address ?? '',
+    phone: s.phone ?? '',
+    email: s.email ?? '',
+    footerTerms: s.footerTerms ?? (s.receiptFooterText ?? 'Medicines once sold can only be returned within 3 days with this original receipt. Fridge and cold-chain items are strictly non-returnable.'),
+    footerMessage: s.footerMessage ?? 'Thank You · Get Well Soon',
+    footerPoweredBy: s.footerPoweredBy ?? 'Powered by Isysware Software Solutions',
   };
 }
 
@@ -179,8 +195,16 @@ export const SettingsPage: React.FC = () => {
         defaultTaxPercent: Number(form.defaultTaxPercent) || 0,
         maxDiscountPercent: Number(form.maxDiscountPercent) || 0,
         nearExpiryWindowDays: Number(form.nearExpiryWindowDays) || 90,
-        receiptHeaderText: form.receiptHeaderText || undefined,
-        receiptFooterText: form.receiptFooterText || undefined,
+        hospitalName: form.hospitalName.trim() || undefined,
+        receiptHeaderText: form.hospitalName.trim() || form.receiptHeaderText.trim() || undefined,
+        pharmacySubtitle: form.pharmacySubtitle.trim() || undefined,
+        address: form.address.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        email: form.email.trim() || undefined,
+        footerTerms: form.footerTerms.trim() || undefined,
+        receiptFooterText: form.footerTerms.trim() || form.receiptFooterText.trim() || undefined,
+        footerMessage: form.footerMessage.trim() || undefined,
+        footerPoweredBy: form.footerPoweredBy.trim() || undefined,
       });
       setSettings(updated);
       setForm(toForm(updated));
@@ -318,9 +342,8 @@ export const SettingsPage: React.FC = () => {
                         onClick={() => handleToggleCategoryActive(cat)}
                         disabled={savingCategoryId === cat.id}
                         title={cat.isActive ? 'Deactivate' : 'Activate'}
-                        className={`h-7 px-2.5 shrink-0 flex items-center gap-1 text-[11px] font-semibold rounded-lg border cursor-pointer disabled:opacity-60 transition-colors ${
-                          cat.isActive ? 'border-rose-200 text-rose-600 hover:bg-rose-50' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                        }`}
+                        className={`h-7 px-2.5 shrink-0 flex items-center gap-1 text-[11px] font-semibold rounded-lg border cursor-pointer disabled:opacity-60 transition-colors ${cat.isActive ? 'border-rose-200 text-rose-600 hover:bg-rose-50' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                          }`}
                       >
                         {savingCategoryId === cat.id ? <Loader2 className="h-3 w-3 animate-spin" /> : cat.isActive ? 'Deactivate' : 'Activate'}
                       </button>
@@ -343,15 +366,201 @@ export const SettingsPage: React.FC = () => {
           </Field>
         </SettingsCard>
 
-        {/* Receipt */}
-        <SettingsCard icon={Printer} iconTone="sky" title="Receipt / Invoice Print" hint="Printed at the top and bottom of POS and HMS pharmacy invoices.">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Receipt Header Text">
-              <input maxLength={200} value={form.receiptHeaderText} onChange={(e) => setForm({ ...form, receiptHeaderText: e.target.value })} className="input" placeholder="e.g. CH Sharif & Saeed Hospital — Pharmacy" />
-            </Field>
-            <Field label="Receipt Footer Text">
-              <input maxLength={200} value={form.receiptFooterText} onChange={(e) => setForm({ ...form, receiptFooterText: e.target.value })} className="input" placeholder="e.g. Thank you — medicines once dispensed are non-returnable." />
-            </Field>
+        {/* Receipt & Invoice Print Settings */}
+        <SettingsCard
+          icon={Printer}
+          iconTone="sky"
+          title="Receipt &amp; Invoice Print Layout"
+          hint="Customize every header line, address, helpline, and footer policy printed on thermal slips and A4 invoices."
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left: Input Form Controls (7 cols) */}
+            <div className="lg:col-span-7 space-y-5">
+              {/* Top Header Group */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
+                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                    1. Top Header &amp; Hospital Details
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">(Printed at top of bill)</span>
+                </div>
+
+                <Field label="Hospital / Facility Name" hint="Main title printed on invoices and thermal receipts">
+                  <input
+                    maxLength={200}
+                    value={form.hospitalName}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        hospitalName: e.target.value,
+                        receiptHeaderText: e.target.value,
+                      })
+                    }
+                    className="input font-semibold"
+                    placeholder="e.g. CH Sharif & Saeed Hospital"
+                  />
+                </Field>
+
+                <Field label="Pharmacy / Department Subtitle" hint="Secondary tagline directly below hospital name">
+                  <input
+                    maxLength={200}
+                    value={form.pharmacySubtitle}
+                    onChange={(e) => setForm({ ...form, pharmacySubtitle: e.target.value })}
+                    className="input"
+                    placeholder="e.g. Central Pharmacy & Retail Dispensary"
+                  />
+                </Field>
+
+                <Field label="Address / Location" hint="Physical hospital or pharmacy dispensary location">
+                  <input
+                    maxLength={300}
+                    value={form.address}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                    className="input"
+                    placeholder="e.g. Main Boulevard, Near Jail Road · 24/7 Pharmacy Care"
+                  />
+                </Field>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Phone / Helpline / UAN" hint="Customer helpline / UAN numbers">
+                    <input
+                      maxLength={100}
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      className="input"
+                      placeholder="e.g. UAN: +92 42 111-467-748"
+                    />
+                  </Field>
+                  <Field label="Email / NTN / Tax ID" hint="Contact email, web, or NTN (optional)">
+                    <input
+                      maxLength={150}
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      className="input"
+                      placeholder="e.g. NTN: 1234567-8 · info@chhospital.com"
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Bottom Footer Group */}
+              <div className="space-y-3 pt-3 border-t border-slate-100">
+                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
+                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                    2. Bottom Footer &amp; Return Policy
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">(Printed at bottom of bill)</span>
+                </div>
+
+                <Field
+                  label="Pharmacy Terms &amp; Return Policy"
+                  hint="Return rules, cold chain policy, and prescription requirements"
+                >
+                  <textarea
+                    rows={3}
+                    maxLength={1000}
+                    value={form.footerTerms}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        footerTerms: e.target.value,
+                        receiptFooterText: e.target.value,
+                      })
+                    }
+                    className="input py-2 text-xs leading-relaxed"
+                    placeholder="e.g. Medicines once sold can only be returned within 3 days with this original receipt. Fridge and cold-chain items are strictly non-returnable."
+                  />
+                </Field>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Closing Greeting / Message" hint="Polite parting greeting">
+                    <input
+                      maxLength={200}
+                      value={form.footerMessage}
+                      onChange={(e) => setForm({ ...form, footerMessage: e.target.value })}
+                      className="input font-medium"
+                      placeholder="e.g. Thank You · Get Well Soon"
+                    />
+                  </Field>
+                  <Field label="System Attribution / Note" hint="Software or copyright watermark">
+                    <input
+                      maxLength={200}
+                      value={form.footerPoweredBy}
+                      onChange={(e) => setForm({ ...form, footerPoweredBy: e.target.value })}
+                      className="input"
+                      placeholder="e.g. Powered by CH Hospital Management System"
+                    />
+                  </Field>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Live Thermal Slip Preview (5 cols) */}
+            <div className="lg:col-span-5 flex flex-col items-center">
+              <div className="w-full max-w-[320px] bg-white border border-slate-300 rounded-xl shadow-md p-4 text-[11px] font-mono text-slate-800 space-y-2 select-none">
+                <div className="text-[10px] uppercase font-bold text-slate-400 text-center tracking-widest border-b border-slate-200 pb-1">
+                  ★ Live Receipt Preview ★
+                </div>
+
+                {/* Header Preview */}
+                <div className="text-center space-y-0.5 pt-1">
+                  <div className="font-bold text-xs uppercase text-slate-900 leading-tight">
+                    {form.hospitalName || 'CH Sharif & Saeed Hospital'}
+                  </div>
+                  <div className="text-[10px] font-semibold text-emerald-800 uppercase">
+                    {form.pharmacySubtitle || 'Central Pharmacy & Dispensary'}
+                  </div>
+                  <div className="text-[9.5px] text-slate-500 leading-tight">
+                    {form.address || 'Main Boulevard, Near Jail Road · 24/7 Care'}
+                  </div>
+                  <div className="text-[9.5px] text-slate-500">
+                    {form.phone || 'UAN: +92 42 111-467-748'}
+                  </div>
+                  {form.email && (
+                    <div className="text-[9px] text-slate-400">{form.email}</div>
+                  )}
+                  <div className="pt-1 border-t border-dashed border-slate-300 text-[10px] font-bold text-slate-700">
+                    PHARMACY SALES RECEIPT
+                  </div>
+                </div>
+
+                {/* Sample items */}
+                <div className="py-2 border-y border-dashed border-slate-300 space-y-1 text-[10px]">
+                  <div className="flex justify-between">
+                    <span className="truncate">Panadol Extra 500mg (Strip)</span>
+                    <span className="font-bold shrink-0">PKR 350.00</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="truncate">Augmentin 625mg (Box)</span>
+                    <span className="font-bold shrink-0">PKR 480.00</span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-dotted border-slate-200 font-bold text-xs text-slate-900">
+                    <span>NET TOTAL</span>
+                    <span>PKR 830.00</span>
+                  </div>
+                </div>
+
+                {/* Footer Preview */}
+                <div className="text-center space-y-1 pt-1">
+                  <div className="text-[9px] text-slate-500 leading-tight whitespace-pre-line text-left bg-slate-50 p-1.5 rounded border border-slate-200">
+                    {form.footerTerms ||
+                      'Medicines once sold can only be returned within 3 days with this original receipt. Fridge and cold-chain items are non-returnable.'}
+                  </div>
+                  <div className="font-bold text-[10.5px] uppercase text-slate-900 pt-1">
+                    {form.footerMessage || 'Thank You · Get Well Soon'}
+                  </div>
+                  <div className="text-[8.5px] text-slate-400">
+                    {form.footerPoweredBy || 'Powered by Isysware Software Solutions'}
+                  </div>
+                  <div className="tracking-widest text-[8px] text-slate-300 pt-0.5">
+                    ||| | ||||| || |||||| | ||||| |||
+                  </div>
+                </div>
+              </div>
+              <span className="text-[10.5px] text-slate-400 mt-2 text-center">
+                Updates automatically as you type above.
+              </span>
+            </div>
           </div>
         </SettingsCard>
 
@@ -433,11 +642,10 @@ export const SettingsPage: React.FC = () => {
                 <label className="block font-semibold text-slate-700 mb-2">Select Reset Scope:</label>
                 <div className="space-y-2">
                   <label
-                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                      resetScope === 'transactions_only'
+                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${resetScope === 'transactions_only'
                         ? 'border-emerald-600 bg-emerald-50/30 ring-1 ring-emerald-600'
                         : 'border-slate-200 hover:bg-slate-50'
-                    }`}
+                      }`}
                   >
                     <input
                       type="radio"
@@ -455,11 +663,10 @@ export const SettingsPage: React.FC = () => {
                   </label>
 
                   <label
-                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                      resetScope === 'complete'
+                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${resetScope === 'complete'
                         ? 'border-rose-600 bg-rose-50/30 ring-1 ring-rose-600'
                         : 'border-slate-200 hover:bg-slate-50'
-                    }`}
+                      }`}
                   >
                     <input
                       type="radio"

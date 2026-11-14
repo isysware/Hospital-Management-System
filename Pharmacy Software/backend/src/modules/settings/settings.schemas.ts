@@ -7,8 +7,16 @@ export const updatePharmacySettingsBodySchema = z.object({
   defaultTaxPercent: z.coerce.number().min(0).max(100).optional(),
   maxDiscountPercent: z.coerce.number().min(0).max(100).optional(),
   nearExpiryWindowDays: z.coerce.number().int().min(1).max(3650).optional(),
-  receiptHeaderText: z.string().max(200).optional(),
-  receiptFooterText: z.string().max(200).optional(),
+  receiptHeaderText: z.string().max(200).optional().nullable(),
+  receiptFooterText: z.string().max(500).optional().nullable(),
+  hospitalName: z.string().max(200).optional().nullable(),
+  pharmacySubtitle: z.string().max(200).optional().nullable(),
+  address: z.string().max(300).optional().nullable(),
+  phone: z.string().max(100).optional().nullable(),
+  email: z.string().max(150).optional().nullable(),
+  footerTerms: z.string().max(1000).optional().nullable(),
+  footerMessage: z.string().max(200).optional().nullable(),
+  footerPoweredBy: z.string().max(200).optional().nullable(),
   /// purchase-costing-plan — global fallback markup when a medicine's category has no MarkupRule.
   defaultMarkupPercent: z.coerce.number().min(0).max(1000).optional(),
 });

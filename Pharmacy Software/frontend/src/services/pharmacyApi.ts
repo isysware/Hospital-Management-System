@@ -47,6 +47,14 @@ export interface MedicineRow {
   isActive: boolean;
   currentStock: string | number;
   batchesCount: number;
+  activeBatches?: Array<{
+    id: string;
+    batchNumber: string;
+    expiryDate: string;
+    saleRate: string | number;
+    costRate: string | number;
+    available: string | number;
+  }>;
   isLowStock: boolean;
   isOutOfStock: boolean;
   hasExpiredBatch: boolean;
@@ -171,6 +179,7 @@ export interface ManagementDashboard {
   }>;
 }
 
+
 export interface SalesDashboard {
   mySalesToday: string | number;
   mySalesCountToday: number;
@@ -189,6 +198,14 @@ export interface PharmacySettings {
   nearExpiryWindowDays: number;
   receiptHeaderText: string | null;
   receiptFooterText: string | null;
+  hospitalName?: string | null;
+  pharmacySubtitle?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  footerTerms?: string | null;
+  footerMessage?: string | null;
+  footerPoweredBy?: string | null;
   /// purchase-costing-plan — global fallback markup when a medicine's category has no MarkupRule.
   defaultMarkupPercent: string | number;
   updatedAt: string;

@@ -247,7 +247,9 @@ export const vendorsService = {
         const conversionToBase = packaging.conversionToBase;
 
         // ── Validate Batch — packaging snapshot integrity ─────────────
-        const existingBatch = await tx.medicineBatch.findUnique({ where: { medicineId_batchNumber: { medicineId: line.medicineId, batchNumber: effectiveBatchNumber } } });
+        const existingBatch = effectiveBatchNumber
+          ? await tx.medicineBatch.findFirst({ where: { medicineId: line.medicineId, batchNumber: effectiveBatchNumber } })
+          : null;
         if (existingBatch?.purchaseUnitConversionToBase && !existingBatch.purchaseUnitConversionToBase.equals(conversionToBase)) {
           throw new ValidationError(`Batch "${effectiveBatchNumber}" was already received with a different pack size (1 unit = ${existingBatch.purchaseUnitConversionToBase} base units then, ${conversionToBase} now). Use a new batch number for this packaging.`);
         }
@@ -272,14 +274,36 @@ export const vendorsService = {
         const suggestedSaleRate = effectiveCostPerBaseUnit.mul(new Decimal(1).plus(markupPercent.div(100)));
         const finalSaleRate = line.finalSaleRate != null ? new Decimal(line.finalSaleRate) : suggestedSaleRate;
 
-        const batch = await tx.medicineBatch.upsert({
-          where: { medicineId_batchNumber: { medicineId: line.medicineId, batchNumber: effectiveBatchNumber } },
-          create: {
-            medicineId: line.medicineId, batchNumber: effectiveBatchNumber, expiryDate: line.expiryDate, costRate: effectiveCostPerBaseUnit, saleRate: finalSaleRate, createdById: actorId,
-            purchaseUnitId: line.purchaseUnitId, purchaseUnitConversionToBase: conversionToBase, packagingSnapshotJson: packaging.snapshotChain,
-          },
-          update: { costRate: effectiveCostPerBaseUnit, saleRate: finalSaleRate },
-        });
+        // If a batch with this batch number exists AND has the identical cost & sale rates, reuse it.
+        // Otherwise (or if batchNumber is blank), create a NEW distinct batch row so that FEFO/FIFO
+        // preserves each stock lot's own cost and selling rate without overwriting older stock!
+        let batch = null;
+        if (effectiveBatchNumber) {
+          batch = await tx.medicineBatch.findFirst({
+            where: {
+              medicineId: line.medicineId,
+              batchNumber: effectiveBatchNumber,
+              costRate: effectiveCostPerBaseUnit,
+              saleRate: finalSaleRate,
+            },
+          });
+        }
+
+        if (!batch) {
+          batch = await tx.medicineBatch.create({
+            data: {
+              medicineId: line.medicineId,
+              batchNumber: effectiveBatchNumber,
+              expiryDate: line.expiryDate,
+              costRate: effectiveCostPerBaseUnit,
+              saleRate: finalSaleRate,
+              createdById: actorId,
+              purchaseUnitId: line.purchaseUnitId,
+              purchaseUnitConversionToBase: conversionToBase,
+              packagingSnapshotJson: packaging.snapshotChain,
+            },
+          });
+        }
 
         subtotal = subtotal.plus(grossAmount);
         discountTotal = discountTotal.plus(discountAmount);

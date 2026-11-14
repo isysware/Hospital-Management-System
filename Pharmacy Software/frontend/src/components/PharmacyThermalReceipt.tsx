@@ -44,8 +44,12 @@ export interface PharmacyThermalReceiptData {
   headerText: string;
   footerText: string;
   hospitalName?: string;
+  departmentTitle?: string;
   hospitalAddress?: string;
   hospitalPhone?: string;
+  hospitalEmail?: string;
+  footerMsg?: string;
+  footerPoweredBy?: string;
   isReprint?: boolean;
 }
 
@@ -154,14 +158,41 @@ export function buildPharmacyThermalReceiptData(
     invoice.medicineRequests?.[0]?.externalAdmissionRef ||
     null;
 
-  const headerText =
+  const hospName =
+    settings?.hospitalName ||
     settings?.receiptHeaderText ||
     hospitalProfile?.name ||
-    'CH Sharif & Saeed Hospital';
+    'CH SHARIF AND SAEED HOSPITAL';
+
+  const deptTitle =
+    settings?.pharmacySubtitle ||
+    'CENTRAL PHARMACY & DISPENSARY';
+
+  const hospAddress =
+    settings?.address ||
+    hospitalProfile?.address ||
+    'Main Boulevard, Near Jail Road · 24/7 Service';
+
+  const hospPhone =
+    settings?.phone ||
+    (hospitalProfile?.primaryPhone ? `Phone: ${hospitalProfile.primaryPhone}` : 'UAN: +92 42 111-467-748');
+
+  const hospEmail =
+    settings?.email ||
+    (hospitalProfile?.contactEmail ? `Email: ${hospitalProfile.contactEmail}` : '');
 
   const footerText =
+    settings?.footerTerms ||
     settings?.receiptFooterText ||
     'Medicines once sold can only be returned within 3 days with this original receipt. Fridge and cold-chain items are strictly non-returnable.';
+
+  const footerMsg =
+    settings?.footerMessage ||
+    'Thank You · Get Well Soon';
+
+  const footerPoweredBy =
+    settings?.footerPoweredBy ||
+    'Powered by Isysware Software Solutions';
 
   return {
     invoiceNumber: invoice.invoiceNumber || 'INV-PENDING',
@@ -182,11 +213,15 @@ export function buildPharmacyThermalReceiptData(
     paidTotal: Number(invoice.paidTotal || 0),
     outstanding: Number(invoice.outstanding || 0),
     payments,
-    headerText,
+    headerText: hospName,
     footerText,
-    hospitalName: hospitalProfile?.name || 'CH SHARIF AND SAEED HOSPITAL',
-    hospitalAddress: hospitalProfile?.address || 'Main Boulevard, Near Jail Road · 24/7 Service',
-    hospitalPhone: hospitalProfile?.primaryPhone || 'UAN: +92 42 111-467-748',
+    hospitalName: hospName,
+    departmentTitle: deptTitle,
+    hospitalAddress: hospAddress,
+    hospitalPhone: hospPhone,
+    hospitalEmail: hospEmail,
+    footerMsg,
+    footerPoweredBy,
     isReprint: options?.isReprint || false,
   };
 }
@@ -444,10 +479,11 @@ export function generatePharmacyThermalReceiptHtml(data: PharmacyThermalReceiptD
 </head>
 <body>
   <div class="header">
-    <div class="hospital-title">${escapeHtml(data.headerText || data.hospitalName || 'CH SHARIF AND SAEED HOSPITAL')}</div>
-    <div class="dept-title">CENTRAL PHARMACY &amp; DISPENSARY</div>
+    <div class="hospital-title">${escapeHtml(data.hospitalName || data.headerText || 'CH SHARIF AND SAEED HOSPITAL')}</div>
+    <div class="dept-title">${escapeHtml(data.departmentTitle || 'CENTRAL PHARMACY &amp; DISPENSARY')}</div>
     ${data.hospitalAddress ? `<div class="meta-contact">${escapeHtml(data.hospitalAddress)}</div>` : ''}
     ${data.hospitalPhone ? `<div class="meta-contact">${escapeHtml(data.hospitalPhone)}</div>` : ''}
+    ${data.hospitalEmail ? `<div class="meta-contact">${escapeHtml(data.hospitalEmail)}</div>` : ''}
     <div class="doc-type">PHARMACY SALES RECEIPT</div>
     ${data.isReprint ? '<div class="reprint-badge">*** REPRINT / DUPLICATE ***</div>' : ''}
   </div>
@@ -596,8 +632,8 @@ export function generatePharmacyThermalReceiptHtml(data: PharmacyThermalReceiptD
   <!-- SECTION 5: FOOTER & POLICY -->
   <div class="footer">
     ${data.footerText ? `<div class="footer-policy">${escapeHtml(data.footerText)}</div>` : ''}
-    <div class="footer-msg">Thank You · Get Well Soon</div>
-    <div class="footer-powered">Powered by Isysware Software Solutions</div>
+    <div class="footer-msg">${escapeHtml(data.footerMsg || 'Thank You · Get Well Soon')}</div>
+    <div class="footer-powered">${escapeHtml(data.footerPoweredBy || 'Powered by Isysware Software Solutions')}</div>
     <div class="barcode">||| | ||||| || |||||| | ||||| |||</div>
   </div>
 

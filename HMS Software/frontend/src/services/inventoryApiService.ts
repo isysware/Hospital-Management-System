@@ -11,6 +11,13 @@ export interface BackendSupplier {
   outstandingBalance: string | number;
 }
 
+export interface BackendStockBatch {
+  batchNo: string | null;
+  expiryDate: string | null;
+  costRate: string | number;
+  available: string | number;
+}
+
 export interface BackendStockItem {
   id: string;
   code: string;
@@ -22,6 +29,7 @@ export interface BackendStockItem {
   currentStock: string | number;
   isLowStock: boolean;
   isActive: boolean;
+  activeBatches?: BackendStockBatch[];
 }
 
 export const inventoryApiService = {

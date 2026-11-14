@@ -206,6 +206,9 @@ export const inventoryReportsService = {
           issuedQty: l.quantity,
           returnedQty: l.returnedQuantity,
           netQty: l.quantity.minus(l.returnedQuantity),
+          batchNo: l.batchNo,
+          expiryDate: l.expiryDate,
+          costRate: l.costRate,
         })),
       })),
     };

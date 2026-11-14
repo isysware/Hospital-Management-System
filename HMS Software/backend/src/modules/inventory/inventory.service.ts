@@ -14,7 +14,7 @@ import type {
   CreateInventoryExpenseBody,
   PaySupplierBody,
 } from './inventory.schemas';
-import type { StockAdjustmentType } from '@prisma/client';
+import type { Prisma, StockAdjustmentType } from '@prisma/client';
 
 /** Reject repeated rows before validating balances against a shared snapshot. */
 function assertUniqueItems(ids: string[]) {
@@ -49,7 +49,175 @@ function computeOutstanding(entries: { entryType: string; amount: Decimal | stri
   }, new Decimal(0));
 }
 
+export interface InventoryBatchAllocation {
+  batchNo: string | null;
+  expiryDate: Date | null;
+  costRate: Decimal;
+  quantity: Decimal;
+}
+
+export interface InventoryActiveBatch {
+  batchNo: string | null;
+  expiryDate: Date | null;
+  costRate: Decimal;
+  available: Decimal;
+}
+
+export function computeInventoryActiveBatches(
+  stockLedgerEntries: Array<{
+    quantityDelta: Decimal | number | string;
+    batchNo: string | null;
+    expiryDate: Date | null;
+    createdAt: Date;
+  }>,
+  purchaseOrderLines: Array<{
+    batchNo: string | null;
+    rate: Decimal | number | string;
+  }>,
+): InventoryActiveBatch[] {
+  type BatchAccumulator = {
+    batchNo: string | null;
+    expiryDate: Date | null;
+    firstSeen: Date;
+    available: Decimal;
+  };
+
+  const batchMap = new Map<string, BatchAccumulator>();
+
+  for (const entry of stockLedgerEntries) {
+    const bNo = entry.batchNo?.trim() || null;
+    const expStr = entry.expiryDate instanceof Date
+      ? entry.expiryDate.toISOString().slice(0, 10)
+      : (entry.expiryDate ? String(entry.expiryDate).slice(0, 10) : 'NO_EXP');
+    const key = `${bNo ?? '__UNBATCHED__'}::${expStr}`;
+
+    const existing = batchMap.get(key);
+    const delta = new Decimal(entry.quantityDelta);
+    const createdAt = entry.createdAt instanceof Date ? entry.createdAt : new Date(entry.createdAt);
+    const expDate = entry.expiryDate
+      ? (entry.expiryDate instanceof Date ? entry.expiryDate : new Date(entry.expiryDate))
+      : null;
+
+    if (!existing) {
+      batchMap.set(key, {
+        batchNo: bNo,
+        expiryDate: expDate,
+        firstSeen: createdAt,
+        available: delta,
+      });
+    } else {
+      existing.available = existing.available.plus(delta);
+      if (createdAt < existing.firstSeen) {
+        existing.firstSeen = createdAt;
+      }
+    }
+  }
+
+  const defaultRate = purchaseOrderLines.length > 0 && purchaseOrderLines[0]
+    ? new Decimal(purchaseOrderLines[0].rate)
+    : new Decimal(0);
+
+  const getCostRate = (batchNo: string | null): Decimal => {
+    if (!batchNo) return defaultRate;
+    const matched = purchaseOrderLines.find(
+      (pol) => pol.batchNo?.trim().toLowerCase() === batchNo.trim().toLowerCase(),
+    );
+    return matched ? new Decimal(matched.rate) : defaultRate;
+  };
+
+  const now = new Date();
+
+  // Filter positive available stock
+  const positiveBatches = Array.from(batchMap.values()).filter((b) => b.available.greaterThan(0));
+
+  // Filter out expired batches (safety for hospital inventory)
+  const nonExpiredBatches = positiveBatches.filter((b) => {
+    if (b.expiryDate && b.expiryDate < now) return false;
+    return true;
+  });
+
+  // Sort by FEFO (earliest expiry first), with FIFO fallback (oldest firstSeen first)
+  nonExpiredBatches.sort((a, b) => {
+    if (a.expiryDate && b.expiryDate) {
+      const expDiff = a.expiryDate.getTime() - b.expiryDate.getTime();
+      if (expDiff !== 0) return expDiff;
+      return a.firstSeen.getTime() - b.firstSeen.getTime();
+    }
+    if (a.expiryDate && !b.expiryDate) return -1;
+    if (!a.expiryDate && b.expiryDate) return 1;
+    return a.firstSeen.getTime() - b.firstSeen.getTime();
+  });
+
+  return nonExpiredBatches.map((b) => ({
+    batchNo: b.batchNo,
+    expiryDate: b.expiryDate,
+    costRate: getCostRate(b.batchNo),
+    available: b.available,
+  }));
+}
+
+export async function allocateInventoryFefoBatches(
+  stockItemId: string,
+  requestedQuantity: Decimal,
+  tx: Prisma.TransactionClient,
+): Promise<InventoryBatchAllocation[]> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('hms-inventory-ledger'))`;
+
+  const item = await tx.stockItem.findUnique({
+    where: { id: stockItemId },
+    include: {
+      stockLedgerEntries: {
+        select: {
+          quantityDelta: true,
+          batchNo: true,
+          expiryDate: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      },
+      purchaseOrderLines: {
+        select: {
+          batchNo: true,
+          rate: true,
+        },
+      },
+    },
+  });
+
+  if (!item || !item.isActive) {
+    throw new NotFoundError(`Stock item ${stockItemId} not found or inactive`);
+  }
+
+  const activeBatches = computeInventoryActiveBatches(item.stockLedgerEntries, item.purchaseOrderLines);
+  const totalAvailable = activeBatches.reduce((sum, b) => sum.plus(b.available), new Decimal(0));
+
+  if (totalAvailable.lessThan(requestedQuantity)) {
+    throw new ValidationError(
+      `Insufficient non-expired stock for "${item.name}". Available: ${totalAvailable.toString()} ${item.unit}, Requested: ${requestedQuantity.toString()} ${item.unit}. Cannot drive stock negative.`,
+    );
+  }
+
+  let remaining = requestedQuantity;
+  const allocations: InventoryBatchAllocation[] = [];
+
+  for (const batch of activeBatches) {
+    if (remaining.lessThanOrEqualTo(0)) break;
+    const take = remaining.lessThan(batch.available) ? remaining : batch.available;
+    allocations.push({
+      batchNo: batch.batchNo,
+      expiryDate: batch.expiryDate,
+      costRate: batch.costRate,
+      quantity: take,
+    });
+    remaining = remaining.minus(take);
+  }
+
+  return allocations;
+}
+
 export const inventoryService = {
+  allocateInventoryFefoBatches,
+  computeInventoryActiveBatches,
   // ── Suppliers ──────────────────────────────────────────────────────────
   async createSupplier(body: CreateSupplierBody, actorId: string) {
     return prisma.supplier.create({
@@ -389,7 +557,20 @@ export const inventoryService = {
           }
         : undefined,
       include: {
-        stockLedgerEntries: { select: { quantityDelta: true } },
+        stockLedgerEntries: {
+          select: {
+            quantityDelta: true,
+            batchNo: true,
+            expiryDate: true,
+            createdAt: true,
+          },
+        },
+        purchaseOrderLines: {
+          select: {
+            batchNo: true,
+            rate: true,
+          },
+        },
       },
       orderBy: { name: 'asc' },
     });
@@ -400,6 +581,7 @@ export const inventoryService = {
         new Decimal(0),
       );
       const isLowStock = currentStock.lessThanOrEqualTo(item.reorderLevel);
+      const activeBatches = computeInventoryActiveBatches(item.stockLedgerEntries, item.purchaseOrderLines);
 
       return {
         id: item.id,
@@ -412,6 +594,12 @@ export const inventoryService = {
         isActive: item.isActive,
         currentStock,
         isLowStock,
+        activeBatches: activeBatches.map((b) => ({
+          batchNo: b.batchNo,
+          expiryDate: b.expiryDate ? b.expiryDate.toISOString().slice(0, 10) : null,
+          costRate: b.costRate,
+          available: b.available,
+        })),
       };
     });
   },
@@ -669,7 +857,8 @@ export const inventoryService = {
   // ── Department Issue & Return ──────────────────────────────────────────
   /**
    * Requisition -> Issue stock -> Deduct StockLedger with department tag.
-   * Negative stock is blocked (§4.8, D06 p.1).
+   * Allocates stock across batches using FEFO (earliest expiry first) with
+   * FIFO tie-breaker. Negative stock is blocked (§4.8, D06 p.1).
    */
   async issueToDepartment(body: CreateDepartmentIssueBody, actorId: string) {
     assertUniqueItems(body.lines.map(line => line.stockItemId));
@@ -680,29 +869,31 @@ export const inventoryService = {
       const department = await tx.department.findUnique({ where: { id: body.departmentId } });
       if (!department) throw new NotFoundError('Department not found');
 
-      // Verify stock sufficiency for every requested item before executing
+      // Pre-allocate FEFO batches for each requested item
+      const allocatedLines: Array<{
+        stockItemId: string;
+        allocations: InventoryBatchAllocation[];
+      }> = [];
+
       for (const line of body.lines) {
-        const item = await tx.stockItem.findUnique({
-          where: { id: line.stockItemId },
-          include: { stockLedgerEntries: { select: { quantityDelta: true } } },
-        });
-
-        if (!item || !item.isActive) {
-          throw new NotFoundError(`Stock item ${line.stockItemId} not found or inactive`);
-        }
-
-        const currentStock = item.stockLedgerEntries.reduce(
-          (sum, e) => sum.plus(e.quantityDelta),
-          new Decimal(0),
-        );
-
         const requestedQty = new Decimal(line.quantity);
-        if (currentStock.lessThan(requestedQty)) {
-          throw new ValidationError(
-            `Insufficient stock for "${item.name}" (Available: ${currentStock.toString()} ${item.unit}, Requested: ${requestedQty.toString()} ${item.unit}). Cannot drive stock negative.`,
-          );
-        }
+        const allocations = await allocateInventoryFefoBatches(line.stockItemId, requestedQty, tx);
+        allocatedLines.push({
+          stockItemId: line.stockItemId,
+          allocations,
+        });
       }
+
+      // Flatten allocations into DepartmentRequisitionLines with batch & rate details
+      const requisitionLinesData = allocatedLines.flatMap((al) =>
+        al.allocations.map((alloc) => ({
+          stockItemId: al.stockItemId,
+          quantity: alloc.quantity,
+          batchNo: alloc.batchNo,
+          expiryDate: alloc.expiryDate,
+          costRate: alloc.costRate,
+        })),
+      );
 
       // Create DepartmentRequisition
       const requisition = await tx.departmentRequisition.create({
@@ -712,22 +903,21 @@ export const inventoryService = {
           issuedById: actorId,
           receivedByName: body.receivedByName,
           lines: {
-            create: body.lines.map((l) => ({
-              stockItemId: l.stockItemId,
-              quantity: new Decimal(l.quantity),
-            })),
+            create: requisitionLinesData,
           },
         },
         include: { lines: { include: { stockItem: true } } },
       });
 
-      // Post -OUT movement for each line to StockLedger
+      // Post -OUT movement for each allocated batch line to StockLedger
       for (const line of requisition.lines) {
         await tx.stockLedger.create({
           data: {
             stockItemId: line.stockItemId,
             movementType: 'DEPARTMENT_ISSUE',
             quantityDelta: line.quantity.negated(), // -OUT
+            batchNo: line.batchNo,
+            expiryDate: line.expiryDate,
             referenceTable: 'department_requisitions',
             referenceId: requisition.id,
             actorId,
@@ -792,6 +982,8 @@ export const inventoryService = {
               stockItemId: line.stockItemId,
               movementType: 'DEPARTMENT_RETURN',
               quantityDelta: qty, // +IN
+              batchNo: line.batchNo,
+              expiryDate: line.expiryDate,
               referenceTable: 'department_requisition_lines',
               referenceId: line.id,
               actorId,

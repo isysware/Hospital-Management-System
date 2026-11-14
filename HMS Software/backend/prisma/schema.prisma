@@ -2102,6 +2102,9 @@ model DepartmentRequisitionLine {
   stockItem               StockItem             @relation(fields: [stockItemId], references: [id])
   quantity                Decimal               @db.Decimal(14, 3)
   returnedQuantity        Decimal               @default(0) @map("returned_quantity") @db.Decimal(14, 3)
+  batchNo                 String?               @map("batch_no")
+  expiryDate              DateTime?             @map("expiry_date") @db.Date
+  costRate                Decimal?              @map("cost_rate") @db.Decimal(14, 2)
 
   @@map("department_requisition_lines")
 }

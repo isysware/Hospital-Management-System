@@ -2,6 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { Decimal } from '@prisma/client/runtime/library';
 
 const db = vi.hoisted(() => ({
+  inventoryExpense: { aggregate: vi.fn().mockResolvedValue({ _sum: { amount: null } }) },
   salarySlip: { findMany: vi.fn().mockResolvedValue([]) },
   salaryPayment: { findMany: vi.fn().mockResolvedValue([]) },
   doctorCommissionAccrual: { findMany: vi.fn().mockResolvedValue([]) },
@@ -62,7 +63,7 @@ it('includes negative refunds in department-filtered management collections', as
 
 it('uses receipt date, method and collector for mixed-department collections independently of invoice billing', async () => {
   db.hospitalInvoice.findMany.mockResolvedValue([{
-    id: 'new-unpaid', departmentId: 'opd', department: { id: 'opd', name: 'OPD' },
+    id: 'new-unpaid', createdAt: new Date(), paymentReceipts: [{ amount: new Decimal(900) }], departmentId: 'opd', department: { id: 'opd', name: 'OPD' },
     total: new Decimal(1000), paidTotal: new Decimal(900), subtotal: new Decimal(1000), discountTotal: new Decimal(0),
     lines: [{
       lineGross: new Decimal(1000), discountAmount: new Decimal(0), lineNet: new Decimal(1000),
@@ -100,7 +101,7 @@ it('uses receipt date, method and collector for mixed-department collections ind
 it('reconciles company and patient collections without double counting and clears paid panel debt', async () => {
   const lab = { id: 'lab', name: 'LAB' }, opd = { id: 'opd', name: 'OPD' };
   const invoice = {
-    id: 'panel-invoice', departmentId: 'opd', department: opd, total: new Decimal(1000),
+    id: 'panel-invoice', createdAt: new Date(), paymentReceipts: [{ amount: new Decimal(200) }], departmentId: 'opd', department: opd, total: new Decimal(1000),
     subtotal: new Decimal(1000), discountTotal: new Decimal(0), paidTotal: new Decimal(200),
     panelReceivable: new Decimal(800), panelRemittanceAllocations: [{ allocatedAmount: new Decimal(800) }],
     lines: [

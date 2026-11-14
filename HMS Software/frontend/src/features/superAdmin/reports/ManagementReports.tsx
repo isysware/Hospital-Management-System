@@ -115,7 +115,7 @@ export const ManagementSummaryReport: React.FC = () => {
   return (
     <GenericReportView<SummaryRecord>
       title="Management Summary"
-      subtitle="Salary and commission generated use approval dates plus posted adjustments; paid uses payment dates; outstanding includes prior balances as of period end. User filters approvals by approver and payments by payer. Operating result uses net billing less expenses and approved staff costs."
+      subtitle="Salary and commission generated use approval dates plus posted adjustments; paid uses payment dates; outstanding includes prior balances as of period end. User filters approvals by approver and payments by payer. Collection-Based Operating Profit / Loss uses actual collections net of refunds less operating vouchers and approved salary/commission costs, counted once. Billing and outstanding are independent of payment method. Inventory expenses without departments apply hospital-wide only."
       icon={BarChart2}
       filenamePrefix="Management_Summary"
       tableZoom={1.2}

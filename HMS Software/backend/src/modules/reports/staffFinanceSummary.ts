@@ -15,7 +15,10 @@ export async function staffFinanceSummary(start: Date, end: Date, departmentId?:
     { payrollRun: { departmentId } },
     { AND: [{ OR: [{ payrollRunId: null }, { payrollRun: { departmentId: null } }] }, { staff: { staffDepartments: { some: { departmentId } } } }] },
   ] } : {};
-  const commissionDepartment = departmentId ? { invoiceLineItem: { hospitalInvoice: { departmentId } } } : {};
+  const commissionDepartment = departmentId ? { invoiceLineItem: { OR: [
+    { serviceRate: { departmentId } },
+    { serviceRateId: null, hospitalInvoice: { departmentId } },
+  ] } } : {};
   const approval = { OR: [
     { approvedAt: { lte: end } },
     { approvedAt: null, status: { in: [...approvedStatuses] }, createdAt: { lte: end } },

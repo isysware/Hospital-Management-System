@@ -10,7 +10,7 @@ const invoices = Array.from({ length: 1005 }, (_, n) => ({
   id: `invoice-${n}`, invoiceNumber: `INV-${n}`, createdAt: new Date(),
   subtotal: d(100), discountTotal: d(0), total: d(100),
   paidTotal: d(n < 1000 ? 100 : 0), panelReceivable: d(0),
-  panelRemittanceAllocations: [], paymentReceipts: [], lines: [],
+  panelRemittanceAllocations: [], paymentReceipts: n < 1000 ? [{ amount: d(100) }] : [], lines: [],
   departmentId: null, department: null, corporatePanel: null, corporatePanelId: null,
   status: n < 1000 ? 'PAID' : 'UNPAID',
 }));

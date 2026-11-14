@@ -1,4 +1,4 @@
-import { allocateCollection, allocateInvoiceAmount, collectionSelect, collectionInvoiceSelect, invoiceBalance, panelCollectionLedger, panelPaymentFilter } from '@/shared/departmentCollections';
+import { allocateCollection, allocateInvoiceAmount, collectionSelect, collectionInvoiceSelect, invoiceBalance, panelCollectionLedger, panelPaymentFilter, signedReceiptWhere } from '@/shared/departmentCollections';
 import { Decimal } from '@prisma/client/runtime/library';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/db/client';
@@ -72,11 +72,6 @@ export const managementReportsService = {
     const user = query.portalUserId;
     const method = query.method;
 
-    const receiptFilter: Prisma.PaymentReceiptWhereInput = {
-      isReversed: false,
-      ...(method ? { method } : {}),
-    };
-
     const bedDept = dept
       ? { OR: [{ ward: { departmentId: dept } }, { room: { ward: { departmentId: dept } } }] }
       : {};
@@ -94,7 +89,7 @@ export const managementReportsService = {
     ] = await Promise.all([
       prisma.hospitalInvoice.findMany({
         where: {
-          createdAt: { gte: start, lte: end },
+          createdAt: { lte: end },
           status: { not: 'VOID' },
           ...(dept
             ? {
@@ -105,19 +100,17 @@ export const managementReportsService = {
               }
             : {}),
           ...(user ? { createdById: user } : {}),
-          ...(method ? { AND: [{ OR: [
-            { paymentReceipts: { some: receiptFilter } },
-            { panelRemittanceAllocations: { some: { panelRemittance: panelPaymentFilter(method) } } },
-          ] }] } : {}),
         },
         select: {
           id: true,
+          createdAt: true,
+          paymentReceipts: { where: { ...signedReceiptWhere, collectedAt: { lte: end } }, select: { amount: true } },
           subtotal: true,
           discountTotal: true,
           total: true,
           paidTotal: true,
           panelReceivable: true,
-          panelRemittanceAllocations: { select: { allocatedAmount: true } },
+          panelRemittanceAllocations: { where: { panelRemittance: { receivedAt: { lte: end } } }, select: { allocatedAmount: true } },
           departmentId: true,
           department: { select: { id: true, name: true } },
           lines: {
@@ -156,13 +149,14 @@ export const managementReportsService = {
         },
         select: collectionSelect,
       }),
-      prisma.userCashBalance.aggregate({
+      // Operating vouchers only: never also count their cash-ledger mirrors.
+      prisma.inventoryExpense.aggregate({
         where: {
-          occurredAt: { gte: start, lte: end },
-          direction: 'OUT',
-          category: { in: ['EXPENSE', 'PURCHASE'] },
-          ...(user ? { portalUserId: user } : {}),
-          ...(method === 'CASH' ? { isPhysicalCash: true } : method ? { isPhysicalCash: false } : {}),
+          expenseDate: { gte: new Date(start.toLocaleDateString('en-CA')), lte: new Date(end.toLocaleDateString('en-CA')) },
+          // Inventory vouchers have no department assignment.
+          ...(dept ? { id: { in: [] } } : {}),
+          ...(user ? { createdById: user } : {}),
+          ...(method ? { paymentMethod: method } : {}),
         },
         _sum: { amount: true },
       }),
@@ -213,53 +207,56 @@ export const managementReportsService = {
     const countedInvoicesPerDept = new Map<string, Set<string>>();
 
     for (const i of invoices) {
-      if (i.lines && i.lines.length > 0) {
-        for (const l of i.lines) {
-          const lineDept = l.serviceRate?.department;
-          const targetDeptId = lineDept?.id ?? i.departmentId ?? null;
-          const targetDeptName = lineDept?.name ?? i.department?.name ?? 'General Hospital Services';
+      if (i.createdAt >= start) {
+        if (i.lines && i.lines.length > 0) {
+          for (const l of i.lines) {
+            const lineDept = l.serviceRate?.department;
+            const targetDeptId = lineDept?.id ?? i.departmentId ?? null;
+            const targetDeptName = lineDept?.name ?? i.department?.name ?? 'General Hospital Services';
 
+            if (dept && targetDeptId !== dept) {
+              continue;
+            }
+
+            const r = rowFor(targetDeptName);
+            let invSet = countedInvoicesPerDept.get(targetDeptName);
+            if (!invSet) {
+              invSet = new Set<string>();
+              countedInvoicesPerDept.set(targetDeptName, invSet);
+            }
+            if (!invSet.has(i.id)) {
+              invSet.add(i.id);
+              r.invoices += 1;
+            }
+
+            r.gross = r.gross.plus(l.lineGross);
+            r.discount = r.discount.plus(l.discountAmount);
+            r.net = r.net.plus(l.lineNet);
+
+
+          }
+        } else {
+          const targetDeptId = i.departmentId;
+          const targetDeptName = i.department?.name ?? 'General Hospital Services';
           if (dept && targetDeptId !== dept) {
             continue;
           }
-
           const r = rowFor(targetDeptName);
-          let invSet = countedInvoicesPerDept.get(targetDeptName);
-          if (!invSet) {
-            invSet = new Set<string>();
-            countedInvoicesPerDept.set(targetDeptName, invSet);
-          }
-          if (!invSet.has(i.id)) {
-            invSet.add(i.id);
-            r.invoices += 1;
-          }
-
-          r.gross = r.gross.plus(l.lineGross);
-          r.discount = r.discount.plus(l.discountAmount);
-          r.net = r.net.plus(l.lineNet);
-
+          r.invoices += 1;
+          r.gross = r.gross.plus(i.subtotal);
+          r.discount = r.discount.plus(i.discountTotal);
+          r.net = r.net.plus(i.total);
 
         }
-      } else {
-        const targetDeptId = i.departmentId;
-        const targetDeptName = i.department?.name ?? 'Unassigned';
-        if (dept && targetDeptId !== dept) {
-          continue;
-        }
-        const r = rowFor(targetDeptName);
-        r.invoices += 1;
-        r.gross = r.gross.plus(i.subtotal);
-        r.discount = r.discount.plus(i.discountTotal);
-        r.net = r.net.plus(i.total);
-
       }
-      const balance = invoiceBalance(i);
+      // Current paidTotal includes later receipts: reconstruct the cutoff balance.
+      const balance = invoiceBalance({ ...i, paidTotal: sumOf(i.paymentReceipts, r => r.amount) });
       for (const allocation of [
         ...allocateInvoiceAmount(balance.patientDue, i, 'patientShare'),
         ...allocateInvoiceAmount(balance.panelDue, i, 'panelReceivable'),
       ]) {
         if (!dept || allocation.departmentId === dept) {
-          const row = rowFor(allocation.name);
+          const row = rowFor(allocation.departmentId === null ? 'General Hospital Services' : allocation.name);
           row.outstanding = row.outstanding.plus(allocation.amount);
         }
       }
@@ -269,14 +266,14 @@ export const managementReportsService = {
     for (const receipt of receipts) {
       for (const allocation of allocateCollection(receipt)) {
         if (!dept || allocation.departmentId === dept) {
-          const row = rowFor(allocation.name);
+          const row = rowFor(allocation.departmentId === null ? 'General Hospital Services' : allocation.name);
           row.collected = row.collected.plus(allocation.amount);
         }
       }
     }
     for (const allocation of panelCollections) {
       if (!dept || allocation.departmentId === dept) {
-        const row = rowFor(allocation.name);
+        const row = rowFor(allocation.departmentId === null ? 'General Hospital Services' : allocation.name);
         row.collected = row.collected.plus(allocation.amount);
       }
     }
@@ -295,12 +292,14 @@ export const managementReportsService = {
     );
     const operatingCosts = hospitalExpenses.plus(expenses._sum.amount ?? ZERO())
       .plus(staffFinance.salaryGenerated).plus(staffFinance.commissionGenerated);
+    const collectedIncome = sumOf(table, (r) => r.collected);
     return {
       period: periodOf(start, end, label),
       summary: {
         ...staffFinance,
         totalOperatingCosts: operatingCosts,
-        operatingResult: sumOf(table, (r) => r.net).minus(operatingCosts),
+        operatingResult: collectedIncome.minus(operatingCosts),
+        collectedIncome,
         grossBilling: sumOf(table, (r) => r.gross),
         discounts: sumOf(table, (r) => r.discount),
         totalBilling: sumOf(table, (r) => r.net),
@@ -406,7 +405,7 @@ export const managementReportsService = {
     const { start, end, label } = resolveDateRange(query);
     const invoices = await prisma.hospitalInvoice.findMany({
       where: {
-        createdAt: { gte: start, lte: end },
+        createdAt: { lte: end },
         status: query.status ?? { not: 'VOID' },
         ...(query.departmentId ? { OR: [
           { departmentId: query.departmentId },
@@ -418,7 +417,8 @@ export const managementReportsService = {
       },
       include: {
         ...patientSelect,
-        panelRemittanceAllocations: { select: { allocatedAmount: true } },
+        paymentReceipts: { where: { ...signedReceiptWhere, collectedAt: { lte: end } }, select: { amount: true } },
+        panelRemittanceAllocations: { where: { panelRemittance: { receivedAt: { lte: end } } }, select: { allocatedAmount: true } },
         department: { select: { id: true, name: true } },
         lines: collectionInvoiceSelect.lines,
         corporatePanel: { select: { organizationName: true } },
@@ -430,14 +430,15 @@ export const managementReportsService = {
     return {
       period: periodOf(start, end, label),
       rows: invoices.map((i) => {
-          const balance = invoiceBalance(i);
+          const paidAtCutoff = sumOf(i.paymentReceipts, r => r.amount);
+          const balance = invoiceBalance({ ...i, paidTotal: paidAtCutoff });
           const scoped = (amount: Decimal, basis: 'lineNet' | 'patientShare' | 'panelReceivable') => !query.departmentId ? amount :
             allocateInvoiceAmount(amount, i, basis).filter(r => r.departmentId === query.departmentId)
               .reduce((sum, r) => sum.plus(r.amount), ZERO());
           const patientDue = scoped(balance.patientDue, 'patientShare');
           const panelDue = scoped(balance.panelDue, 'panelReceivable');
           const due = patientDue.plus(panelDue);
-          const collected = scoped(i.paidTotal, 'patientShare').plus(scoped(balance.panelPaid, 'panelReceivable'));
+          const collected = scoped(paidAtCutoff, 'patientShare').plus(scoped(balance.panelPaid, 'panelReceivable'));
           const departmentName = query.departmentId
             ? i.lines.find(l => l.serviceRate?.department?.id === query.departmentId)?.serviceRate?.department?.name ?? i.department?.name
             : i.department?.name;

@@ -260,6 +260,8 @@ export const FRONT_DESK_NAV_GROUPS: NavGroup[] = [
       { id: 'fd_outstanding_invoices', label: 'Outstanding / Partial Invoices', icon: 'AlertCircle' },
       { id: 'fd_admission_payment_collections', label: 'Admission Payment Collections', icon: 'CreditCard' },
       { id: 'fd_discount_report', label: 'Discounts / Refunds / Voids', icon: 'Tag' },
+      { id: 'my_balance_sheet', label: 'My Balance Sheet', icon: 'Coins' },
+      { id: 'my_account_settlement', label: 'My Account Settlement', icon: 'UserCheck' },
     ],
   },
 ];

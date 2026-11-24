@@ -70,11 +70,12 @@ export const Header: React.FC<HeaderProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
-  // Reset seen set when switching portal
+  // Reset seen set and notifications when switching portal or user session
   useEffect(() => {
     initialLoadRef.current = true;
     seenNotificationIdsRef.current.clear();
-  }, [activePortal]);
+    setNotifications([]);
+  }, [user?.id, activePortal]);
 
   // Dynamic live clock
   const [currentTimeStr, setCurrentTimeStr] = useState<string>(() => {
@@ -196,6 +197,8 @@ export const Header: React.FC<HeaderProps> = ({
           : '/front-desk/admission_payment_requests';
       } else if (targetUrl === '/billing' || targetUrl === '/billing/invoices') {
         targetUrl = '/front-desk/hospital_invoices';
+      } else if (targetUrl.includes('account_settlements')) {
+        targetUrl = activePortal === 'admin' ? '/admin/account_settlements' : '/super-admin/account_settlements';
       }
 
       // Safe portal switching: only switch if targetPortal is allowed for this user

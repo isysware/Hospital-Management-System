@@ -5,6 +5,7 @@ import {
   Search,
   Edit2,
   Power,
+  Trash2,
   Loader2,
   AlertTriangle,
   CheckCircle2,
@@ -23,6 +24,8 @@ import {
   Hash,
   MapPin,
   Percent,
+  ChevronDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { formatPKR } from '../../../utils/formatters';
 import {
@@ -35,7 +38,15 @@ import {
 } from '../../../services/outsourcedProviderService';
 import { Modal } from '../../../components/common/Modal';
 import { ConfirmModal } from '../../../components/common/ConfirmModal';
-import { TextInput, NumberInput, Textarea, MultiSelect, Toggle, PhoneInput } from '../../../components/forms/FormControls';
+import {
+  TextInput,
+  NumberInput,
+  Textarea,
+  MultiSelect,
+  Toggle,
+  PhoneInput,
+  Select,
+} from '../../../components/forms/FormControls';
 import { useToast } from '../../../context/ToastContext';
 import { HospitalKpiHeader, KpiItem } from '../../../components/common/HospitalKpiHeader';
 import { generateNextCode } from '../../../utils/codeGenerator';
@@ -49,7 +60,7 @@ const EMPTY_FORM: OutsourcedProviderFormValues = {
   email: '',
   address: '',
   paymentTermsNotes: '',
-  settlementCycle: '',
+  settlementCycle: 'Monthly',
   allowedPaymentMethods: [],
   bankName: '',
   bankAccountTitle: '',
@@ -84,6 +95,9 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   const [statusTarget, setStatusTarget] = useState<OutsourcedProvider | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<OutsourcedProvider | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showAdditionalDetails, setShowAdditionalDetails] = useState(false);
 
   const loadProviders = async () => {
     setIsLoading(true);
@@ -115,19 +129,49 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
     });
   }, [providers, searchTerm, statusFilter]);
 
+  const settlementCycleOptions = useMemo(() => {
+    const base = [
+      { label: 'Monthly', value: 'Monthly' },
+      { label: 'Weekly', value: 'Weekly' },
+      { label: 'Bi-Weekly', value: 'Bi-Weekly' },
+      { label: 'Daily', value: 'Daily' },
+      { label: 'On-Demand', value: 'On-Demand' },
+    ];
+    if (
+      formValues.settlementCycle &&
+      !base.some((b) => b.value.toLowerCase() === formValues.settlementCycle.toLowerCase())
+    ) {
+      return [{ label: formValues.settlementCycle, value: formValues.settlementCycle }, ...base];
+    }
+    return base;
+  }, [formValues.settlementCycle]);
+
   const handleOpenAdd = () => {
     setEditingProvider(null);
+    setShowAdditionalDetails(false);
     const autoCode = generateNextCode(
       providers.map((p) => p.code),
       'PRV'
     );
-    setFormValues({ ...EMPTY_FORM, code: autoCode });
+    setFormValues({ ...EMPTY_FORM, code: autoCode, settlementCycle: 'Monthly' });
     setFormError(null);
     setIsFormOpen(true);
   };
 
   const handleOpenEdit = (provider: OutsourcedProvider) => {
     setEditingProvider(provider);
+    const hasAdditional = Boolean(
+      provider.representativeDesignation ||
+      provider.email ||
+      provider.address ||
+      provider.withholdingTaxPercent != null ||
+      provider.paymentTermsNotes ||
+      provider.bankName ||
+      provider.bankAccountTitle ||
+      provider.bankAccountNumber ||
+      provider.chequePayeeName
+    );
+    setShowAdditionalDetails(hasAdditional);
     setFormValues({
       code: provider.code,
       name: provider.name,
@@ -137,7 +181,7 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
       email: provider.email,
       address: provider.address,
       paymentTermsNotes: provider.paymentTermsNotes,
-      settlementCycle: provider.settlementCycle,
+      settlementCycle: provider.settlementCycle || 'Monthly',
       allowedPaymentMethods: provider.allowedPaymentMethods,
       bankName: provider.bankName,
       bankAccountTitle: provider.bankAccountTitle,
@@ -189,6 +233,21 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
     } catch (err: any) {
       toast.error(err?.response?.data?.error?.message || 'Failed to deactivate provider.');
       setStatusTarget(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      setIsDeleting(true);
+      await OutsourcedProviderService.deleteProvider(deleteTarget.id);
+      toast.success(`Outsourced department "${deleteTarget.name}" deleted successfully.`);
+      setDeleteTarget(null);
+      await loadProviders();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error?.message || err?.message || 'Failed to delete provider.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -354,9 +413,8 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
                 return (
                   <tr
                     key={p.id}
-                    className={`transition-colors border-b border-[#e2eae5] ${
-                      isEven ? 'bg-white' : 'bg-[#fbfdfc]'
-                    } hover:bg-[#e7f6f1]/40`}
+                    className={`transition-colors border-b border-[#e2eae5] ${isEven ? 'bg-white' : 'bg-[#fbfdfc]'
+                      } hover:bg-[#e7f6f1]/40`}
                   >
                     <td className="py-2.5 px-3 text-center border-r border-[#e2eae5] text-[#52665e] font-mono text-[11px] bg-[#effaf5]/20">
                       {idx + 1}
@@ -369,11 +427,10 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
                     <td className="py-2.5 px-4 text-center font-mono font-bold text-slate-800 border-r border-[#e2eae5]">{p.settlementCount}</td>
                     <td className="py-2.5 px-4 border-r border-[#e2eae5]">
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          p.isActive
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${p.isActive
                             ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                             : 'bg-slate-100 text-slate-700 border-slate-200'
-                        }`}
+                          }`}
                       >
                         {p.isActive ? 'Active' : 'Inactive'}
                       </span>
@@ -398,6 +455,14 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
                             <Power className="h-3.5 w-3.5" />
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(p)}
+                          className="p-1 rounded-md transition-colors text-slate-400 hover:bg-rose-50 hover:text-rose-600 cursor-pointer"
+                          title="Delete Outsourced Department"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -423,195 +488,24 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
         onClose={() => setIsFormOpen(false)}
         title={
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#08775A] text-white shadow-xs shrink-0">
-              <Truck className="h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#08775A] text-white shadow-xs shrink-0">
+              <Truck className="h-4.5 w-4.5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 leading-tight">
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
                 {editingProvider ? 'Edit Outsourced Department' : 'Register Outsourced Department'}
               </h3>
-              <p className="text-xs text-slate-500 font-normal mt-0.5">
+              <p className="text-[11px] sm:text-xs text-slate-500 font-normal mt-0.5">
                 {editingProvider
-                  ? `Update external partner details and settlement terms for ${editingProvider.code}`
-                  : 'Register external lab, imaging, or diagnostic provider and configure settlement'}
+                  ? `Update partner details, settlement rules, and bank details for ${editingProvider.code}`
+                  : 'Quickly register an external diagnostic, imaging, or outsourced department'}
               </p>
             </div>
           </div>
         }
-        maxWidth="2xl"
-      >
-        <form onSubmit={handleSave} className="space-y-4 pt-1">
-          {formError && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
-              <span>{formError}</span>
-            </div>
-          )}
-
-          {/* Section 1: Partner Identifiers */}
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-4 space-y-3.5 shadow-2xs">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#08775A]">
-              <Building2 className="h-4 w-4" />
-              <span>Partner Profile &amp; Identifiers</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <TextInput
-                label="Department / Partner Code"
-                placeholder="Auto-generated (e.g. PRV-0001)"
-                value={formValues.code}
-                onChange={(e) => setFormValues({ ...formValues, code: e.target.value })}
-                hint="Auto-generated code — automatically creates &amp; links an Outsourced Department"
-                icon={<Hash className="h-4 w-4 text-slate-400" />}
-              />
-              <TextInput
-                label="Outsourced Department Name"
-                placeholder="e.g. Chughtai Lab, Islamabad Diagnostic, Excel Labs"
-                value={formValues.name}
-                onChange={(e) => setFormValues({ ...formValues, name: e.target.value })}
-                required
-                icon={<Building2 className="h-4 w-4 text-slate-400" />}
-              />
-            </div>
-          </div>
-
-          {/* Section 2: Contact & Focal Person */}
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-4 space-y-3.5 shadow-2xs">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#08775A]">
-              <UserCheck className="h-4 w-4" />
-              <span>Authorized Representative &amp; Contact Details</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <TextInput
-                label="Representative Name"
-                placeholder="e.g. Dr. Muhammad Tariq / Asif Mehmood"
-                value={formValues.representativeName}
-                onChange={(e) => setFormValues({ ...formValues, representativeName: e.target.value })}
-                icon={<User className="h-4 w-4 text-slate-400" />}
-              />
-              <TextInput
-                label="Representative Designation"
-                placeholder="e.g. Liaison Manager, Lab Incharge, Director"
-                value={formValues.representativeDesignation}
-                onChange={(e) => setFormValues({ ...formValues, representativeDesignation: e.target.value })}
-                icon={<Briefcase className="h-4 w-4 text-slate-400" />}
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <PhoneInput
-                label="Phone Number"
-                placeholder="0300-1234567"
-                value={formValues.phone}
-                onChange={(e) => setFormValues({ ...formValues, phone: e.target.value })}
-                onValueChange={(val) => setFormValues((prev) => ({ ...prev, phone: val }))}
-              />
-              <TextInput
-                label="Email"
-                type="email"
-                placeholder="e.g. partner.accounts@chughtailab.com"
-                value={formValues.email}
-                onChange={(e) => setFormValues({ ...formValues, email: e.target.value })}
-                icon={<Mail className="h-4 w-4 text-slate-400" />}
-              />
-            </div>
-            <Textarea
-              label="Address"
-              placeholder="e.g. Plot 12, Main Boulevard, Gulberg III, Lahore, Pakistan"
-              rows={2}
-              value={formValues.address}
-              onChange={(e) => setFormValues({ ...formValues, address: e.target.value })}
-            />
-          </div>
-
-          {/* Section 3: Settlement & Payment Rules */}
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-4 space-y-3.5 shadow-2xs">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#08775A]">
-              <Coins className="h-4 w-4" />
-              <span>Settlement &amp; Billing Rules</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <TextInput
-                label="Settlement Cycle"
-                placeholder="e.g. Weekly / Monthly / On-Demand"
-                value={formValues.settlementCycle}
-                onChange={(e) => setFormValues({ ...formValues, settlementCycle: e.target.value })}
-                icon={<Clock className="h-4 w-4 text-slate-400" />}
-              />
-              <NumberInput
-                label="Withholding Tax %"
-                placeholder="e.g. 10 or 15"
-                min={0}
-                max={100}
-                step={0.5}
-                value={formValues.withholdingTaxPercent}
-                onChange={(e) => setFormValues({ ...formValues, withholdingTaxPercent: e.target.value === '' ? '' : Number(e.target.value) })}
-              />
-            </div>
-            <MultiSelect
-              label="Allowed Payment Methods"
-              placeholder="Select allowed disbursement modes (e.g. Bank Transfer, Cheque)..."
-              options={PAYMENT_METHOD_OPTIONS}
-              value={formValues.allowedPaymentMethods}
-              onChange={(vals) => setFormValues({ ...formValues, allowedPaymentMethods: vals as PaymentMethod[] })}
-            />
-            <Textarea
-              label="Payment Terms / Notes"
-              placeholder="e.g. Net 15 days upon submission and verification of consolidated monthly requisition bills"
-              rows={2}
-              value={formValues.paymentTermsNotes}
-              onChange={(e) => setFormValues({ ...formValues, paymentTermsNotes: e.target.value })}
-            />
-          </div>
-
-          {/* Section 4: Bank & Disbursement Details (Optional) */}
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-4 space-y-3.5 shadow-2xs">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#08775A]">
-              <Landmark className="h-4 w-4" />
-              <span>Bank &amp; Cheque Details (Optional)</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <TextInput
-                label="Bank Name"
-                placeholder="e.g. Meezan Bank, HBL, Bank Alfalah"
-                value={formValues.bankName}
-                onChange={(e) => setFormValues({ ...formValues, bankName: e.target.value })}
-                icon={<Landmark className="h-4 w-4 text-slate-400" />}
-              />
-              <TextInput
-                label="Account Title"
-                placeholder="e.g. Chughtai Healthcare (Pvt) Ltd"
-                value={formValues.bankAccountTitle}
-                onChange={(e) => setFormValues({ ...formValues, bankAccountTitle: e.target.value })}
-                icon={<FileText className="h-4 w-4 text-slate-400" />}
-              />
-              <TextInput
-                label="Account Number / IBAN"
-                placeholder="e.g. PK36MEZN0001234567890123"
-                value={formValues.bankAccountNumber}
-                onChange={(e) => setFormValues({ ...formValues, bankAccountNumber: e.target.value })}
-                icon={<CreditCard className="h-4 w-4 text-slate-400" />}
-              />
-              <TextInput
-                label="Cheque Payee Name"
-                placeholder="e.g. Chughtai Healthcare (Pvt) Ltd"
-                value={formValues.chequePayeeName}
-                onChange={(e) => setFormValues({ ...formValues, chequePayeeName: e.target.value })}
-                icon={<CheckCircle2 className="h-4 w-4 text-slate-400" />}
-              />
-            </div>
-          </div>
-
-          {/* Section 5: Status */}
-          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-200/80">
-            <Toggle
-              label="Provider Active"
-              hint="Inactive providers cannot be newly linked to a department or selected for requisitions."
-              checked={formValues.isActive}
-              onChange={(checked) => setFormValues({ ...formValues, isActive: checked })}
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200">
+        maxWidth="xl"
+        footer={
+          <div className="flex items-center justify-end gap-2.5 w-full">
             <button
               type="button"
               onClick={() => setIsFormOpen(false)}
@@ -621,13 +515,193 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
             </button>
             <button
               type="submit"
+              form="outsourced-provider-form"
               disabled={isSaving}
               className="px-5 py-2 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065f46] rounded-lg shadow-xs disabled:opacity-60 transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {isSaving ? 'Saving…' : editingProvider ? 'Update Provider' : 'Save Provider'}
+              {isSaving ? 'Saving…' : editingProvider ? 'Update Department' : 'Register Department'}
             </button>
           </div>
+        }
+      >
+        <form id="outsourced-provider-form" onSubmit={handleSave} className="space-y-4 pt-1">
+          {formError && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+              <span>{formError}</span>
+            </div>
+          )}
+
+          {/* Core Simplified Fields: 2 columns on desktop, 1 column on mobile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <TextInput
+              label="Department / Partner Code"
+              value={formValues.code}
+              disabled
+              readOnly
+              hint="Auto-generated unique code"
+              icon={<Hash className="h-4 w-4 text-slate-400" />}
+            />
+            <TextInput
+              label="Outsourced Department Name"
+              placeholder="e.g. Chughtai Lab, Islamabad Diagnostic"
+              value={formValues.name}
+              onChange={(e) => setFormValues({ ...formValues, name: e.target.value })}
+              required
+              autoFocus={!editingProvider}
+              icon={<Building2 className="h-4 w-4 text-slate-400" />}
+            />
+            <TextInput
+              label="Representative / Contact Name"
+              placeholder="e.g. Dr. Muhammad Tariq / Asif Mehmood"
+              value={formValues.representativeName}
+              onChange={(e) => setFormValues({ ...formValues, representativeName: e.target.value })}
+              icon={<User className="h-4 w-4 text-slate-400" />}
+            />
+            <PhoneInput
+              label="Phone Number"
+              placeholder="0300-1234567"
+              value={formValues.phone}
+              onChange={(e) => setFormValues({ ...formValues, phone: e.target.value })}
+              onValueChange={(val) => setFormValues((prev) => ({ ...prev, phone: val }))}
+            />
+            <Select
+              label="Settlement Cycle"
+              value={formValues.settlementCycle || 'Monthly'}
+              onChange={(e) => setFormValues({ ...formValues, settlementCycle: e.target.value })}
+              options={settlementCycleOptions}
+            />
+            <MultiSelect
+              label="Allowed Payment Methods"
+              placeholder="Select allowed payment modes..."
+              options={PAYMENT_METHOD_OPTIONS}
+              value={formValues.allowedPaymentMethods}
+              onChange={(vals) => setFormValues({ ...formValues, allowedPaymentMethods: vals as PaymentMethod[] })}
+            />
+          </div>
+
+          {/* Edit Mode Only: Status Toggle */}
+          {editingProvider && (
+            <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-200/80">
+              <Toggle
+                label="Provider Active"
+                hint="Inactive providers cannot be newly linked to a department or selected for requisitions."
+                checked={formValues.isActive}
+                onChange={(checked) => setFormValues({ ...formValues, isActive: checked })}
+              />
+            </div>
+          )}
+
+          {/* Edit Mode Only: Additional Details Collapsible Section */}
+          {editingProvider && (
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => setShowAdditionalDetails((prev) => !prev)}
+                className="w-full px-4 py-2.5 flex items-center justify-between text-left text-xs font-bold text-slate-700 hover:bg-slate-100/70 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2 text-[#08775A]">
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span>Additional Details (Banking, Tax &amp; Focal Person)</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <span className="text-[11px] font-normal">{showAdditionalDetails ? 'Hide Details' : 'Show Details'}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showAdditionalDetails ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+
+              {showAdditionalDetails && (
+                <div className="p-4 pt-3 border-t border-slate-200 space-y-4 bg-white">
+                  {/* Contact & Designation */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <TextInput
+                      label="Representative Designation"
+                      placeholder="e.g. Liaison Manager, Lab Incharge, Director"
+                      value={formValues.representativeDesignation}
+                      onChange={(e) => setFormValues({ ...formValues, representativeDesignation: e.target.value })}
+                      icon={<Briefcase className="h-4 w-4 text-slate-400" />}
+                    />
+                    <TextInput
+                      label="Email"
+                      type="email"
+                      placeholder="e.g. partner.accounts@chughtailab.com"
+                      value={formValues.email}
+                      onChange={(e) => setFormValues({ ...formValues, email: e.target.value })}
+                      icon={<Mail className="h-4 w-4 text-slate-400" />}
+                    />
+                  </div>
+
+                  <Textarea
+                    label="Address"
+                    placeholder="e.g. Plot 12, Main Boulevard, Gulberg III, Lahore, Pakistan"
+                    rows={2}
+                    value={formValues.address}
+                    onChange={(e) => setFormValues({ ...formValues, address: e.target.value })}
+                  />
+
+                  {/* Withholding Tax & Terms */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <NumberInput
+                      label="Withholding Tax %"
+                      placeholder="e.g. 10 or 15"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={formValues.withholdingTaxPercent}
+                      onChange={(e) => setFormValues({ ...formValues, withholdingTaxPercent: e.target.value === '' ? '' : Number(e.target.value) })}
+                    />
+                  </div>
+
+                  <Textarea
+                    label="Payment Terms / Notes"
+                    placeholder="e.g. Net 15 days upon submission and verification of consolidated monthly requisition bills"
+                    rows={2}
+                    value={formValues.paymentTermsNotes}
+                    onChange={(e) => setFormValues({ ...formValues, paymentTermsNotes: e.target.value })}
+                  />
+
+                  {/* Bank & Cheque Details */}
+                  <div className="border-t border-slate-100 pt-3">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-2.5">
+                      <Landmark className="h-3.5 w-3.5 text-[#08775A]" />
+                      <span>Bank &amp; Cheque Details</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <TextInput
+                        label="Bank Name"
+                        placeholder="e.g. Meezan Bank, HBL, Bank Alfalah"
+                        value={formValues.bankName}
+                        onChange={(e) => setFormValues({ ...formValues, bankName: e.target.value })}
+                        icon={<Landmark className="h-4 w-4 text-slate-400" />}
+                      />
+                      <TextInput
+                        label="Account Title"
+                        placeholder="e.g. Chughtai Healthcare (Pvt) Ltd"
+                        value={formValues.bankAccountTitle}
+                        onChange={(e) => setFormValues({ ...formValues, bankAccountTitle: e.target.value })}
+                        icon={<FileText className="h-4 w-4 text-slate-400" />}
+                      />
+                      <TextInput
+                        label="Account Number / IBAN"
+                        placeholder="e.g. PK36MEZN0001234567890123"
+                        value={formValues.bankAccountNumber}
+                        onChange={(e) => setFormValues({ ...formValues, bankAccountNumber: e.target.value })}
+                        icon={<CreditCard className="h-4 w-4 text-slate-400" />}
+                      />
+                      <TextInput
+                        label="Cheque Payee Name"
+                        placeholder="e.g. Chughtai Healthcare (Pvt) Ltd"
+                        value={formValues.chequePayeeName}
+                        onChange={(e) => setFormValues({ ...formValues, chequePayeeName: e.target.value })}
+                        icon={<CheckCircle2 className="h-4 w-4 text-slate-400" />}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </form>
       </Modal>
 
@@ -639,6 +713,16 @@ export const SuperAdminOutsourcedProvidersView: React.FC = () => {
         message={`"${statusTarget?.name}" will no longer be selectable for new department links or settlements. Existing links and settlement history are kept.`}
         confirmLabel="Deactivate"
         variant="warning"
+      />
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => !isDeleting && setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Outsourced Department?"
+        message={`Are you sure you want to permanently delete "${deleteTarget?.name}" (${deleteTarget?.code})? This will also remove its corresponding department and unbilled service rates. This action cannot be undone.`}
+        confirmLabel={isDeleting ? 'Deleting…' : 'Delete Department'}
+        variant="danger"
       />
     </div>
   );

@@ -9,6 +9,16 @@ import apiClient from './apiClient';
 
 export type DatePreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
 
+export interface CategoryBillingSummary {
+  category: string;
+  invoiceCount: number;
+  gross: number;
+  discounts: number;
+  net: number;
+  paid: number;
+  outstanding: number;
+}
+
 export interface FrontDeskBillingReport {
   period: { label: string; start: string; end: string };
   collections: {
@@ -24,6 +34,7 @@ export interface FrontDeskBillingReport {
     totalDiscounts: number;
     totalNet: number;
     totalOutstanding: number;
+    byCategory?: Record<string, CategoryBillingSummary>;
   };
 }
 
@@ -51,6 +62,22 @@ function normalize(raw: Record<string, any>): FrontDeskBillingReport {
       totalDiscounts: toNumber(raw.billing?.totalDiscounts),
       totalNet: toNumber(raw.billing?.totalNet),
       totalOutstanding: toNumber(raw.billing?.totalOutstanding),
+      byCategory: raw.billing?.byCategory
+        ? Object.fromEntries(
+            Object.entries(raw.billing.byCategory).map(([k, v]: [string, any]) => [
+              k,
+              {
+                category: v.category,
+                invoiceCount: toNumber(v.invoiceCount),
+                gross: toNumber(v.gross),
+                discounts: toNumber(v.discounts),
+                net: toNumber(v.net),
+                paid: toNumber(v.paid),
+                outstanding: toNumber(v.outstanding),
+              },
+            ]),
+          )
+        : undefined,
     },
   };
 }

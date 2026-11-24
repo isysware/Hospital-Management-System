@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Bell, ChevronDown, PanelLeftOpen, Check, Trash2, Pill, ExternalLink } from 'lucide-react';
+import { Search, Bell, ChevronDown, PanelLeftOpen, Check, Trash2, Pill, ExternalLink, LogOut, User as UserIcon, Shield } from 'lucide-react';
 import type { CurrentUser } from '../types';
 import { useHmsNotifications } from '../context/HmsNotificationContext';
 
@@ -16,6 +16,7 @@ interface TopBarProps {
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
   onNavigate?: (pageId: string) => void;
+  onLogout?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -25,18 +26,24 @@ export const TopBar: React.FC<TopBarProps> = ({
   sidebarOpen,
   onToggleSidebar,
   onNavigate,
+  onLogout,
 }) => {
   const [searchVal, setSearchVal] = useState('');
   const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll } = useHmsNotifications();
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setShowNotifMenu(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -207,16 +214,89 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
         </div>
 
-        {/* User Profile matching Reference */}
-        <div className="flex items-center gap-3 pl-3 border-l border-slate-100">
-          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center text-xs font-bold shadow-sm ring-2 ring-emerald-500/20">
-            {user.fullName ? user.fullName.slice(0, 1).toUpperCase() : 'U'}
-          </div>
-          <div className="hidden sm:block text-left leading-tight">
-            <div className="text-xs font-bold text-slate-900">{user.fullName || 'Admin'}</div>
-            <div className="text-[11px] text-slate-400 font-medium">{ROLE_LABEL[user.role]}</div>
-          </div>
-          <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden sm:block" />
+        {/* User Profile Menu (Interactive Dropdown matching HMS style) */}
+        <div className="relative" ref={userMenuRef}>
+          <button
+            type="button"
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="flex items-center gap-3 pl-3 border-l border-slate-200 hover:opacity-85 transition-opacity cursor-pointer text-left"
+            title="User Profile & Settings"
+          >
+            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center text-xs font-bold shadow-sm ring-2 ring-emerald-500/20">
+              {user.fullName
+                ? user.fullName
+                    .split(' ')
+                    .map((n) => n[0])
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .join('')
+                    .toUpperCase()
+                : user.username?.slice(0, 2).toUpperCase() || 'PA'}
+            </div>
+            <div className="hidden sm:block text-left leading-tight">
+              <div className="text-xs font-bold text-slate-900">{user.fullName || user.username || 'Admin'}</div>
+              <div className="text-[11px] text-slate-400 font-medium">{ROLE_LABEL[user.role]}</div>
+            </div>
+            <ChevronDown
+              className={`h-3.5 w-3.5 text-slate-400 hidden sm:block transition-transform duration-200 ${
+                showUserMenu ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+
+          {showUserMenu && (
+            <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-slate-200 shadow-2xl z-50 p-2 text-xs animate-in fade-in zoom-in-95 duration-150">
+              {/* User Identity Header */}
+              <div className="px-3.5 py-3 border-b border-slate-100 bg-slate-50/80 rounded-xl mb-1.5">
+                <p className="font-bold text-slate-900 text-sm">{user.fullName || user.username}</p>
+                <p className="text-[11px] text-slate-500 truncate">{user.email || `@${user.username}`}</p>
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    {ROLE_LABEL[user.role]}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    Pharmacy Staff
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-0.5">
+                {/* Hospital Facility info matching HMS */}
+                <div className="px-3 py-1.5 text-[11px] text-slate-500">
+                  <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                    Hospital Facility
+                  </span>
+                  <span className="font-medium text-slate-800">CH Sharif &amp; Saeed Hospital · Pharmacy</span>
+                </div>
+
+                <div className="my-1 border-t border-slate-100" />
+
+                {/* Role and Permissions */}
+                <div className="px-3 py-1.5 text-[11px] text-slate-500 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Shield className="h-3.5 w-3.5 text-slate-400" />
+                    <span>System Role</span>
+                  </span>
+                  <span className="font-semibold text-slate-700">{user.role}</span>
+                </div>
+
+                <div className="my-1 border-t border-slate-100" />
+
+                {/* Logout Action matching HMS */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    if (onLogout) onLogout();
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl text-rose-700 hover:bg-rose-50 flex items-center gap-2 font-semibold transition-colors cursor-pointer"
+                >
+                  <LogOut className="h-4 w-4 text-rose-600" />
+                  <span>Logout Session</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>

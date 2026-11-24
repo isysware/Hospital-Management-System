@@ -131,6 +131,7 @@ export const expensesService = {
     const agg = await prisma.expense.aggregate({
       where: {
         status: 'ACTIVE',
+        pharmacySettlementRelease: { is: null },
         expenseDate: {
           gte: toDateOnly(start.toLocaleDateString('en-CA')),
           lte: toDateOnly(end.toLocaleDateString('en-CA')),

@@ -74,6 +74,7 @@ export const settlementRequestSchema = z.object({
 export type SettlementRequestBody = z.infer<typeof settlementRequestSchema>;
 
 export const releaseSettlementSchema = z.object({
+  idempotencyKey: z.string().trim().min(1).max(200).optional(),
   releasedAmount: z.coerce.number().positive(),
   paymentMethod: z.enum(['CASH', 'BANK', 'ONLINE']).optional().default('BANK'),
   paymentReference: z.string().max(100).optional(),

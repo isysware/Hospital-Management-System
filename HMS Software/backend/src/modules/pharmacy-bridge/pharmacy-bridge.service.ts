@@ -1,8 +1,9 @@
+import { releasePharmacySettlement } from './settlementRelease';
 import { requirePharmacyDepartment } from '@/shared/pharmacyDepartment';
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '@/db/client';
-import { NotFoundError, ValidationError, AuthorizationError } from '@/shared/errors/AppError';
-import { generateInvoiceNumber, generateExpenseNumber } from '@/shared/idGenerator';
+import { NotFoundError, ValidationError } from '@/shared/errors/AppError';
+import { generateInvoiceNumber } from '@/shared/idGenerator';
 import { pharmacyBridgeClient } from '@/shared/pharmacyBridgeClient';
 import { resolvePanelCoverage } from '@/shared/panelCoverage';
 import { computePharmacyPortion } from '@/shared/pharmacyFifoCredit';
@@ -12,7 +13,6 @@ import type {
   ListRequestsQuery,
   DispensedCallbackBody,
   SettlementRequestBody,
-  ReleaseSettlementBody,
 } from './pharmacy-bridge.schemas';
 
 export const pharmacyBridgeService = {
@@ -489,6 +489,7 @@ export const pharmacyBridgeService = {
                 targetPortal: 'front-desk',
                 actionUrl: '/front-desk/billing_pending_discharges',
                 referenceId: admission.id,
+                isBroadcast: true,
               });
             }
           }
@@ -510,12 +511,20 @@ export const pharmacyBridgeService = {
     if (!charge) throw new NotFoundError(`Pharmacy charge for invoice ${body.pharmacyInvoiceNumber} not found`);
 
     return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM hms_pharmacy_charges WHERE id = ${charge.id} FOR UPDATE`;
+      const existing = await tx.hmsPharmacySettlement.findUnique({ where: { settlementNumber: body.settlementNumber } });
+      if (existing && existing.pharmacyChargeId !== charge.id) throw new ValidationError('Settlement number belongs to a different Pharmacy charge.');
+      const released = existing?.releasedAmount ?? new Decimal(0);
+      const requested = new Decimal(body.requestedAmount);
+      if (requested.lt(released)) throw new ValidationError('Requested obligation cannot be less than completed payments.');
+      const status = released.gt(0) ? (requested.equals(released) ? 'SETTLED' : 'PARTIALLY_RELEASED')
+        : existing?.status === 'APPROVED' && existing.requestedAmount.equals(requested) ? 'APPROVED' : 'REQUESTED';
       const settlement = await tx.hmsPharmacySettlement.upsert({
         where: { settlementNumber: body.settlementNumber },
         update: {
           requestedAmount: new Decimal(body.requestedAmount),
-          remainingAmount: new Decimal(body.requestedAmount).minus(charge.settledAmount),
-          status: 'REQUESTED',
+          remainingAmount: requested.minus(released),
+          status,
           remarks: body.remarks,
         },
         create: {
@@ -532,7 +541,7 @@ export const pharmacyBridgeService = {
 
       await tx.hmsPharmacyCharge.update({
         where: { id: charge.id },
-        data: { settlementStatus: 'REQUESTED' },
+        data: { settlementStatus: status },
       });
 
       return settlement;
@@ -540,8 +549,9 @@ export const pharmacyBridgeService = {
   },
 
   async listSettlements() {
-    return prisma.hmsPharmacySettlement.findMany({
+    const rows = await prisma.hmsPharmacySettlement.findMany({
       include: {
+        releases: { orderBy: { releasedAt: 'asc' } },
         pharmacyCharge: {
           include: {
             admissionRecord: {
@@ -556,6 +566,10 @@ export const pharmacyBridgeService = {
       },
       orderBy: { requestedAt: 'desc' },
     });
+    return rows.map(row => ({ ...row,
+      reconciliationRequired: !row.releasedAmount.equals(row.releases.reduce((sum, r) => sum.plus(r.amount), new Decimal(0)))
+        || row.releases.some(r => r.bridgeStatus !== 'DELIVERED'),
+    }));
   },
 
   /**
@@ -565,90 +579,7 @@ export const pharmacyBridgeService = {
    * their own requests), because this one action actually moves money out
    * of the hospital.
    */
-  async releaseSettlement(settlementId: string, body: ReleaseSettlementBody, actorId: string, actorRole: string) {
-    if (!['SUPER_ADMIN', 'ADMIN'].includes(actorRole)) {
-      throw new AuthorizationError('Only Super Admin or Admin can release a settlement payment to Pharmacy.');
-    }
-
-    const settlement = await prisma.hmsPharmacySettlement.findUnique({
-      where: { id: settlementId },
-      include: { pharmacyCharge: true },
-    });
-    if (!settlement) throw new NotFoundError('Settlement not found');
-    if (settlement.status === 'SETTLED') throw new ValidationError('Settlement is already settled');
-
-    const releaseAmt = new Decimal(body.releasedAmount);
-    if (releaseAmt.greaterThan(settlement.remainingAmount)) {
-      throw new ValidationError(`Release amount (${releaseAmt}) cannot exceed remaining amount (${settlement.remainingAmount})`);
-    }
-
-    const actor = await prisma.portalUser.findUnique({ where: { id: actorId } });
-    const newReleasedTotal = settlement.releasedAmount.plus(releaseAmt);
-    const newRemaining = settlement.requestedAmount.minus(newReleasedTotal);
-    const newStatus = newRemaining.equals(0) ? 'SETTLED' : 'PARTIALLY_RELEASED';
-
-    const result = await prisma.$transaction(async (tx) => {
-      const updatedSettlement = await tx.hmsPharmacySettlement.update({
-        where: { id: settlement.id },
-        data: {
-          releasedAmount: newReleasedTotal,
-          remainingAmount: newRemaining,
-          status: newStatus,
-          paymentMethod: body.paymentMethod,
-          paymentReference: body.paymentReference,
-          remarks: body.remarks,
-          releasedById: actorId,
-          releasedAt: new Date(),
-        },
-      });
-
-      await tx.hmsPharmacyCharge.update({
-        where: { id: settlement.pharmacyChargeId },
-        data: {
-          settledAmount: settlement.pharmacyCharge.settledAmount.plus(releaseAmt),
-          settlementStatus: newStatus,
-        },
-      });
-
-      // Record this as real money leaving the hospital — without this, the
-      // release updated HMS's own internal receivable tracking but never
-      // showed up anywhere HMS's own cash/expense reporting looks (Expense
-      // Report, Management Summary), so Admin had no visibility into how
-      // much had actually been paid out to Pharmacy.
-      const pharmacyDepartment = await requirePharmacyDepartment(tx);
-      await tx.expense.create({
-        data: {
-          expenseNumber: await generateExpenseNumber(tx),
-          expenseDate: new Date(),
-          category: 'MEDICAL_SUPPLIES',
-          amount: releaseAmt,
-          paymentMethod: body.paymentMethod,
-          paidTo: 'Standalone Pharmacy',
-          reference: body.paymentReference,
-          description: `Pharmacy settlement release — ${settlement.pharmacyInvoiceNumber} (Settlement ${settlement.settlementNumber})${body.remarks ? `: ${body.remarks}` : ''}`,
-          departmentId: pharmacyDepartment.id,
-          createdById: actorId,
-        },
-      });
-
-      return updatedSettlement;
-    });
-
-    // Notify Pharmacy Backend via Bridge
-    await pharmacyBridgeClient.releaseSettlement({
-      settlementNumber: settlement.settlementNumber,
-      pharmacyInvoiceNumber: settlement.pharmacyInvoiceNumber,
-      releasedAmount: Number(releaseAmt),
-      remainingPayable: Number(newRemaining),
-      paymentMethod: body.paymentMethod,
-      paymentReference: body.paymentReference,
-      releasedBy: actor?.displayName || actor?.username || 'Admin',
-      releasedAt: new Date().toISOString(),
-      remarks: body.remarks,
-    });
-
-    return result;
-  },
+  releaseSettlement: releasePharmacySettlement,
 
   /**
    * Manual "Resync to Pharmacy" — re-sends the already-correct

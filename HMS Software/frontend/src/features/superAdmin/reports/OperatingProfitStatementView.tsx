@@ -4,8 +4,6 @@ import {
   RotateCcw,
   Eye,
   Filter,
-  Calendar,
-  Building2,
   X,
   FileSpreadsheet,
   ChevronLeft,
@@ -24,6 +22,7 @@ import {
   StatementLedgerEntry,
 } from '../../../services/managementReportsService';
 import { useFilterOptions } from '../../../components/reports/reportFilters';
+import { Select, TextInput } from '../../../components/forms/FormControls';
 import { ExportButtonGroup } from '../financeControl/ExportButtonGroup';
 import {
   downloadTablePDF,
@@ -51,11 +50,21 @@ export const OperatingProfitStatementView: React.FC = () => {
   const options = useFilterOptions(fetchManagementFilterOptions, EMPTY_MANAGEMENT_OPTIONS);
 
   // Filters State
+  const todayISO = formatDateISO(getHospitalCurrentDate());
   const [preset, setPreset] = useState<PeriodPreset>('today');
-  const [fromDate, setFromDate] = useState<string>(formatDateISO(getHospitalCurrentDate()));
-  const [toDate, setToDate] = useState<string>(formatDateISO(getHospitalCurrentDate()));
+  const [fromDate, setFromDate] = useState<string>(todayISO);
+  const [toDate, setToDate] = useState<string>(todayISO);
   const [departmentId, setDepartmentId] = useState<string>('');
   const [comparison, setComparison] = useState<'previous' | 'none'>('previous');
+
+  // Applied Filters State (used for backend queries)
+  const [appliedFilters, setAppliedFilters] = useState({
+    preset: 'today' as PeriodPreset,
+    fromDate: todayISO,
+    toDate: todayISO,
+    departmentId: '',
+    comparison: 'previous' as 'previous' | 'none',
+  });
 
   // View state
   const [activeView, setActiveView] = useState<'statement' | 'ledger'>('statement');
@@ -121,11 +130,11 @@ export const OperatingProfitStatementView: React.FC = () => {
       setError(null);
       try {
         const res = await fetchOperatingProfitStatement({
-          preset,
-          fromDate: preset === 'custom' ? fromDate : undefined,
-          toDate: preset === 'custom' ? toDate : undefined,
-          departmentId: departmentId || undefined,
-          comparison,
+          preset: appliedFilters.preset,
+          fromDate: appliedFilters.preset === 'custom' ? appliedFilters.fromDate : undefined,
+          toDate: appliedFilters.preset === 'custom' ? appliedFilters.toDate : undefined,
+          departmentId: appliedFilters.departmentId || undefined,
+          comparison: appliedFilters.comparison,
           view: activeView,
           category: ledgerCategory || undefined,
           page: overridePage ?? page,
@@ -138,7 +147,7 @@ export const OperatingProfitStatementView: React.FC = () => {
         setLoading(false);
       }
     },
-    [preset, fromDate, toDate, departmentId, comparison, activeView, ledgerCategory, page, limit]
+    [appliedFilters, activeView, ledgerCategory, page, limit]
   );
 
   useEffect(() => {
@@ -147,12 +156,18 @@ export const OperatingProfitStatementView: React.FC = () => {
 
   const handleApply = () => {
     setPage(1);
-    loadReport(1);
+    setAppliedFilters({
+      preset,
+      fromDate,
+      toDate,
+      departmentId,
+      comparison,
+    });
   };
 
   const handleReset = () => {
-    setPreset('today');
     const todayStr = formatDateISO(getHospitalCurrentDate());
+    setPreset('today');
     setFromDate(todayStr);
     setToDate(todayStr);
     setDepartmentId('');
@@ -160,6 +175,13 @@ export const OperatingProfitStatementView: React.FC = () => {
     setLedgerCategory('');
     setLedgerSearch('');
     setPage(1);
+    setAppliedFilters({
+      preset: 'today',
+      fromDate: todayStr,
+      toDate: todayStr,
+      departmentId: '',
+      comparison: 'previous',
+    });
   };
 
   // Group statement rows by section
@@ -202,8 +224,11 @@ export const OperatingProfitStatementView: React.FC = () => {
   }, [data?.ledger?.items, ledgerSearch]);
 
   // Format helper for numbers
-  const formatAmount = (val: number | null | undefined, unit: 'percent' | 'currency' = 'currency') => {
-    if (val === null || val === undefined) return '—';
+  const formatAmount = (val: number | null | undefined, unit: 'percent' | 'currency' = 'currency', key?: string) => {
+    if (val === null || val === undefined) {
+      if (key === 'pharmacyBilling') return 'N/A';
+      return '—';
+    }
     if (unit === 'percent') return `${val >= 0 ? '' : ''}${val.toFixed(1)}%`;
     return Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
@@ -241,30 +266,40 @@ export const OperatingProfitStatementView: React.FC = () => {
         {
           header: 'Current Period (PKR)',
           align: 'right',
-          cell: (r) =>
-            r.current !== null && r.current !== undefined
+          cell: (r) => {
+            if (r.key === 'pharmacyBilling' && (r.current === null || r.current === undefined)) return 'N/A';
+            return r.current !== null && r.current !== undefined
               ? r.unit === 'percent'
                 ? `${r.current.toFixed(1)}%`
                 : formatPKR(r.current)
-              : '—',
-          excelValue: (r) => (r.current !== null && r.current !== undefined ? Number(r.current) : ''),
+              : '—';
+          },
+          excelValue: (r) => {
+            if (r.key === 'pharmacyBilling' && (r.current === null || r.current === undefined)) return 'N/A';
+            return r.current !== null && r.current !== undefined ? Number(r.current) : '';
+          },
         },
         {
           header: '% of Revenue',
           align: 'right',
-          cell: (r) => (r.percentOfRevenue !== null && r.percentOfRevenue !== undefined ? `${r.percentOfRevenue.toFixed(1)}%` : '—'),
-          excelValue: (r) => (r.percentOfRevenue !== null && r.percentOfRevenue !== undefined ? Number(r.percentOfRevenue) : ''),
+          cell: (r) => (r.type === 'INFORMATIONAL' || r.percentOfRevenue === null || r.percentOfRevenue === undefined ? '—' : `${r.percentOfRevenue.toFixed(1)}%`),
+          excelValue: (r) => (r.type === 'INFORMATIONAL' || r.percentOfRevenue === null || r.percentOfRevenue === undefined ? '' : Number(r.percentOfRevenue)),
         },
         {
           header: 'Prior Period (PKR)',
           align: 'right',
-          cell: (r) =>
-            r.prior !== null && r.prior !== undefined
+          cell: (r) => {
+            if (r.key === 'pharmacyBilling' && (r.prior === null || r.prior === undefined)) return 'N/A';
+            return r.prior !== null && r.prior !== undefined
               ? r.unit === 'percent'
                 ? `${r.prior.toFixed(1)}%`
                 : formatPKR(r.prior)
-              : '—',
-          excelValue: (r) => (r.prior !== null && r.prior !== undefined ? Number(r.prior) : ''),
+              : '—';
+          },
+          excelValue: (r) => {
+            if (r.key === 'pharmacyBilling' && (r.prior === null || r.prior === undefined)) return 'N/A';
+            return r.prior !== null && r.prior !== undefined ? Number(r.prior) : '';
+          },
         },
         {
           header: 'Variance / Growth',
@@ -290,6 +325,63 @@ export const OperatingProfitStatementView: React.FC = () => {
         });
         sec.rows.forEach((r) => flatRows.push(r));
       });
+
+      // Include dynamically generated separate financial streams in exports
+      if (data?.outsourcedStreams && data.outsourcedStreams.length > 0) {
+        flatRows.push({
+          key: 'sec-outsourced-streams',
+          section: 'SEPARATE FINANCIAL STREAMS — EXCLUDED FROM HOSPITAL P&L',
+          label: 'OUTSOURCED DEPARTMENTS & SEPARATE FINANCIAL STREAMS',
+          type: 'SECTION',
+          unit: 'currency',
+          current: null,
+          prior: null,
+          percentOfRevenue: null,
+          variance: null,
+          sourceCount: 0,
+        });
+
+        data.outsourcedStreams.forEach((stream) => {
+          flatRows.push({
+            key: `outsourced-billing-${stream.departmentId}`,
+            section: 'SEPARATE FINANCIAL STREAMS — EXCLUDED FROM HOSPITAL P&L',
+            label: `${stream.departmentName} — Period Billing${stream.providerName ? ` (${stream.providerName})` : ''}`,
+            type: 'INFORMATIONAL',
+            unit: 'currency',
+            current: stream.currentBilling,
+            prior: stream.priorBilling,
+            percentOfRevenue: null,
+            variance: stream.billingVariance ?? null,
+            sourceCount: 0,
+          });
+          flatRows.push({
+            key: `outsourced-payable-${stream.departmentId}`,
+            section: 'SEPARATE FINANCIAL STREAMS — EXCLUDED FROM HOSPITAL P&L',
+            label: `${stream.departmentName} — Provider Payable${stream.providerName ? ` (${stream.providerName})` : ''}`,
+            type: 'INFORMATIONAL',
+            unit: 'currency',
+            current: stream.currentPayable,
+            prior: stream.priorPayable,
+            percentOfRevenue: null,
+            variance: stream.payableVariance ?? null,
+            sourceCount: 0,
+          });
+        });
+
+        // Pharmacy row
+        flatRows.push({
+          key: 'pharmacyBilling',
+          section: 'SEPARATE FINANCIAL STREAMS — EXCLUDED FROM HOSPITAL P&L',
+          label: 'Pharmacy Standalone Billing (External Stream)',
+          type: 'INFORMATIONAL',
+          unit: 'currency',
+          current: data?.pharmacyStream?.currentBilling ?? null,
+          prior: data?.pharmacyStream?.priorBilling ?? null,
+          percentOfRevenue: null,
+          variance: null,
+          sourceCount: 0,
+        });
+      }
 
       const req: ExportRequest<OperatingProfitStatementRow> = {
         documentTitle,
@@ -364,115 +456,86 @@ export const OperatingProfitStatementView: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Advanced Filter Panel (Compact, Clean ERP Styling) ─────── */}
-      <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-xs">
-        <div className="flex flex-wrap items-end gap-2.5">
-          {/* Period Preset */}
-          <div className="w-36">
-            <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
-              Period
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-              <select
-                value={preset}
-                onChange={(e) => handlePresetChange(e.target.value as PeriodPreset)}
-                className="w-full pl-7 pr-2 py-1 h-8 text-xs border border-slate-300 rounded focus:border-[#08775A] focus:outline-none bg-white font-medium text-slate-700"
-              >
-                {PERIOD_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+      {/* ── Advanced Filter Bar (Identical to GenericReportView & HMS Software) ── */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-end gap-3 flex-wrap">
+        {/* 1. Period */}
+        <div className="w-44">
+          <Select
+            label="Period"
+            options={PERIOD_OPTIONS}
+            value={preset}
+            onChange={(e) => handlePresetChange(e.target.value as PeriodPreset)}
+          />
+        </div>
+
+        {/* 2. From & To Date (when Custom) */}
+        {preset === 'custom' && (
+          <>
+            <div className="w-36">
+              <TextInput
+                label="From"
+                type="date"
+                lang="en-GB"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+              />
             </div>
-          </div>
-
-          {/* Conditional From Date & To Date when Custom Range is selected */}
-          {preset === 'custom' && (
-            <>
-              <div className="w-36">
-                <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
-                  From Date
-                </label>
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="w-full px-2 py-1 h-8 text-xs border border-slate-300 rounded focus:border-[#08775A] focus:outline-none bg-white text-slate-700"
-                />
-              </div>
-
-              <div className="w-36">
-                <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
-                  To Date
-                </label>
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="w-full px-2 py-1 h-8 text-xs border border-slate-300 rounded focus:border-[#08775A] focus:outline-none bg-white text-slate-700"
-                />
-              </div>
-            </>
-          )}
-
-          {/* Department */}
-          <div className="w-48">
-            <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
-              Department
-            </label>
-            <div className="relative">
-              <Building2 className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-              <select
-                value={departmentId}
-                onChange={(e) => setDepartmentId(e.target.value)}
-                className="w-full pl-7 pr-2 py-1 h-8 text-xs border border-slate-300 rounded focus:border-[#08775A] focus:outline-none bg-white font-medium text-slate-700"
-              >
-                <option value="">All Departments</option>
-                {options.departments?.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
+            <div className="w-36">
+              <TextInput
+                label="To"
+                type="date"
+                lang="en-GB"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+              />
             </div>
-          </div>
+          </>
+        )}
 
-          {/* Comparison */}
-          <div className="w-52">
-            <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
-              Comparison
-            </label>
-            <select
-              value={comparison}
-              onChange={(e) => setComparison(e.target.value as 'previous' | 'none')}
-              className="w-full px-2 py-1 h-8 text-xs border border-slate-300 rounded focus:border-[#08775A] focus:outline-none bg-white font-medium text-slate-700"
-            >
-              <option value="previous">Previous Equivalent Period</option>
-              <option value="none">None</option>
-            </select>
-          </div>
+        {/* 3. Department */}
+        <div className="w-52">
+          <Select
+            label="Department"
+            placeholder="All Departments"
+            options={options.departments || []}
+            value={departmentId}
+            onChange={(e) => setDepartmentId(e.target.value)}
+          />
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 ml-auto">
-            <button
-              type="button"
-              onClick={handleApply}
-              className="flex items-center gap-1.5 px-3.5 py-1 h-8 text-xs font-semibold text-white bg-[#08775A] hover:bg-[#065e47] rounded shadow-xs transition cursor-pointer"
-            >
-              <Filter className="h-3.5 w-3.5" />
-              Apply
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              title="Reset Filters"
-              className="flex items-center justify-center px-2 py-1 h-8 text-xs font-medium text-slate-600 hover:text-slate-800 border border-slate-300 rounded hover:bg-slate-50 transition cursor-pointer"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-            </button>
-          </div>
+        {/* 4. Comparison */}
+        <div className="w-56">
+          <Select
+            label="Comparison"
+            options={[
+              { value: 'previous', label: 'Previous Period' },
+              { value: 'none', label: 'None' },
+            ]}
+            value={comparison}
+            onChange={(e) => setComparison(e.target.value as 'previous' | 'none')}
+          />
+        </div>
+
+        {/* 5. Action Buttons */}
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#08775A] hover:bg-[#065f46] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors disabled:opacity-60 cursor-pointer"
+          >
+            <Filter className="h-3.5 w-3.5" />
+            <span>Filter</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-300 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-medium transition-colors disabled:opacity-60 cursor-pointer"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>Reset</span>
+          </button>
         </div>
       </div>
 
@@ -552,7 +615,8 @@ export const OperatingProfitStatementView: React.FC = () => {
         /* ══════════════════════════════════════════════════════════════════
            STATEMENT VIEW — 6 Columns Matching Salon Reference
            ══════════════════════════════════════════════════════════════════ */
-        <div className="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden">
+        <div className="space-y-4">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse">
               <thead>
@@ -594,6 +658,7 @@ export const OperatingProfitStatementView: React.FC = () => {
                     {sec.rows.map((row) => {
                       const isSubtotal = row.type === 'SUBTOTAL';
                       const isNetResult = row.type === 'NET RESULT';
+                      const isInformational = row.type === 'INFORMATIONAL';
 
                       let rowClass = 'hover:bg-slate-50/60 transition';
                       let textClass = 'text-slate-800';
@@ -604,6 +669,9 @@ export const OperatingProfitStatementView: React.FC = () => {
                       } else if (isSubtotal) {
                         rowClass = 'bg-slate-50/90 border-t border-b border-slate-300 font-bold';
                         textClass = 'text-slate-900 font-bold';
+                      } else if (isInformational) {
+                        rowClass = 'hover:bg-slate-50/70 transition bg-slate-50/40 font-medium';
+                        textClass = 'text-slate-800 font-medium';
                       }
 
                       return (
@@ -620,34 +688,54 @@ export const OperatingProfitStatementView: React.FC = () => {
 
                           {/* Section / Type */}
                           <td className="py-2 px-3 text-center border-r border-slate-200 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                            {row.type}
+                            {isInformational ? (
+                              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[9px] font-bold border border-slate-200">
+                                INFORMATIONAL
+                              </span>
+                            ) : (
+                              row.type
+                            )}
                           </td>
 
                           {/* Current Period (PKR) */}
                           <td className={`py-2 px-3 text-right border-r border-slate-200 font-mono ${textClass}`}>
-                            {formatAmount(row.current, row.unit)}
+                            {row.key === 'pharmacyBilling' && (row.current === null || row.current === undefined) ? (
+                              <span className="text-slate-400 font-medium">N/A</span>
+                            ) : (
+                              formatAmount(row.current, row.unit, row.key)
+                            )}
                           </td>
 
                           {/* % of Revenue */}
                           <td className="py-2 px-3 text-right border-r border-slate-200 font-mono font-medium text-slate-700">
-                            {row.percentOfRevenue !== null && row.percentOfRevenue !== undefined
-                              ? `${row.percentOfRevenue.toFixed(1)}%`
-                              : isNetResult && row.current && data?.rows?.find((r) => r.key === 'netRevenue')?.current
-                              ? `${(
-                                  (row.current / (data.rows.find((r) => r.key === 'netRevenue')?.current || 1)) *
-                                  100
-                                ).toFixed(1)}%`
-                              : '—'}
+                            {isInformational ? (
+                              '—'
+                            ) : row.percentOfRevenue !== null && row.percentOfRevenue !== undefined ? (
+                              `${row.percentOfRevenue.toFixed(1)}%`
+                            ) : isNetResult && row.current && data?.rows?.find((r) => r.key === 'netRevenue')?.current ? (
+                              `${(
+                                (row.current / (data.rows.find((r) => r.key === 'netRevenue')?.current || 1)) *
+                                100
+                              ).toFixed(1)}%`
+                            ) : (
+                              '—'
+                            )}
                           </td>
 
                           {/* Prior Period (PKR) */}
                           <td className="py-2 px-3 text-right border-r border-slate-200 font-mono text-slate-600">
-                            {formatAmount(row.prior, row.unit)}
+                            {row.key === 'pharmacyBilling' && (row.prior === null || row.prior === undefined) ? (
+                              <span className="text-slate-400 font-medium">N/A</span>
+                            ) : (
+                              formatAmount(row.prior, row.unit, row.key)
+                            )}
                           </td>
 
                           {/* Variance / Growth */}
                           <td className="py-2 px-3 text-right font-mono">
-                            {renderVariance(row.variance)}
+                            {row.key === 'pharmacyBilling' && (row.current === null || row.current === undefined)
+                              ? '—'
+                              : renderVariance(row.variance)}
                           </td>
                         </tr>
                       );
@@ -658,6 +746,145 @@ export const OperatingProfitStatementView: React.FC = () => {
             </table>
           </div>
         </div>
+
+        {/* ── Separate Financial Streams Table (Outsourced Departments & Pharmacy) ── */}
+        <div className="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden mt-4">
+          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Outsourced Departments &amp; Separate Financial Streams
+              </h3>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                Excluded from Hospital P&amp;L
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-500">
+              Informational only · Independent provider settlements · Not recognized in Hospital Operating Revenue / Profit
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50/70 border-b border-slate-300 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                  <th className="py-2.5 px-3 text-left border-r border-slate-200 min-w-[220px]">
+                    Department
+                  </th>
+                  <th className="py-2.5 px-3 text-left border-r border-slate-200 min-w-[200px]">
+                    Provider
+                  </th>
+                  <th className="py-2.5 px-3 text-right border-r border-slate-200 w-[180px]">
+                    Period Billing (PKR)
+                  </th>
+                  <th className="py-2.5 px-3 text-right w-[180px]">
+                    Provider Payable (PKR)
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {/* Dynamic Outsourced Departments Rows */}
+                {data?.outsourcedStreams && data.outsourcedStreams.length > 0 ? (
+                  data.outsourcedStreams.map((stream) => (
+                    <tr key={stream.departmentId} className="hover:bg-slate-50/70 transition">
+                      <td className="py-2 px-3 border-r border-slate-200 font-medium text-slate-800">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-slate-400 select-none">•</span>
+                          <span>{stream.departmentName}</span>
+                          {stream.departmentCode && (
+                            <span className="text-[10px] text-slate-400 font-mono">({stream.departmentCode})</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2 px-3 border-r border-slate-200 text-slate-600">
+                        {stream.providerName ? (
+                          <span>{stream.providerName}</span>
+                        ) : (
+                          <span className="text-slate-400 italic">No linked provider</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-right border-r border-slate-200 font-mono text-slate-800">
+                        <div>{formatPKR(stream.currentBilling)}</div>
+                        {appliedFilters.comparison === 'previous' && stream.priorBilling !== null && (
+                          <div className="text-[10px] text-slate-500">
+                            Prior: {formatPKR(stream.priorBilling)}
+                            {stream.billingVariance !== null && (
+                              <span className="ml-1">{renderVariance(stream.billingVariance)}</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono text-slate-800">
+                        <div>{formatPKR(stream.currentPayable)}</div>
+                        {appliedFilters.comparison === 'previous' && stream.priorPayable !== null && (
+                          <div className="text-[10px] text-slate-500">
+                            Prior: {formatPKR(stream.priorPayable)}
+                            {stream.payableVariance !== null && (
+                              <span className="ml-1">{renderVariance(stream.payableVariance)}</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="py-3 px-3 text-center text-slate-400 italic">
+                      No outsourced departments configured or active for this period.
+                    </td>
+                  </tr>
+                )}
+
+                {/* Standalone Pharmacy Informational Row */}
+                <tr className="bg-slate-50/40 hover:bg-slate-50/70 transition border-t border-slate-200">
+                  <td className="py-2 px-3 border-r border-slate-200 font-medium text-slate-800">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400 select-none">•</span>
+                      <span>Pharmacy</span>
+                      <span className="text-[10px] text-slate-500 font-normal">(Standalone ERP)</span>
+                    </div>
+                  </td>
+                  <td className="py-2 px-3 border-r border-slate-200 text-slate-600">
+                    <span className="text-slate-500 italic">Pharmacy Independent Stream</span>
+                  </td>
+                  <td className="py-2 px-3 text-right border-r border-slate-200 font-mono text-slate-800">
+                    {data?.pharmacyStream?.available && data.pharmacyStream.currentBilling !== null ? (
+                      <div>
+                        <div>{formatPKR(data.pharmacyStream.currentBilling)}</div>
+                        {appliedFilters.comparison === 'previous' && data.pharmacyStream.priorBilling !== null && (
+                          <div className="text-[10px] text-slate-500">
+                            Prior: {formatPKR(data.pharmacyStream.priorBilling)}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 font-medium">N/A</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-3 text-right font-mono text-slate-400">
+                    <span className="text-slate-400 font-medium">N/A</span>
+                  </td>
+                </tr>
+              </tbody>
+              {/* Footer Summary Row */}
+              {data?.outsourcedStreams && data.outsourcedStreams.length > 0 && (
+                <tfoot>
+                  <tr className="bg-slate-100/80 border-t-2 border-slate-300 font-bold text-slate-900">
+                    <td colSpan={2} className="py-2 px-3 border-r border-slate-200 text-right uppercase tracking-wider text-[11px]">
+                      Total Outsourced Streams:
+                    </td>
+                    <td className="py-2 px-3 text-right border-r border-slate-200 font-mono text-[#08775A]">
+                      {formatPKR(data.summary?.totalOutsourcedBilling || 0)}
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono text-slate-800">
+                      {formatPKR(data.summary?.totalOutsourcedPayable || 0)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+          </div>
+        </div>
       ) : (
         /* ══════════════════════════════════════════════════════════════════
            DETAILED LEDGER VIEW — Itemized Source Transactions Behind P&L
@@ -665,39 +892,40 @@ export const OperatingProfitStatementView: React.FC = () => {
         <div className="space-y-3">
           {/* Ledger Search & Filter Sub-bar */}
           <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
+            <div className="w-full sm:w-72">
+              <TextInput
                 placeholder="Search reference, description, actor..."
+                icon={<Search className="h-4 w-4 text-slate-400" />}
                 value={ledgerSearch}
                 onChange={(e) => setLedgerSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded focus:border-[#08775A] focus:outline-none bg-white text-slate-700"
               />
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-slate-600 uppercase">Category:</span>
-              <select
-                value={ledgerCategory}
-                onChange={(e) => {
-                  setLedgerCategory(e.target.value);
-                  setPage(1);
-                }}
-                className="px-3 py-1.5 text-xs border border-slate-300 rounded focus:border-[#08775A] focus:outline-none bg-white text-slate-700"
-              >
-                <option value="">All P&L Categories</option>
-                <option value="opd">OPD Services</option>
-                <option value="emergency">Emergency Services</option>
-                <option value="observation">Observation Services</option>
-                <option value="admission">Admission Services</option>
-                <option value="discounts">Discounts</option>
-                <option value="consumables">Clinical Consumables</option>
-                <option value="payroll">Staff Payroll</option>
-                <option value="commission">Doctor Commission</option>
-                <option value="hospitalOpex">Hospital Operating Expenses</option>
-                <option value="inventoryOpex">Inventory Operating Expenses</option>
-              </select>
+              <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">Category:</span>
+              <div className="w-56">
+                <Select
+                  placeholder="All P&L Categories"
+                  options={[
+                    { value: 'opd', label: 'OPD Services' },
+                    { value: 'emergency', label: 'Emergency Services' },
+                    { value: 'observation', label: 'Observation Services' },
+                    { value: 'admission', label: 'Admission Services' },
+                    { value: 'discounts', label: 'Discounts' },
+                    { value: 'consumables', label: 'Clinical Consumables' },
+                    { value: 'payroll', label: 'Staff Payroll' },
+                    { value: 'commission', label: 'Doctor Commission' },
+                    { value: 'hospitalOpex', label: 'Hospital Operating Expenses' },
+                    { value: 'inventoryOpex', label: 'Inventory Operating Expenses' },
+                    { value: 'outsourced', label: 'Outsourced Services' },
+                  ]}
+                  value={ledgerCategory}
+                  onChange={(e) => {
+                    setLedgerCategory(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </div>
             </div>
           </div>
 
@@ -806,23 +1034,25 @@ export const OperatingProfitStatementView: React.FC = () => {
             {data?.ledger && (
               <div className="bg-white border-t border-slate-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600">
                 <div className="flex items-center gap-2">
-                  <span>Show</span>
-                  <select
-                    value={limit}
-                    onChange={(e) => {
-                      const newLimit = Number(e.target.value);
-                      setLimit(newLimit);
-                      setPage(1);
-                      loadReport(1, newLimit);
-                    }}
-                    className="px-2 py-1 border border-slate-300 rounded text-xs focus:border-[#08775A] focus:outline-none"
-                  >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                  <span>records per page</span>
+                  <span className="font-medium text-slate-500">Show</span>
+                  <div className="w-20">
+                    <Select
+                      options={[
+                        { value: '10', label: '10' },
+                        { value: '25', label: '25' },
+                        { value: '50', label: '50' },
+                        { value: '100', label: '100' },
+                      ]}
+                      value={String(limit)}
+                      onChange={(e) => {
+                        const newLimit = Number(e.target.value);
+                        setLimit(newLimit);
+                        setPage(1);
+                        loadReport(1, newLimit);
+                      }}
+                    />
+                  </div>
+                  <span className="font-medium text-slate-500">records per page</span>
                   <span className="text-slate-400 font-normal">
                     (Page {data.ledger.page} of {data.ledger.totalPages}, {data.ledger.totalRecords} total items)
                   </span>

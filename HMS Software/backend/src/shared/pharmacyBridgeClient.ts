@@ -246,11 +246,12 @@ export const pharmacyBridgeClient = {
   }) {
     const urlsToTry = getPharmacyBaseUrls();
     let lastError: any = null;
-    for (const baseUrl of urlsToTry) {
+    for (const baseUrl of urlsToTry.slice(0, 1)) {
       try {
         const url = `${baseUrl}/hms-requests/settlement/release`;
         const res = await fetch(url, {
           method: 'POST',
+          signal: AbortSignal.timeout(15000),
           headers: {
             'Content-Type': 'application/json',
             'x-bridge-token': env.INTERNAL_BRIDGE_SECRET,

@@ -696,7 +696,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
           <div class="meta-grid">
             <div class="meta-col">
               <div class="meta-row"><span class="meta-label">Invoice #:</span> <strong class="meta-val">${invoice?.invoiceNumber}</strong></div>
-              ${invoice?.queueNumber ? `<div class="meta-row"><span class="meta-label">Queue / Token No:</span> <strong class="meta-val" style="color: #08775A; font-size: 11px; background: #e6f4ea; padding: 1.5px 5px; border-radius: 4px; display: inline-block;">${invoice.queueNumber}</strong></div>` : ''}
+              ${invoice?.queueNumber && invoice?.encounterType !== 'CUSTOM' ? `<div class="meta-row"><span class="meta-label">Queue / Token No:</span> <strong class="meta-val" style="color: #08775A; font-size: 11px; background: #e6f4ea; padding: 1.5px 5px; border-radius: 4px; display: inline-block;">${invoice.queueNumber}</strong></div>` : ''}
               <div class="meta-row"><span class="meta-label">Date &amp; Time:</span> <span class="meta-val">${invoice?.createdAt}</span></div>
               <div class="meta-row"><span class="meta-label">Encounter:</span> <span class="meta-val">${getInvoiceEncounterLabel(invoice)}</span></div>
               ${invoice?.admissionNumber ? `<div class="meta-row"><span class="meta-label">Admission #:</span> <strong class="meta-val">${invoice.admissionNumber}</strong></div>` : ''}
@@ -823,7 +823,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                 <span className="text-slate-500 font-semibold">Encounter:</span>
                 <span className="font-bold text-slate-900">{getInvoiceEncounterLabel(invoice)}</span>
               </div>
-              {invoice.queueNumber && (
+              {invoice.queueNumber && invoice.encounterType !== 'CUSTOM' && (
                 <div className="flex justify-between items-center py-0.5">
                   <span className="text-slate-500 font-semibold">Queue / Token No:</span>
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold font-mono bg-emerald-50 text-emerald-800 border border-emerald-200">

@@ -77,6 +77,7 @@ router.get('/outsourced-providers', view, asyncHandler(c.listOutsourcedProviders
 router.post('/outsourced-providers', create, validate({ body: s.createOutsourcedProviderSchema }), asyncHandler(c.createOutsourcedProvider));
 router.patch('/outsourced-providers/:id', write, validate({ params: s.idParamsSchema, body: s.updateOutsourcedProviderSchema }), asyncHandler(c.updateOutsourcedProvider));
 router.post('/outsourced-providers/:id/deactivate', write, validate({ params: s.idParamsSchema }), asyncHandler(c.deactivateOutsourcedProvider));
+router.delete('/outsourced-providers/:id', remove, validate({ params: s.idParamsSchema }), asyncHandler(c.deleteOutsourcedProvider));
 
 // High-Cost Medicine Policy (HMS_V7.2_NEW_REQUIREMENTS.md §2.6)
 router.get('/high-cost-medicine-policy', view, asyncHandler(c.getHighCostMedicinePolicy));

@@ -166,4 +166,9 @@ export const OutsourcedProviderService = {
     cachedProviders = cachedProviders.map((p) => (p.id === id ? updated : p));
     return updated;
   },
+
+  async deleteProvider(id: string): Promise<void> {
+    await apiClient.delete(`/setup/outsourced-providers/${id}`);
+    cachedProviders = cachedProviders.filter((p) => p.id !== id);
+  },
 };

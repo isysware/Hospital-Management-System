@@ -1,19 +1,24 @@
 import { prisma } from '@/db/client';
+import { AuthorizationError, NotFoundError } from '@/shared/errors/AppError';
 
 export interface CreateNotificationParams {
   title: string;
   message: string;
   type?: 'info' | 'urgent' | 'warning' | 'success' | string;
   module?: string;
-  targetPortal?: 'admission' | 'front-desk' | 'all' | string;
+  targetPortal?: 'admission' | 'front-desk' | 'all' | 'admin' | 'super-admin' | 'pharmacy' | string;
   actionUrl?: string;
   referenceId?: string;
   createdById?: string | null;
+  recipientUserId?: string | null;
+  isBroadcast?: boolean;
 }
 
 export const notificationsService = {
   async createNotification(params: CreateNotificationParams) {
     if (!prisma.hospitalNotification?.create) return null as any;
+
+    const isBroadcast = params.isBroadcast ?? (!params.recipientUserId ? false : false);
 
     // Deduplicate: if an unread notification with same title and referenceId was created recently, skip
     if (params.referenceId && params.title) {
@@ -21,6 +26,7 @@ export const notificationsService = {
       const existing = await prisma.hospitalNotification.findFirst({
         where: {
           referenceId: params.referenceId,
+          recipientUserId: params.recipientUserId || null,
           targetPortal: params.targetPortal || 'all',
           title: params.title,
           isRead: false,
@@ -40,42 +46,185 @@ export const notificationsService = {
         actionUrl: params.actionUrl || null,
         referenceId: params.referenceId || null,
         createdById: params.createdById || null,
+        recipientUserId: params.recipientUserId || null,
+        isBroadcast,
       },
     });
   },
 
-  async listNotifications(targetPortal?: string, limit: number = 30) {
+  async listNotifications(userId: string, portal: string, limit: number = 30) {
     // Auto-sync active DB states to ensure zero missed notifications
     await this.syncRealStateNotifications();
 
-    const where: any = {};
-    if (targetPortal && targetPortal !== 'all') {
-      where.targetPortal = targetPortal;
-    }
-
-    return prisma.hospitalNotification.findMany({
-      where,
+    const notifications = await prisma.hospitalNotification.findMany({
+      where: {
+        OR: [
+          // 1. Private personal notifications explicitly addressed to this user
+          { recipientUserId: userId },
+          // 2. Legitimate authorized broadcast announcements for this portal
+          {
+            isBroadcast: true,
+            OR: [
+              { targetPortal: portal },
+              { targetPortal: 'all' },
+              { targetPortal: null },
+            ],
+          },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
-  },
 
-  async markAsRead(id: string) {
-    return prisma.hospitalNotification.update({
-      where: { id },
-      data: { isRead: true },
-    });
-  },
-
-  async markAllAsRead(targetPortal?: string) {
-    const where: any = { isRead: false };
-    if (targetPortal && targetPortal !== 'all') {
-      where.targetPortal = targetPortal;
+    const broadcastIds = notifications.filter((n) => n.isBroadcast).map((n) => n.id);
+    let readBroadcastIds = new Set<string>();
+    if (broadcastIds.length > 0) {
+      const reads = await prisma.hospitalNotificationRead.findMany({
+        where: {
+          userId,
+          notificationId: { in: broadcastIds },
+        },
+        select: { notificationId: true },
+      });
+      readBroadcastIds = new Set(reads.map((r) => r.notificationId));
     }
-    return prisma.hospitalNotification.updateMany({
-      where,
+
+    return notifications.map((item) => ({
+      id: item.id,
+      title: item.title,
+      message: item.message,
+      type: item.type,
+      module: item.module,
+      targetPortal: item.targetPortal,
+      actionUrl: item.actionUrl,
+      referenceId: item.referenceId,
+      read: item.recipientUserId ? item.isRead : readBroadcastIds.has(item.id),
+      recipientUserId: item.recipientUserId,
+      isBroadcast: item.isBroadcast,
+      createdAt: item.createdAt.toISOString(),
+    }));
+  },
+
+  async getUnreadCount(userId: string, portal: string): Promise<number> {
+    // 1. Unread private notifications directly addressed to this user
+    const privateUnreadCount = await prisma.hospitalNotification.count({
+      where: {
+        recipientUserId: userId,
+        isRead: false,
+      },
+    });
+
+    // 2. Broadcast notifications for this portal
+    const broadcastNotifs = await prisma.hospitalNotification.findMany({
+      where: {
+        isBroadcast: true,
+        OR: [
+          { targetPortal: portal },
+          { targetPortal: 'all' },
+          { targetPortal: null },
+        ],
+      },
+      select: { id: true },
+      take: 200,
+    });
+
+    if (broadcastNotifs.length === 0) {
+      return privateUnreadCount;
+    }
+
+    const broadcastIds = broadcastNotifs.map((b) => b.id);
+    const readCount = await prisma.hospitalNotificationRead.count({
+      where: {
+        userId,
+        notificationId: { in: broadcastIds },
+      },
+    });
+
+    const broadcastUnreadCount = Math.max(0, broadcastIds.length - readCount);
+    return privateUnreadCount + broadcastUnreadCount;
+  },
+
+  async markAsRead(id: string, userId: string) {
+    const item = await prisma.hospitalNotification.findUnique({
+      where: { id },
+    });
+    if (!item) {
+      throw new NotFoundError('Notification not found');
+    }
+
+    if (item.recipientUserId) {
+      if (item.recipientUserId !== userId) {
+        throw new AuthorizationError('You are not authorized to modify another user\'s notification');
+      }
+      return prisma.hospitalNotification.update({
+        where: { id },
+        data: { isRead: true },
+      });
+    }
+
+    if (item.isBroadcast) {
+      return prisma.hospitalNotificationRead.upsert({
+        where: {
+          notificationId_userId: { notificationId: id, userId },
+        },
+        create: {
+          notificationId: id,
+          userId,
+        },
+        update: {},
+      });
+    }
+
+    throw new AuthorizationError('Cannot modify an unassigned private notification');
+  },
+
+  async markAllAsRead(userId: string, portal: string) {
+    // 1. Mark all personal private notifications for this user as read
+    await prisma.hospitalNotification.updateMany({
+      where: {
+        recipientUserId: userId,
+        isRead: false,
+      },
       data: { isRead: true },
     });
+
+    // 2. Mark active broadcast notifications for this user's portal as read
+    const broadcastNotifs = await prisma.hospitalNotification.findMany({
+      where: {
+        isBroadcast: true,
+        OR: [
+          { targetPortal: portal },
+          { targetPortal: 'all' },
+          { targetPortal: null },
+        ],
+      },
+      select: { id: true },
+      take: 200,
+    });
+
+    if (broadcastNotifs.length > 0) {
+      const alreadyRead = await prisma.hospitalNotificationRead.findMany({
+        where: {
+          userId,
+          notificationId: { in: broadcastNotifs.map((b) => b.id) },
+        },
+        select: { notificationId: true },
+      });
+      const readSet = new Set(alreadyRead.map((r) => r.notificationId));
+      const toMark = broadcastNotifs
+        .filter((b) => !readSet.has(b.id))
+        .map((b) => ({
+          notificationId: b.id,
+          userId,
+        }));
+
+      if (toMark.length > 0) {
+        await prisma.hospitalNotificationRead.createMany({
+          data: toMark,
+          skipDuplicates: true,
+        });
+      }
+    }
   },
 
   /**
@@ -114,6 +263,7 @@ export const notificationsService = {
               targetPortal: 'admission',
               actionUrl: '/admission/planned_admissions',
               referenceId: adm.id,
+              isBroadcast: true,
               createdAt: adm.createdAt,
             },
           });
@@ -150,6 +300,7 @@ export const notificationsService = {
               targetPortal: 'front-desk',
               actionUrl: '/front-desk/billing_pending_discharges',
               referenceId: adm.id,
+              isBroadcast: true,
               createdAt: adm.updatedAt,
             },
           });
@@ -199,7 +350,56 @@ export const notificationsService = {
               targetPortal: 'front-desk',
               actionUrl: isFinal ? '/front-desk/billing_pending_discharges' : '/front-desk/admission_payment_requests',
               referenceId: req.id,
+              isBroadcast: true,
               createdAt: req.requestedAt,
+            },
+          });
+        }
+      }
+
+      // 4. Check for active SUBMITTED AccountSettlements (Front Desk / Staff -> Designated Receiver Admin / Super Admin)
+      const pendingSettlements = await prisma.accountSettlement.findMany({
+        where: { status: 'SUBMITTED' },
+        include: {
+          submittedByUser: { select: { id: true, username: true, displayName: true, role: true } },
+          receiverUser: { select: { id: true, username: true, displayName: true, role: true } },
+        },
+        take: 10,
+        orderBy: { submittedAt: 'desc' },
+      });
+
+      for (const st of pendingSettlements) {
+        const submitterName = st.submittedByUser?.displayName || st.submittedByUser?.username || 'Cashier';
+        const roleLabel = st.submittedByUser?.role === 'FRONT_DESK_BILLING' || st.moduleScope === 'BILLING' ? 'Front Desk' : st.submittedByUser?.role || 'Staff';
+        const handoverNum = Number(st.handoverAmount ?? st.physicalCash);
+        const amountStr = handoverNum.toLocaleString('en-PK', { maximumFractionDigits: 0 });
+        const receiverId = st.receiverUserId;
+        if (!receiverId) continue; // Fail closed if no receiver specified
+
+        const receiverRole = st.receiverUser?.role;
+        const targetPortal = receiverRole === 'SUPER_ADMIN' ? 'super-admin' : 'admin';
+
+        const existing = await prisma.hospitalNotification.findFirst({
+          where: {
+            referenceId: st.id,
+            recipientUserId: receiverId,
+          },
+        });
+
+        if (!existing) {
+          await prisma.hospitalNotification.create({
+            data: {
+              title: `Shift Settlement Submitted: ${submitterName}`,
+              message: `${submitterName} (${roleLabel}) submitted a shift settlement of Rs. ${amountStr} awaiting review and acceptance.`,
+              type: 'urgent',
+              module: 'Finance',
+              targetPortal,
+              actionUrl: `/${targetPortal}/account_settlements`,
+              referenceId: st.id,
+              recipientUserId: receiverId,
+              isBroadcast: false,
+              createdById: st.portalUserId,
+              createdAt: st.submittedAt || st.createdAt,
             },
           });
         }

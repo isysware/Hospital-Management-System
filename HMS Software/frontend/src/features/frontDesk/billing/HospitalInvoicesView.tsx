@@ -396,7 +396,7 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
     const rows = filteredInvoices.map((inv, idx) => [
       idx + 1,
       `"${inv.invoiceNumber}"`,
-      `"${inv.queueNumber || '—'}"`,
+      `"${inv.encounterType !== 'CUSTOM' ? (inv.queueNumber || '—') : '—'}"`,
       `"${inv.patientMr || ''}"`,
       `"${inv.patientName}"`,
       `"${getInvoiceCareQueue(inv)}"`,
@@ -431,7 +431,7 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
       <tr>
         <td>${idx + 1}</td>
         <td>${inv.invoiceNumber}</td>
-        <td>${inv.queueNumber || '—'}</td>
+        <td>${inv.encounterType !== 'CUSTOM' ? (inv.queueNumber || '—') : '—'}</td>
         <td>${inv.patientMr || ''}</td>
         <td>${inv.patientName}</td>
         <td>${getInvoiceCareQueue(inv)}</td>
@@ -868,7 +868,7 @@ export const HospitalInvoicesView: React.FC<HospitalInvoicesViewProps> = ({
 
                     {/* Service ID (Token / Encounter Queue Number) */}
                     <td className="py-2.5 px-3.5 border-r border-slate-200 whitespace-nowrap">
-                      {inv.queueNumber ? (
+                      {inv.queueNumber && inv.encounterType !== 'CUSTOM' ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold font-mono bg-emerald-50 text-emerald-800 border border-emerald-200">
                           {inv.queueNumber}
                         </span>

@@ -153,12 +153,15 @@ describe('Queue / Token Number System', () => {
     expect(firstVisitToken?.queueNumber).not.toBe(nextVisitToken?.queueNumber);
   });
 
-  it('Test 6: Create IPD Admission — strictly NO Queue/Token Number generated', async () => {
+  it('Test 6: Create IPD Admission & Custom Billing — strictly NO Queue/Token Number generated', async () => {
     const ipdToken = await generateQueueToken('ADMISSION');
     expect(ipdToken).toBeNull();
 
     const ipdTokenAlt = await generateQueueToken('IPD');
     expect(ipdTokenAlt).toBeNull();
+
+    const customToken = await generateQueueToken('CUSTOM');
+    expect(customToken).toBeNull();
   });
 
   it('Test 7: Concurrent requests prevent duplicates and maintain unique sequences', async () => {

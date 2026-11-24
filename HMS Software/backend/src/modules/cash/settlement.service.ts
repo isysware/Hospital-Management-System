@@ -6,6 +6,7 @@ import type { MySettlementsQuery } from './financeControl.schemas';
 import { resolveDateRange } from '@/modules/reports/dashboard.service';
 import { resolveCashModuleScope } from './moduleScope.util';
 import type { PortalRole } from '@/config/constants';
+import { notificationsService } from '@/modules/notifications/notifications.service';
 
 /**
  * My Account Settlement (HMS_V7.2_NEW_REQUIREMENTS.md §3.3; Balance Sheet &
@@ -47,7 +48,7 @@ export const settlementService = {
   },
 
   async submitSettlement(portalUserId: string, body: SubmitSettlementBody) {
-    return prisma.$transaction(async (tx) => {
+    const createdSettlement = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`settlement:${portalUserId}`}))`;
       const targetUser = await tx.portalUser.findUniqueOrThrow({
         where: { id: portalUserId },
@@ -164,6 +165,45 @@ export const settlementService = {
 
       return settlement;
     });
+
+    try {
+      const submitterUser = prisma.portalUser?.findUnique
+        ? await prisma.portalUser.findUnique({
+            where: { id: portalUserId },
+            select: { displayName: true, username: true, role: true },
+          })
+        : null;
+      const submitterName = submitterUser?.displayName || submitterUser?.username || 'Cashier';
+      const roleLabel = submitterUser?.role === 'FRONT_DESK_BILLING' || createdSettlement.moduleScope === 'BILLING' ? 'Front Desk' : submitterUser?.role || 'Staff';
+      const handoverNum = Number(createdSettlement.handoverAmount ?? createdSettlement.physicalCash);
+      const amountStr = handoverNum.toLocaleString('en-PK', { maximumFractionDigits: 0 });
+
+      const receiver = createdSettlement.receiverUserId && prisma.portalUser?.findUnique
+        ? await prisma.portalUser.findUnique({
+            where: { id: createdSettlement.receiverUserId },
+            select: { id: true, role: true },
+          })
+        : null;
+      const targetPortal = receiver?.role === 'SUPER_ADMIN' ? 'super-admin' : 'admin';
+
+      await notificationsService.createNotification({
+        title: `Shift Settlement Submitted: ${submitterName}`,
+        message: `${submitterName} (${roleLabel}) submitted a shift settlement of Rs. ${amountStr} awaiting review and acceptance.`,
+        type: 'urgent',
+        module: 'Finance',
+        targetPortal,
+        actionUrl: `/${targetPortal}/account_settlements`,
+        referenceId: createdSettlement.id,
+        createdById: portalUserId,
+        recipientUserId: createdSettlement.receiverUserId,
+        isBroadcast: false,
+      });
+    } catch (notifErr) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to dispatch settlement notification:', notifErr);
+    }
+
+    return createdSettlement;
   },
 
   /** reporting.md §2 #9 — own settlement history, filterable by From/To (settlement creation) and Settlement Status. */

@@ -96,7 +96,7 @@ export const cashService = {
             cashCollections = cashCollections.plus(tx.amount);
           } else if (tx.category === 'PETTY_CASH_ISSUE') {
             pettyCash = pettyCash.plus(tx.amount);
-          } else if (tx.category === 'RECOVERY') {
+          } else if ((tx.category === 'RECOVERY' || tx.category === 'PHARMACY_SETTLEMENT')) {
             settlementCashIn = settlementCashIn.plus(tx.amount);
           }
         } else {
@@ -106,7 +106,7 @@ export const cashService = {
             cashRefunds = cashRefunds.plus(tx.amount);
           } else if (tx.category === 'EXPENSE') {
             cashExpenses = cashExpenses.plus(tx.amount);
-          } else if (tx.category === 'RECOVERY') {
+          } else if ((tx.category === 'RECOVERY' || tx.category === 'PHARMACY_SETTLEMENT')) {
             settlementCashOut = settlementCashOut.plus(tx.amount);
           }
         }
@@ -156,7 +156,7 @@ export const cashService = {
         isSettled: t.isSettled,
         occurredAt: t.occurredAt,
         paymentAccount: t.paymentReceipt?.paymentAccount ?? null,
-        receiptNumber: t.paymentReceipt?.receiptNumber ?? (t.category === 'RECOVERY' ? 'SETTLEMENT' : null),
+        receiptNumber: t.paymentReceipt?.receiptNumber ?? ((t.category === 'RECOVERY' || t.category === 'PHARMACY_SETTLEMENT') ? 'SETTLEMENT' : null),
         invoiceNumber: t.paymentReceipt?.hospitalInvoice?.invoiceNumber ?? null,
         paymentMethod: t.paymentReceipt?.method ?? (t.isPhysicalCash ? 'CASH' : 'NON_CASH'),
         note: t.note,

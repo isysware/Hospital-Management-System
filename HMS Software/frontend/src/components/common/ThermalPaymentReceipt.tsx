@@ -297,8 +297,8 @@ export function buildThermalReceiptData(
     dateTime,
     encounterType: isIpd ? 'ADMISSION' : encType,
     encounterRef: invoice.sourceType,
-    // Queue / Token Number from database
-    tokenNumber: isIpd ? null : (invoice.queueNumber || null),
+    // Queue / Token Number from database (strictly excluded for IPD / Admission and Custom Billing)
+    tokenNumber: (isIpd || encType === 'CUSTOM') ? null : (invoice.queueNumber || null),
     mrNumber: invoice.patientMr || '—',
     patientName: invoice.patientName || 'Patient',
     patientAge: options?.patientAge ?? invoice.patientAge ?? null,
@@ -347,7 +347,8 @@ export function generateThermalReceiptHtml(
   const hospitalName = hp.name || 'CH SHARIF AND SAEED HOSPITAL';
 
   const isIpd = data.encounterType === 'ADMISSION' || (data.encounterType as string) === 'IPD';
-  const showToken = !isIpd && !!data.tokenNumber;
+  const isCustom = data.encounterType === 'CUSTOM';
+  const showToken = !isIpd && !isCustom && !!data.tokenNumber;
 
   return `<!DOCTYPE html>
 <html>
@@ -869,7 +870,8 @@ export const ThermalPaymentReceipt: React.FC<ThermalPaymentReceiptProps> = ({
   const hp = getHospitalProfile();
   const activeEncounterType = encounterType || receipt.encounterType || 'OPD';
   const isIpd = activeEncounterType === 'ADMISSION' || (activeEncounterType as string) === 'IPD';
-  const showToken = !isIpd && !!receipt.tokenNumber;
+  const isCustom = activeEncounterType === 'CUSTOM';
+  const showToken = !isIpd && !isCustom && !!receipt.tokenNumber;
 
   const [isPrinting, setIsPrinting] = useState(false);
 

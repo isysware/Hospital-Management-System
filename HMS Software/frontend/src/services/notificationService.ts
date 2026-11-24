@@ -12,6 +12,8 @@ export interface NotificationItem {
   read: boolean;
   createdAt: string;
   time?: string;
+  recipientUserId?: string | null;
+  isBroadcast?: boolean;
 }
 
 function formatRelativeTime(dateStr: string): string {

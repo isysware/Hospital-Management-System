@@ -77,6 +77,11 @@ export async function operatingProfitReport(
 
   // ── 3. Filter Invoices for Drill-Down ──
   // Include invoices that either have gross sales, collections, recognized revenue, or were created in range
+  const rawInvoiceMap = new Map<string, (typeof data.invoices)[number]>();
+  for (const inv of data.invoices) {
+    rawInvoiceMap.set(inv.invoiceNumber, inv);
+  }
+
   const invoicesList = rows
     .filter((r) => {
       if (r.grossSales.gt(0) || r.collections.gt(0) || r.recognizedRevenue.gt(0) || r.outstanding.gt(0)) return true;
@@ -84,29 +89,53 @@ export async function operatingProfitReport(
       if (range.lte && r.createdAt > range.lte) return false;
       return true;
     })
-    .map((r) => ({
-      invoiceNumber: r.invoiceNumber,
-      channel: r.channel,
-      customerName: r.customerName || 'Walk-In Customer',
-      createdAt: r.createdAt,
-      status: r.status,
-      clearanceStatus: r.clearanceStatus,
-      grossSales: r.grossSales,
-      discount: r.grossSales.minus(r.netBilling),
-      netBilling: r.netBilling,
-      taxBilled: r.taxBilled,
-      total: r.total,
-      collections: r.collections,
-      outstanding: r.outstanding,
-      recognizedRevenue: r.recognizedRevenue,
-      recognizedCogs: r.recognizedCogs,
-      grossProfit: r.grossProfit,
-      recognizedAt: r.recognizedAt,
-      soldBy: r.soldBy,
-      collectedBy: r.collectedBy,
-      recognitionComplete: r.recognitionComplete,
-      recognitionIssues: r.recognitionIssues,
-    }));
+    .map((r) => {
+      const rawInv = rawInvoiceMap.get(r.invoiceNumber);
+      return {
+        id: rawInv?.id,
+        invoiceNumber: r.invoiceNumber,
+        channel: r.channel,
+        customerName: r.customerName || 'Walk-In Customer',
+        createdAt: r.createdAt,
+        status: r.status,
+        clearanceStatus: r.clearanceStatus,
+        grossSales: r.grossSales,
+        discount: r.grossSales.minus(r.netBilling),
+        netBilling: r.netBilling,
+        taxBilled: r.taxBilled,
+        total: r.total,
+        collections: r.collections,
+        outstanding: r.outstanding,
+        recognizedRevenue: r.recognizedRevenue,
+        recognizedCogs: r.recognizedCogs,
+        grossProfit: r.grossProfit,
+        recognizedAt: r.recognizedAt,
+        soldBy: r.soldBy,
+        collectedBy: r.collectedBy,
+        recognitionComplete: r.recognitionComplete,
+        recognitionIssues: r.recognitionIssues,
+        payments: (rawInv?.payments || []).map((p) => ({
+          id: p.id,
+          amount: Number(p.amount),
+          method: p.method,
+          paidAt: p.paidAt,
+          isInitial: p.isInitial,
+          collectedByName: p.collectedByUser?.fullName || 'Staff',
+          collectedById: p.collectedById,
+        })),
+        financialEvents: (rawInv?.financialEvents || []).map((e) => ({
+          id: e.id,
+          eventKey: e.eventKey,
+          kind: e.kind,
+          occurredAt: e.occurredAt,
+          saleDelta: Number(e.saleDelta),
+          collectionDelta: Number(e.collectionDelta),
+          reference: e.reference,
+          method: e.method,
+          actorId: e.actorId,
+        })),
+      };
+    });
 
   // ── 4. Filter Operating Expenses for Drill-Down ──
   const inRange = (at: Date) =>

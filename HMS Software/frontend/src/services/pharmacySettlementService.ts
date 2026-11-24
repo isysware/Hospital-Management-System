@@ -21,6 +21,8 @@ export const SETTLEMENT_PAYMENT_METHOD_LABELS: Record<SettlementPaymentMethod, s
 };
 
 export interface PharmacySettlement {
+  bridgeStatus?: string;
+  reconciliationRequired?: boolean;
   id: string;
   settlementNumber: string;
   pharmacyInvoiceNumber: string;
@@ -55,6 +57,8 @@ function formatTimestamp(iso?: string | null): string {
 function toSettlement(raw: Record<string, any>): PharmacySettlement {
   const admission = raw.pharmacyCharge?.admissionRecord;
   return {
+    bridgeStatus: raw.release?.bridgeStatus,
+    reconciliationRequired: Boolean(raw.reconciliationRequired),
     id: raw.id,
     settlementNumber: raw.settlementNumber,
     pharmacyInvoiceNumber: raw.pharmacyInvoiceNumber,
@@ -83,6 +87,7 @@ export async function releasePharmacySettlement(
   settlementId: string,
   values: {
     releasedAmount: number;
+    idempotencyKey: string;
     paymentMethod: SettlementPaymentMethod;
     paymentReference?: string;
     remarks?: string;

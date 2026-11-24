@@ -613,7 +613,7 @@ export const WalkInIntakeView: React.FC = () => {
           notes: combinedNotes,
         });
         targetInvoiceId = invoice.id;
-        createdToken = invoice.queueNumber || null;
+        createdToken = encounterType === 'CUSTOM' ? null : (invoice.queueNumber || null);
       } else {
         // Corporate / Panel: Must use selected existing panel patient (registration restricted to Super Admin / Admin)
         if (!selectedExistingPatient?.id) {
@@ -635,7 +635,7 @@ export const WalkInIntakeView: React.FC = () => {
           authorizationValidUntil: authorizationValidUntil.trim() || undefined,
         });
         targetInvoiceId = invoice.id;
-        createdToken = invoice.queueNumber || null;
+        createdToken = encounterType === 'CUSTOM' ? null : (invoice.queueNumber || null);
       }
 
       if (targetInvoiceId && doctorId && selectedDoctorObj?.consultationFee != null) {

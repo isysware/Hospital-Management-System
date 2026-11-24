@@ -21,6 +21,8 @@ import { UsersPage } from './pages/UsersPage';
 import { StockMovementsPage } from './pages/StockMovementsPage';
 import { HmsRequestQueuePage } from './pages/HmsRequestQueuePage';
 import { ReportView } from './components/ReportView';
+import { PharmacyIncomeExpenseReportPage } from './pages/PharmacyIncomeExpenseReportPage';
+import { PharmacyOperatingProfitReportPage } from './pages/PharmacyOperatingProfitReportPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import { useHmsNotifications } from './context/HmsNotificationContext';
@@ -99,7 +101,6 @@ const App: React.FC = () => {
 
   const isSales = currentUser.role === 'SALES_DISPENSING';
   const navGroups = isSales ? SALES_NAV : MANAGEMENT_NAV;
-  const portalLabel = isSales ? 'Sales Portal' : currentUser.role === 'SUPER_ADMIN' ? 'Super Admin — Management Portal' : 'Admin — Management Portal';
 
   const SALES_ALLOWED_PAGES = new Set([
     'dashboard',
@@ -155,6 +156,10 @@ const App: React.FC = () => {
         return <UsersPage />;
       case 'settings':
         return <SettingsPage />;
+      case 'reports-income-expense':
+        return <PharmacyIncomeExpenseReportPage onNavigate={navigate} />;
+      case 'reports-operating-profit':
+        return <PharmacyOperatingProfitReportPage onNavigate={navigate} />;
       case 'reports':
         return (
           <ReportView
@@ -187,7 +192,6 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-[#f6f8f7]">
       <Sidebar
         groups={navGroups}
-        portalLabel={portalLabel}
         currentPage={page}
         onSelectPage={navigate}
         onLogout={logout}
@@ -204,6 +208,7 @@ const App: React.FC = () => {
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen((v) => !v)}
           onNavigate={navigate}
+          onLogout={logout}
         />
         <main className="flex-1">{renderPage()}</main>
       </div>

@@ -8,6 +8,6 @@ export const ComingSoonPage: React.FC<{ title: string; step: string }> = ({ titl
       <Construction className="h-6 w-6 text-[#129b70]" />
     </div>
     <h2 className="text-base font-bold text-[#111827]">{title}</h2>
-    <p className="text-xs text-[#52665e]">Not built yet — see <span className="font-semibold">{step}</span> in pharmacy.md's build plan. No mock data shown here on purpose.</p>
+    <p className="text-xs text-[#52665e]">{step}</p>
   </div>
 );

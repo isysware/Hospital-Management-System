@@ -650,6 +650,7 @@ export const admissionService = {
         actionUrl: '/admission/planned_admissions',
         referenceId: result.admission.id,
         createdById: actorId,
+        isBroadcast: true,
       });
     } catch (notifErr) {
       console.error('Failed to dispatch admission notification:', notifErr);
@@ -862,6 +863,7 @@ export const admissionService = {
         actionUrl,
         referenceId: admission.id,
         createdById: actorId,
+        isBroadcast: true,
       });
     } catch (notifErr) {
       console.error('Failed to notify payment request:', notifErr);
@@ -1258,6 +1260,7 @@ export const admissionService = {
           actionUrl: '/front-desk/admission_patient_records',
           referenceId: admission.id,
           createdById: actorId,
+          isBroadcast: true,
         });
       } catch (notifErr) {
         console.error('Failed to notify bill update:', notifErr);
@@ -1883,6 +1886,7 @@ export const admissionService = {
               actionUrl: `/front-desk/admission_patient_records?admissionId=${admission.id}`,
               referenceId: admission.id,
               createdById: actorId,
+              isBroadcast: true,
             });
           } catch (notifErr) {
             console.error('Failed to notify Front Desk of discharge clearance request:', notifErr);
@@ -2164,6 +2168,7 @@ export const admissionService = {
         actionUrl: '/front-desk/billing_pending_discharges',
         referenceId: result.admission.id,
         createdById: actorId,
+        isBroadcast: true,
       });
     } catch (notifErr) {
       console.error('Failed to dispatch clinical discharge notification:', notifErr);
@@ -2284,6 +2289,7 @@ export const admissionService = {
               actionUrl: '/front-desk/billing_pending_discharges',
               referenceId: admission.id,
               createdById: _actorId,
+              isBroadcast: true,
             });
           } catch (e) {
             console.error('Failed to notify Front Desk on blocked discharge:', e);
@@ -2348,6 +2354,7 @@ export const admissionService = {
         actionUrl: '/admission/discharged_patients',
         referenceId: admissionId,
         createdById: _actorId,
+        isBroadcast: true,
       });
     } catch (notifErr) {
       console.error('Failed to dispatch final discharge notification:', notifErr);

@@ -10,7 +10,7 @@ const dateRangeSchema = z.object({
 export const encounterRegisterQuerySchema = dateRangeSchema.extend({
   departmentId: z.string().uuid().optional(),
   doctorStaffId: z.string().uuid().optional(),
-  encounterType: z.enum(['OPD', 'OBSERVATION', 'EMERGENCY', 'CUSTOM']).optional(),
+  encounterType: z.enum(['OPD', 'OBSERVATION', 'EMERGENCY', 'CUSTOM', 'ADMISSION']).optional(),
   status: z.enum(['UNPAID', 'PARTIALLY_PAID', 'PAID', 'VOID']).optional(),
 });
 export type EncounterRegisterQuery = z.infer<typeof encounterRegisterQuerySchema>;

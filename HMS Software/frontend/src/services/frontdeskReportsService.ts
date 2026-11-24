@@ -86,6 +86,7 @@ export interface CollectionRow {
   patient: string;
   amount: number;
   method: string;
+  paymentAccount?: string | null;
   occurredAt: string;
   collectedBy: string;
   status: 'ACTIVE' | 'REVERSED';
@@ -97,8 +98,8 @@ export async function fetchCollectionReport(range: RangeParams, filters?: Report
     periodLabel: d.period.label,
     kpis: [
       { label: 'Total Collected', value: formatPKR(d.summary.total) },
-      { label: 'Cash', value: formatPKR(d.summary.byMethod.CASH) },
-      { label: 'Card/Bank/Online', value: formatPKR(Number(d.summary.byMethod.CARD) + Number(d.summary.byMethod.BANK) + Number(d.summary.byMethod.ONLINE)) },
+      { label: 'Cash Drawer', value: formatPKR(d.summary.byMethod.CASH), accent: 'positive' },
+      { label: 'Card / Bank / Online', value: formatPKR(Number(d.summary.byMethod.CARD) + Number(d.summary.byMethod.BANK) + Number(d.summary.byMethod.ONLINE)) },
       { label: 'Receipt Count', value: String(d.summary.receiptCount) },
     ],
     rows: d.rows.map((r: any) => ({ ...r, amount: Number(r.amount), occurredAt: formatDateTimeDDMMYYYY(r.occurredAt) })),
@@ -106,13 +107,17 @@ export async function fetchCollectionReport(range: RangeParams, filters?: Report
 }
 
 export interface OutstandingRow {
+  id?: string;
   invoiceNumber: string;
+  createdAt?: string;
   patient: string;
   department: string | null;
+  gross: number;
   net: number;
   paid: number;
   outstanding: number;
   lastPaymentAt: string | null;
+  aging: string;
   payer: string;
   createdBy: string | null;
   status: string;
@@ -126,7 +131,16 @@ export async function fetchOutstandingInvoices(range: RangeParams, filters?: Rep
       { label: 'Outstanding Amount', value: formatPKR(d.summary.totalOutstanding), accent: 'warning' },
       { label: 'Invoice Count', value: String(d.summary.invoiceCount) },
     ],
-    rows: d.rows.map((r: any) => ({ ...r, net: Number(r.net), paid: Number(r.paid), outstanding: Number(r.outstanding), lastPaymentAt: r.lastPaymentAt ? formatDateTimeDDMMYYYY(r.lastPaymentAt) : null })),
+    rows: d.rows.map((r: any) => ({
+      ...r,
+      gross: Number(r.gross ?? r.net),
+      net: Number(r.net),
+      paid: Number(r.paid),
+      outstanding: Number(r.outstanding),
+      aging: r.aging || 'Current',
+      createdAt: formatDateTimeDDMMYYYY(r.createdAt),
+      lastPaymentAt: r.lastPaymentAt ? formatDateTimeDDMMYYYY(r.lastPaymentAt) : null,
+    })),
   };
 }
 
@@ -323,6 +337,12 @@ export async function fetchFinancialExceptions(range: RangeParams, filters?: Rep
   const d = await get<any>('/reports/frontdesk/exceptions', params(range, filters));
   return {
     periodLabel: d.period.label,
+    kpis: [
+      { label: 'Discounts', value: formatPKR(d.summary?.discountAmount ?? 0), accent: 'warning' },
+      { label: 'Refunds', value: formatPKR(d.summary?.refundAmount ?? 0), accent: 'negative' },
+      { label: 'Voids / Reversals', value: formatPKR(d.summary?.voidAmount ?? 0) },
+      { label: 'Total Exceptions', value: String(d.summary?.count ?? 0) },
+    ],
     rows: d.rows.map((r: any) => ({ ...r, amount: Number(r.amount), occurredAt: formatDateTimeDDMMYYYY(r.occurredAt) })),
   };
 }

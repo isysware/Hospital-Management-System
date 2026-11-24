@@ -1,7 +1,7 @@
 ﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Decimal } from '@prisma/client/runtime/library';
 import { readFileSync } from 'node:fs';
-vi.mock('../src/db/client', () => ({ prisma: Object.fromEntries(['hospitalInvoice', 'paymentReceipt', 'expense', 'inventoryExpense', 'salarySlip', 'doctorCommissionAccrual', 'departmentRequisition', 'accountSettlement'].map(k => [k, { findMany: vi.fn().mockResolvedValue([]) }])) }));
+vi.mock('../src/db/client', () => ({ prisma: Object.fromEntries(['hospitalInvoice', 'paymentReceipt', 'expense', 'inventoryExpense', 'salarySlip', 'doctorCommissionAccrual', 'departmentRequisition', 'accountSettlement', 'hmsPharmacySettlementRelease'].map(k => [k, { findMany: vi.fn().mockResolvedValue([]) }])) }));
 import { prisma } from '../src/db/client';
 import { managementReportsService, resolveExtendedDateRange } from '../src/modules/reports/managementReports.service';
 import { projectM01Invoice } from '../src/modules/reports/m01InvoiceProjection';
@@ -10,7 +10,7 @@ const D = (n: number) => new Decimal(n);
 const date = (day: number) => new Date(`2026-11-${day}T10:00:00+05:00`);
 const actor = { id: 'cashier', username: 'cashier', displayName: 'Cashier', role: 'FRONT_DESK_BILLING' };
 const department = { id: 'clinical', name: 'Configured Hospital Services' };
-const line = (amount = 1000, dept = department) => ({ id: 'line', createdAt: date(20), lineGross: D(amount), discountAmount: D(0), lineNet: D(amount), patientShare: D(amount), panelReceivable: D(0), quantity: D(1), rateSnapshot: D(amount), descriptionSnapshot: 'Consultation', serviceRate: { name: 'Consultation', department: dept } });
+const line = (amount = 1000, dept = department) => ({ id: 'line', createdAt: date(20), isCompleted: true, billingSource: 'HOSPITAL_SERVICE', lineGross: D(amount), discountAmount: D(0), lineNet: D(amount), patientShare: D(amount), panelReceivable: D(0), quantity: D(1), rateSnapshot: D(amount), descriptionSnapshot: 'Consultation', serviceRate: { name: 'Consultation', department: dept } });
 const receipt = (amount: number, day = 20, id = 'r1', method = 'CASH') => ({ id, receiptNumber: `REC-${id}`, amount: D(amount), collectedAt: date(day), method, collectedById: actor.id, collectedBy: actor, isReversed: false });
 const invoice = (payments = [receipt(500)]): any => ({ id: 'invoice-db-id', invoiceNumber: 'INV-26-0001', createdAt: date(20), createdById: 'creator', createdByUser: { ...actor, id: 'creator' }, status: 'PAID', subtotal: D(1000), discountTotal: D(0), total: D(1000), paidTotal: D(1000), panelReceivable: D(0), departmentId: null, department: null, doctor: { fullName: 'Actual Doctor' }, encounterType: 'OPD', sourceType: 'WALK_IN', selfPayEncounter: { fullName: 'HUZAIFA', mrNumber: 'MR-1' }, panelPatient: null, admissionRecord: null, lines: [line()], paymentReceipts: payments, panelRemittanceAllocations: [] });
 const range = (from = 20, to = from) => resolveExtendedDateRange({ preset: 'custom', fromDate: `2026-11-${from}`, toDate: `2026-11-${to}` });
@@ -22,6 +22,76 @@ beforeEach(() => {
   vi.spyOn(managementReportsService, 'getSummary').mockResolvedValue({ summary: { hospitalExpenses: D(0), salaryPaid: D(0), commissionPaid: D(0), directServiceCosts: D(0), payrollCost: D(0), doctorCommissionCost: D(0), expenses: D(0), totalOperatingCosts: D(0), hasIncompleteCost: false, missingCostCount: 0, salaryOutstanding: D(0), commissionOutstanding: D(0) } } as any);
 });
 describe('M01 consolidated reporting regressions', () => {
+  it('shows each old-invoice receipt newest first with actual received and remaining due, without new revenue', async () => {
+    const inv = invoice([receipt(200), receipt(300,21,'later-one'), receipt(100,22,'later-two')]);
+    vi.mocked(prisma.hospitalInvoice.findMany).mockResolvedValue([inv]);
+    const report = await managementReportsService.getIncomeExpenseLedger(query({fromDate:'2026-11-21',toDate:'2026-11-22'}));
+    expect(report.items.map(r => [r.reference,r.collectionsReceived,r.outstandingPayable,r.netRevenue])).toEqual([
+      ['REC-later-two',100,400,0], ['REC-later-one',300,400,0],
+    ]);
+    expect(report.items.every(r => r.transactionType === 'COLLECTION' && r.details?.invoiceId === inv.id)).toBe(true);
+    expect(report.columnTotals).toMatchObject({collectionsReceived:400,outstandingPayable:400,netRevenue:0,cashIn:400});
+    expect(report.totals.hospitalRevenue.netEarnedRevenue).toBe(0);
+    expect(report.totals.collectionsReceivables).toMatchObject({totalCollections:400,closingOutstanding:400});
+  });
+  it('keeps the original invoice updated alongside its new receipts without duplicating financial totals', async () => {
+    vi.mocked(prisma.hospitalInvoice.findMany).mockResolvedValue([invoice([receipt(200),receipt(300,21,'later'),receipt(100,22,'last')])]);
+    const report = await managementReportsService.getIncomeExpenseLedger(query({toDate:'2026-11-22'}));
+    expect(report.items).toHaveLength(3);
+    expect(report.items[0]).toMatchObject({reference:'REC-last',collectionsReceived:100,outstandingPayable:400,netRevenue:0});
+    expect(report.items.find(r => r.transactionType === 'REVENUE')).toMatchObject({collectionsReceived:600,outstandingPayable:400,netRevenue:1000});
+    expect(report.columnTotals).toMatchObject({collectionsReceived:600,outstandingPayable:400,netRevenue:1000});
+    expect(report.totals.collectionsReceivables.totalCollections).toBe(600);
+    expect(report.totals.profit.operatingProfit).toBe(1000);
+  });
+  it('does not synthesize a collection without a new receipt and does not leak future receipts', async () => {
+    vi.mocked(prisma.hospitalInvoice.findMany).mockResolvedValue([invoice([receipt(200),receipt(800,22,'future')])]);
+    const report = await managementReportsService.getIncomeExpenseLedger(query());
+    expect(report.items).toHaveLength(1);
+    expect(report.items[0]).toMatchObject({collectionsReceived:200,outstandingPayable:800});
+    const quietDay = await managementReportsService.getIncomeExpenseLedger(query({fromDate:'2026-11-21',toDate:'2026-11-21'}));
+    expect(quietDay.items).toHaveLength(0);
+    expect(quietDay.totals.collectionsReceivables.closingOutstanding).toBe(800);
+  });
+  it('retains receipt method/collector filters and shows a first payment on an older unpaid invoice', async () => {
+    const inv = invoice([receipt(300,21,'cash'),receipt(700,22,'bank','BANK')]);
+    vi.mocked(prisma.hospitalInvoice.findMany).mockResolvedValue([inv]);
+    const result = await managementReportsService.getIncomeExpenseLedger({...query({fromDate:'2026-11-21',toDate:'2026-11-22',method:'BANK'}),portalUserId:'cashier'});
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({reference:'REC-bank',collectionsReceived:700,outstandingPayable:0,status:'PAID',paymentMethod:'BANK',portalUser:'Cashier'});
+    expect(result.items[0].details?.payments).toHaveLength(2);
+    expect(result.totals.collectionsReceivables.totalCollections).toBe(1000);
+  });
+  it('keeps signed refunds and reversed receipts consistent with the existing payment history', async () => {
+    const inv = invoice([receipt(500),receipt(-200,21,'refund'),{...receipt(999,21,'void'),isReversed:true}]);
+    vi.mocked(prisma.hospitalInvoice.findMany).mockResolvedValue([inv]);
+    const report = await managementReportsService.getIncomeExpenseLedger(query({toDate:'2026-11-21'}));
+    expect(report.items).toHaveLength(2);
+    expect(report.items[0]).toMatchObject({collectionsReceived:-200,outstandingPayable:700,netRevenue:0});
+    expect(report.columnTotals).toMatchObject({collectionsReceived:300,cashIn:300,outstandingPayable:700});
+    expect(report.totals.hospitalRevenue.netEarnedRevenue).toBe(1000);
+  });
+  it('paginates new collection entries only after deduplicating totals and exports the full result', async () => {
+    const payments = [receipt(100),...Array.from({length:26},(_,i)=>receipt(10,21,`installment-${i}`))];
+    vi.mocked(prisma.hospitalInvoice.findMany).mockResolvedValue([invoice(payments)]);
+    const screen = await managementReportsService.getIncomeExpenseLedger(query({fromDate:'2026-11-21',toDate:'2026-11-21'}));
+    const exported = await managementReportsService.getIncomeExpenseLedger(query({fromDate:'2026-11-21',toDate:'2026-11-21',exportAll:'true'}));
+    expect(screen.items).toHaveLength(25); expect(screen.totalRecords).toBe(26); expect(exported.items).toHaveLength(26);
+    expect(screen.columnTotals).toMatchObject({collectionsReceived:260,outstandingPayable:640,netRevenue:0});
+    expect(screen.columnTotals).toEqual(exported.columnTotals);
+  });
+  it('reuses existing department and panel allocation for individual collection entries', async () => {
+    const inv = invoice([receipt(500),receipt(200,21,'later')]);
+    inv.lines = [line(600),{...line(400,{id:'other',name:'Other'}),id:'other-line'}];
+    const scoped = project(inv,21,21,{departmentId:'clinical'});
+    expect(scoped.collectionRows[0]).toMatchObject({collectionsReceived:120,outstandingPayable:180,netRevenue:0});
+    const panel = invoice([]); panel.lines[0].patientShare=D(0); panel.lines[0].panelReceivable=D(1000); panel.panelReceivable=D(1000);
+    panel.panelRemittanceAllocations=[{allocatedAmount:D(300),panelRemittance:{id:'panel',remittanceNumber:'PR-1',amount:D(900),receivedAt:date(21),method:'Bank Transfer',receivedById:'cashier',receivedByUser:actor}}];
+    vi.mocked(prisma.hospitalInvoice.findMany).mockResolvedValue([panel]);
+    const report=await managementReportsService.getIncomeExpenseLedger(query({fromDate:'2026-11-21',toDate:'2026-11-21'}));
+    expect(report.items[0]).toMatchObject({reference:'PR-1',collectionsReceived:300,outstandingPayable:700,cashIn:0});
+    expect(report.columnTotals).toMatchObject({collectionsReceived:300,outstandingPayable:700,netRevenue:0});
+  });
   it('A: one invoice / partial cash payment, historical status, department and detail receipt', async () => {
     vi.mocked(prisma.hospitalInvoice.findMany).mockResolvedValue([invoice()]);
     const res = await managementReportsService.getIncomeExpenseLedger(query());

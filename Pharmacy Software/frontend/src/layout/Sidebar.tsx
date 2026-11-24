@@ -1,10 +1,9 @@
 import React from 'react';
-import { LogOut, Activity, Pill, ChevronLeft, ChevronRight, PanelLeftClose } from 'lucide-react';
+import { LogOut, Pill, ChevronLeft, ChevronRight, PanelLeftClose } from 'lucide-react';
 import type { NavGroup } from './navigation';
 
 interface SidebarProps {
   groups: NavGroup[];
-  portalLabel: string;
   currentPage: string;
   onSelectPage: (id: string) => void;
   onLogout: () => void;
@@ -14,7 +13,6 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({
   groups,
-  portalLabel,
   currentPage,
   onSelectPage,
   onLogout,
@@ -66,37 +64,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
         </div>
-
-        {/* Portal Role Badge */}
-        {isOpen ? (
-          <div className="px-3.5 pt-3 pb-2 shrink-0">
-            <div className="px-2.5 py-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/80 flex items-center justify-between">
-              <div className="flex items-center gap-2 truncate">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                </span>
-                <span className="text-[10px] font-semibold text-emerald-800 tracking-wide uppercase truncate">
-                  {portalLabel}
-                </span>
-              </div>
-              <Activity className="h-3 w-3 text-emerald-600 shrink-0" />
-            </div>
-          </div>
-        ) : (
-          <div className="px-2 pt-3 pb-2 shrink-0 flex justify-center">
-            <div
-              title={`Role: ${portalLabel}`}
-              className="w-10 h-10 rounded-xl bg-emerald-50/70 border border-emerald-100/80 flex items-center justify-center relative cursor-default"
-            >
-              <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              <Activity className="h-4 w-4 text-emerald-600 shrink-0" />
-            </div>
-          </div>
-        )}
 
         {/* Navigation Groups */}
         <nav className={`flex-1 overflow-y-auto py-3 space-y-3 ${isOpen ? 'px-3' : 'px-2'}`}>

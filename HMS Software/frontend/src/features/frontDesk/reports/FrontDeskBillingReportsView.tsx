@@ -209,6 +209,17 @@ export const FrontDeskBillingReportsView: React.FC = () => {
       });
     });
 
+    if (report.billing.byCategory) {
+      Object.values(report.billing.byCategory).forEach((cat) => {
+        rows.push({
+          category: 'Service Categories',
+          metric: cat.category,
+          detail: `${cat.invoiceCount} invoices | Paid: ${formatPKR(cat.paid)} | Due: ${formatPKR(cat.outstanding)}`,
+          amountOrCount: formatPKR(cat.net),
+        });
+      });
+    }
+
     return rows;
   }, [report, totalGross, totalDiscounts, totalNet, totalCollections, totalRefunds, netIntake, totalOutstanding, discountRate]);
 
@@ -241,6 +252,13 @@ export const FrontDeskBillingReportsView: React.FC = () => {
   ];
 
   const statusEntries = report ? Object.entries(report.billing.invoiceCountsByStatus) : [];
+  const categoryEntries = report?.billing.byCategory ? Object.values(report.billing.byCategory) : [];
+  const catTotalInvoices = categoryEntries.reduce((s, c) => s + c.invoiceCount, 0);
+  const catTotalGross = categoryEntries.reduce((s, c) => s + c.gross, 0);
+  const catTotalDiscounts = categoryEntries.reduce((s, c) => s + c.discounts, 0);
+  const catTotalNet = categoryEntries.reduce((s, c) => s + c.net, 0);
+  const catTotalPaid = categoryEntries.reduce((s, c) => s + c.paid, 0);
+  const catTotalOutstanding = categoryEntries.reduce((s, c) => s + c.outstanding, 0);
 
   return (
     <div className="space-y-4 animate-in fade-in duration-150">
@@ -349,7 +367,53 @@ export const FrontDeskBillingReportsView: React.FC = () => {
             ))}
           </ReportTable>
 
-          {/* 2. Collections by payment method */}
+          {/* 2. Billing by Service / Encounter Category */}
+          {categoryEntries.length > 0 && (
+            <ReportTable
+              title="Billing by Service / Encounter Category"
+              note="OPD, Observation, Emergency, Admission & Custom Billing"
+              head={
+                <>
+                  <th className={TH}>Category</th>
+                  <th className={`${TH} text-center`}>Invoices</th>
+                  <th className={`${TH} text-right`}>Gross (PKR)</th>
+                  <th className={`${TH} text-right`}>Discount (PKR)</th>
+                  <th className={`${TH} text-right`}>Net Billed (PKR)</th>
+                  <th className={`${TH} text-right`}>Collected (PKR)</th>
+                  <th className={`${TH} text-right`}>Outstanding (PKR)</th>
+                </>
+              }
+              foot={
+                <>
+                  <td className="py-3 px-3 text-center border-r border-slate-300 text-[11px] uppercase tracking-wider text-slate-600">Total</td>
+                  <td className={`${TD} font-bold text-slate-900`}>Total All Categories</td>
+                  <td className={`${TD} text-center tabular-nums font-bold`}>{catTotalInvoices}</td>
+                  <td className={`${TD} text-right tabular-nums font-bold`}>{formatPKR(catTotalGross)}</td>
+                  <td className={`${TD} text-right tabular-nums font-bold text-amber-700`}>{formatPKR(catTotalDiscounts)}</td>
+                  <td className={`${TD} text-right tabular-nums font-bold text-slate-900`}>{formatPKR(catTotalNet)}</td>
+                  <td className={`${TD} text-right tabular-nums font-bold text-emerald-700`}>{formatPKR(catTotalPaid)}</td>
+                  <td className={`${TD} text-right tabular-nums font-bold text-rose-700`}>{formatPKR(catTotalOutstanding)}</td>
+                </>
+              }
+            >
+              {categoryEntries.map((cat, i) => (
+                <tr key={cat.category} className={ROW}>
+                  <td className={TD_NUM}>{i + 1}</td>
+                  <td className={`${TD} font-semibold text-slate-900`}>{cat.category}</td>
+                  <td className={`${TD} text-center tabular-nums text-slate-700`}>{cat.invoiceCount}</td>
+                  <td className={`${TD} text-right tabular-nums text-slate-700`}>{formatPKR(cat.gross)}</td>
+                  <td className={`${TD} text-right tabular-nums text-amber-700`}>{cat.discounts > 0 ? formatPKR(cat.discounts) : '—'}</td>
+                  <td className={`${TD} text-right tabular-nums font-bold text-slate-900`}>{formatPKR(cat.net)}</td>
+                  <td className={`${TD} text-right tabular-nums font-semibold text-emerald-700`}>{formatPKR(cat.paid)}</td>
+                  <td className={`${TD} text-right tabular-nums font-semibold ${cat.outstanding > 0 ? 'text-rose-700' : 'text-slate-500'}`}>
+                    {cat.outstanding > 0 ? formatPKR(cat.outstanding) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </ReportTable>
+          )}
+
+          {/* 3. Collections by payment method */}
           <ReportTable
             title="Collections by Payment Method"
             note={`${collectionRate}% of net billed collected`}

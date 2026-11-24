@@ -6,6 +6,7 @@ const db = vi.hoisted(() => ({
   inventoryExpense: { aggregate: vi.fn() }, userCashBalance: { aggregate: vi.fn() },
   admissionRecord: { groupBy: vi.fn().mockResolvedValue([]) }, bed: { count: vi.fn().mockResolvedValue(0) },
   accountSettlement: { count: vi.fn().mockResolvedValue(0) },
+  departmentRequisition: { findMany: vi.fn().mockResolvedValue([]) },
 }));
 const costs = vi.hoisted(() => ({ totalBetween: vi.fn(), staff: vi.fn() }));
 vi.mock('@/db/client', () => ({ prisma: db }));
@@ -17,10 +18,10 @@ const jan = { preset: 'custom' as const, fromDate: '2026-01-01', toDate: '2026-0
 const feb = { preset: 'custom' as const, fromDate: '2026-02-01', toDate: '2026-02-28' };
 let invoices: any[], receipts: any[];
 function invoice(total: number, lines?: any[]) {
-  const row = { id: String(invoices.length), createdAt: new Date('2026-01-10T12:00:00Z'),
+  const row = { id: String(invoices.length), status: 'UNPAID', createdAt: new Date('2026-01-10T12:00:00Z'),
     departmentId: null, department: null, subtotal: d(total), discountTotal: d(0), total: d(total), paidTotal: d(0),
     panelReceivable: d(0), panelRemittanceAllocations: [],
-    lines: lines ?? [{ lineGross: d(total), discountAmount: d(0), lineNet: d(total), patientShare: d(total), panelReceivable: d(0), serviceRate: null }] };
+    lines: (lines ?? [{ lineGross: d(total), discountAmount: d(0), lineNet: d(total), patientShare: d(total), panelReceivable: d(0), serviceRate: null }]).map(l => ({ createdAt: new Date('2026-01-10T12:00:00Z'), isCompleted: true, billingSource: 'HOSPITAL_SERVICE', ...l })) };
   invoices.push(row); return row;
 }
 function pay(i: any, amount: number, date = '2026-01-15T12:00:00Z', method = 'CASH', reversed = amount < 0) {
@@ -45,21 +46,21 @@ beforeEach(() => {
     r.collectedAt >= where.collectedAt.gte && r.collectedAt <= where.collectedAt.lte &&
     (!where.method || where.method === r.method) && (!r.isReversed || r.amount.lt(0))));
 });
-it('recognizes 1500 collected on 2000 billed, then only 500 next month; historical debt survives later payment', async () => {
+it('keeps 2000 earned separate from 1500 collected, then collects 500 next month without rebooking earnings', async () => {
   pay(invoice(1000), 1000); const partial = invoice(1000); pay(partial, 500);
   pay(partial, 500, '2026-02-10T12:00:00Z');
   const a = await managementReportsService.getSummary(jan);
-  expect([a.summary.totalBilling, a.summary.collections, a.summary.collectedIncome, a.summary.outstanding, a.summary.operatingResult].map(Number)).toEqual([2000,1500,1500,500,1500]);
+  expect([a.summary.totalBilling, a.summary.collections, a.summary.collectedIncome, a.summary.outstanding, a.summary.operatingResult].map(Number)).toEqual([2000,1500,1500,500,2000]);
   expect(a.rows.map(r => r.department)).toEqual(['General Hospital Services']);
   expect(Number(a.rows[0].collected)).toBe(1500);
   const b = await managementReportsService.getSummary(feb);
-  expect([b.summary.totalBilling,b.summary.collectedIncome,b.summary.outstanding,b.summary.operatingResult].map(Number)).toEqual([0,500,0,500]);
+  expect([b.summary.totalBilling,b.summary.collectedIncome,b.summary.outstanding,b.summary.operatingResult].map(Number)).toEqual([0,500,0,0]);
   const register = await managementReportsService.getOutstandingPanel(jan);
   expect(register.rows.map(r => Number(r.due))).toEqual([500]);
 });
-it('never recognizes an unpaid 5000 invoice as income', async () => {
+it('recognizes completed services independently of payment and preserves unpaid debt', async () => {
   invoice(5000); const r = await managementReportsService.getSummary(jan);
-  expect(Number(r.summary.collectedIncome)).toBe(0); expect(Number(r.summary.operatingResult)).toBe(0);
+  expect(Number(r.summary.collectedIncome)).toBe(0); expect(Number(r.summary.operatingResult)).toBe(5000);
   expect(Number(r.summary.outstanding)).toBe(5000);
 });
 it('counts vouchers and approved staff costs once, excluding cash mirrors and inventory purchases', async () => {

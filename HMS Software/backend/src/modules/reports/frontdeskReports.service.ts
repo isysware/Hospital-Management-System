@@ -41,19 +41,35 @@ export const frontdeskReportsService = {
   async getEncounterRegister(query: EncounterRegisterQuery) {
     const { start, end, label } = resolveDateRange(query);
     const where: Prisma.HospitalInvoiceWhereInput = {
-      sourceType: { not: 'ADMISSION' },
       createdAt: { gte: start, lte: end },
       ...(query.departmentId
         ? {
             OR: [
               { departmentId: query.departmentId },
               { lines: { some: { serviceRate: { departmentId: query.departmentId } } } },
+              { admissionRecord: { departmentId: query.departmentId } },
             ],
           }
         : {}),
-      ...(query.encounterType ? { encounterType: query.encounterType } : {}),
+      ...(query.encounterType === 'ADMISSION'
+        ? { sourceType: 'ADMISSION' as const }
+        : query.encounterType
+          ? {
+              OR: [
+                { encounterType: query.encounterType },
+                ...(query.encounterType === 'OPD' ? [{ sourceType: 'APPOINTMENT' as const }] : []),
+              ],
+            }
+          : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.doctorStaffId ? { appointment: { doctorStaffId: query.doctorStaffId } } : {}),
+      ...(query.doctorStaffId
+        ? {
+            OR: [
+              { appointment: { doctorStaffId: query.doctorStaffId } },
+              { admissionRecord: { doctorStaffId: query.doctorStaffId } },
+            ],
+          }
+        : {}),
     };
 
     const rows = await prisma.hospitalInvoice.findMany({
@@ -63,6 +79,7 @@ export const frontdeskReportsService = {
         department: { select: { id: true, name: true } },
         lines: { select: { serviceRate: { select: { department: { select: { id: true, name: true } } } } } },
         appointment: { select: { doctor: { select: { id: true, fullName: true } } } },
+        admissionRecord: { select: { admissionNumber: true, department: { select: { id: true, name: true } }, doctor: { select: { id: true, fullName: true } } } },
         createdByUser: { select: userSummarySelect },
       },
       orderBy: { createdAt: 'desc' },
@@ -75,11 +92,13 @@ export const frontdeskReportsService = {
       rows: rows.map((r) => {
         const depts = Array.from(
           new Set(
-            [r.department?.name, ...r.lines.map((l) => l.serviceRate?.department?.name)].filter(
+            [r.department?.name, r.admissionRecord?.department?.name, ...r.lines.map((l) => l.serviceRate?.department?.name)].filter(
               (name): name is string => Boolean(name),
             ),
           ),
         );
+        const doctorName = r.appointment?.doctor?.fullName || r.admissionRecord?.doctor?.fullName || null;
+        const visitLabel = r.sourceType === 'ADMISSION' ? 'Admission' : (r.encounterType ?? (r.sourceType === 'APPOINTMENT' ? 'OPD' : r.sourceType));
         return {
           invoiceNumber: r.invoiceNumber,
           occurredAt: r.createdAt,
@@ -90,9 +109,9 @@ export const frontdeskReportsService = {
             : depts.length > 0
               ? depts.join(', ')
               : 'Hospital Department',
-          doctor: r.appointment?.doctor?.fullName ?? null,
-          visitType: r.sourceType,
-          encounterType: r.encounterType,
+          doctor: doctorName,
+          visitType: visitLabel,
+          encounterType: r.encounterType || (r.sourceType === 'ADMISSION' ? 'ADMISSION' : 'OPD'),
           status: r.status,
           createdBy: r.createdByUser?.displayName || r.createdByUser?.username || null,
         };
@@ -278,12 +297,21 @@ export const frontdeskReportsService = {
     const rows = invoices.map(invoiceAsOf).map(r => {
       const scoped = (amount: Decimal, basis: 'lineNet' | 'patientShare' | 'panelReceivable') => !deptId ? amount :
         allocateInvoiceAmount(amount, r, basis).filter(a => a.departmentId === deptId).reduce((s, a) => s.plus(a.amount), new Decimal(0));
+      const ageInDays = Math.max(0, Math.floor((end.getTime() - r.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
+      let aging = 'Current (0 d)';
+      if (ageInDays >= 1 && ageInDays <= 30) aging = '1-30 Days';
+      else if (ageInDays >= 31 && ageInDays <= 60) aging = '31-60 Days';
+      else if (ageInDays >= 61 && ageInDays <= 90) aging = '61-90 Days';
+      else if (ageInDays > 90) aging = '90+ Days';
+
       return {
         id: r.id, invoiceNumber: r.invoiceNumber, createdAt: r.createdAt, patient: patientDisplayName(r),
         department: (deptId ? r.lines.find(l => l.serviceRate?.department?.id === deptId)?.serviceRate?.department?.name : undefined) ?? r.department?.name ?? 'Hospital Department',
+        gross: scoped(r.subtotal, 'lineNet'),
         net: scoped(r.total, 'lineNet'), paid: scoped(r.paidTotal, 'patientShare').plus(scoped(r.balance.panelPaid, 'panelReceivable')),
         outstanding: scoped(r.balance.patientDue, 'patientShare').plus(scoped(r.balance.panelDue, 'panelReceivable')),
         lastPaymentAt: r.paymentReceipts.reduce<Date | null>((latest, p) => !latest || p.collectedAt > latest ? p.collectedAt : latest, null),
+        aging,
         payer: r.corporatePanelId ? 'Panel' : 'Self-Pay', createdBy: r.createdByUser?.displayName || r.createdByUser?.username || null,
         status: r.status,
       };

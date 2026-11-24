@@ -178,6 +178,9 @@ export const setupController = {
   deactivateOutsourcedProvider: async (req: Request, res: Response) => {
     res.json({ data: await setupService.deactivateOutsourcedProvider(req.params.id as string, actorId(req)) });
   },
+  deleteOutsourcedProvider: async (req: Request, res: Response) => {
+    res.json({ data: await setupService.deleteOutsourcedProvider(req.params.id as string) });
+  },
 
   // High-Cost Medicine Policy
   getHighCostMedicinePolicy: async (_req: Request, res: Response) => {

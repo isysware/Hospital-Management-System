@@ -4,6 +4,7 @@ import { departmentCollectionLedger } from '@/shared/departmentCollections';
 import { isCoreEncounterService, serviceSelectionWhere, validateServiceMaster, type ServiceFilters } from '@/shared/serviceClassification';
 import { resolveDateRange } from '@/modules/reports/dashboard.service';
 import { Prisma } from '@prisma/client';
+import { financialDepartmentSelect, hospitalServiceDepartment } from '@/shared/hospitalRevenueRecognition';
 import { prisma } from '@/db/client';
 import { NotFoundError, ConflictError, ValidationError } from '@/shared/errors/AppError';
 import { actorSelect, resolveActorLabel, formatActorFromRelation, type ActorRelation } from '@/shared/actorLabel';
@@ -1546,6 +1547,60 @@ export const setupService = {
     return this.decorateOutsourcedProviders([updated as any])[0];
   },
 
+  async deleteOutsourcedProvider(id: string) {
+    const provider = await this.assertExists('outsourcedProvider', id);
+
+    // 1. Check if there are settlements
+    const settlementCount = await prisma.providerSettlement.count({
+      where: { outsourcedProviderId: id },
+    });
+    if (settlementCount > 0) {
+      throw new ValidationError(
+        `Cannot delete outsourced department "${(provider as any).name}" because it has ${settlementCount} recorded provider settlement(s). Please deactivate it instead to preserve financial audit history.`
+      );
+    }
+
+    // 2. Find linked departments
+    const linkedDepts = await prisma.department.findMany({
+      where: { outsourcedProviderId: id },
+      select: { id: true, name: true },
+    });
+
+    // 3. Check if there are invoices or line items linked
+    for (const d of linkedDepts) {
+      const invCount = await prisma.hospitalInvoice.count({
+        where: { departmentId: d.id },
+      });
+      const lineCount = await prisma.invoiceLineItem.count({
+        where: { serviceRate: { departmentId: d.id } },
+      });
+      if (invCount > 0 || lineCount > 0) {
+        throw new ValidationError(
+          `Cannot delete outsourced department "${(provider as any).name}" because department "${d.name}" has ${invCount} invoice(s) and ${lineCount} billed service(s). Please deactivate it instead to preserve financial records.`
+        );
+      }
+    }
+
+    // 4. Safely delete within transaction
+    await prisma.$transaction(async (tx) => {
+      const deptIds = linkedDepts.map((d) => d.id);
+      if (deptIds.length > 0) {
+        await tx.serviceRate.deleteMany({
+          where: { departmentId: { in: deptIds } },
+        });
+        await tx.department.deleteMany({
+          where: { id: { in: deptIds } },
+        });
+      }
+
+      await tx.outsourcedProvider.delete({
+        where: { id },
+      });
+    });
+
+    return { success: true, message: `Outsourced department "${(provider as any).name}" deleted successfully.` };
+  },
+
   // ── High-Cost Medicine Policy (HMS_V7.2_NEW_REQUIREMENTS.md §2.6) ────
   // Singleton, same get-or-create pattern as Hospital Profile.
   async getHighCostMedicinePolicy() {
@@ -1704,6 +1759,7 @@ export const setupService = {
 
     const invoiceLines = await prisma.invoiceLineItem.findMany({
       where: {
+        billingSource: { not: 'PHARMACY' },
         hospitalInvoice: {
           status: { not: 'VOID' },
           createdAt: { gte: start, lte: end },
@@ -1711,6 +1767,7 @@ export const setupService = {
       },
       select: {
         id: true,
+        billingSource: true,
         lineGross: true,
         discountAmount: true,
         lineNet: true,
@@ -1718,12 +1775,17 @@ export const setupService = {
         serviceRate: {
           select: {
             departmentId: true,
+            providerType: true,
+            department: { select: financialDepartmentSelect },
           },
         },
         hospitalInvoice: {
           select: {
             id: true,
             departmentId: true,
+            department: { select: financialDepartmentSelect },
+            appointment: { select: { department: { select: financialDepartmentSelect } } },
+            admissionRecord: { select: { department: { select: financialDepartmentSelect } } },
             total: true,
             paidTotal: true,
           },
@@ -1744,13 +1806,7 @@ export const setupService = {
     });
 
     const summaryRows = departments.map((d) => {
-      const matchingLines = invoiceLines.filter((l) => {
-        const lineDeptId = l.serviceRate?.departmentId;
-        if (lineDeptId) {
-          return lineDeptId === d.id;
-        }
-        return l.hospitalInvoice.departmentId === d.id;
-      });
+      const matchingLines = invoiceLines.filter(l => hospitalServiceDepartment(l, l.hospitalInvoice)?.id === d.id);
 
       const invoicesSet = new Set<string>();
       let periodGross = 0;

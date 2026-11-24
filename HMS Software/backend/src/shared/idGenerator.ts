@@ -175,13 +175,13 @@ export function getQueuePrefix(encounterType: string): string | null {
   if (norm === 'OPD') return 'OPD-';
   if (norm === 'EMERGENCY' || norm === 'ER') return 'ER-';
   if (norm === 'OBSERVATION' || norm === 'OBS') return 'OBS-';
-  if (norm === 'CUSTOM') return 'OPD-';
+  // Custom billing, IPD, and unsupported encounter types do not get queue tokens
   return null;
 }
 
 export function getNormalizedEncounterType(encounterType: string): 'OPD' | 'EMERGENCY' | 'OBSERVATION' | null {
   const norm = String(encounterType || '').toUpperCase();
-  if (norm === 'OPD' || norm === 'CUSTOM') return 'OPD';
+  if (norm === 'OPD') return 'OPD';
   if (norm === 'EMERGENCY' || norm === 'ER') return 'EMERGENCY';
   if (norm === 'OBSERVATION' || norm === 'OBS') return 'OBSERVATION';
   return null;

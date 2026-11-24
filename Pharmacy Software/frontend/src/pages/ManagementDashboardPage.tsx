@@ -291,10 +291,6 @@ export const ManagementDashboardPage: React.FC<Props> = ({ onNavigate }) => {
       {/* ═════════════════════════════════════════════════════════════════════
           2. SIX KEY METRIC CARDS (Matches Reference Photo 1)
           ═════════════════════════════════════════════════════════════════════ */}
-      <div className="p-3 bg-emerald-50 rounded-lg text-sm">
-        <p>Gross/Net billing remains separate from revenue. Today's collections: {formatPKR(data.collectionsToday)} | Outstanding: {formatPKR(data.outstanding)}.</p>
-        {data.incompleteInvoices > 0 && <p role="alert">{data.incompleteInvoices} invoices have incomplete financial history. Revenue shows verified amounts only; profit is unavailable until reconciled.</p>}
-      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {/* Card 1: Total Revenue (Blue top accent) */}
         <div

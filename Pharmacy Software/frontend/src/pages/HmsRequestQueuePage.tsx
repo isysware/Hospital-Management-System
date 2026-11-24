@@ -434,7 +434,7 @@ const SettingsModal: React.FC<{ settings: any; onClose: () => void; onSaved: (s:
             <label className="block text-[11px] font-semibold text-[#52665e] mb-1">Threshold (PKR)</label>
             <input type="number" disabled={!enabled} value={threshold} onChange={(e) => setThreshold(e.target.value)} className="w-full h-9 px-3 text-sm border border-[#e2eae5] rounded-lg disabled:bg-slate-50" />
           </div>
-          <p className="text-[10.5px] text-[#94a3b8]">pharmacy.md §7.3 — a request at/above this value is blocked from dispensing until an Admin/Super Admin approves it.</p>
+          <p className="text-[10.5px] text-[#94a3b8]">A request at or above this value is blocked from dispensing until an Admin or Super Admin approves it.</p>
           <button onClick={handleSave} disabled={saving} className="w-full h-9 text-xs font-semibold text-white bg-[#129b70] hover:bg-[#0e7d5a] rounded-lg disabled:opacity-60">{saving ? 'Saving…' : 'Save Settings'}</button>
         </div>
       </div>
@@ -489,7 +489,6 @@ const CreateRequestModal: React.FC<{ onClose: () => void; onCreated: () => void 
           <button onClick={onClose}><X className="h-4 w-4 text-[#94a3b8]" /></button>
         </div>
         <div className="p-5 space-y-3 overflow-y-auto">
-          <p className="text-[10.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">Stand-in for the future live HMS submission (pharmacy.md §15) — same shape either way.</p>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Admission Ref *"><input value={admissionRef} onChange={(e) => setAdmissionRef(e.target.value)} placeholder="e.g. A-102" className="input" /></Field>
             <Field label="Urgency">

@@ -83,6 +83,18 @@ export const PharmacySettlementsView: React.FC = () => {
     setPaymentReference('');
     setRemarks('');
     setFormError(null);
+    const saved = localStorage.getItem('pharmacy-release:' + row.id);
+    if (saved) {
+      try {
+        const draft = JSON.parse(saved);
+        setReleaseAmount(draft.releasedAmount);
+        setPaymentMethod(draft.paymentMethod);
+        setPaymentReference(draft.paymentReference || '');
+        setRemarks(draft.remarks || '');
+      } catch {
+        setFormError('Pending payment identity could not be read. Reconcile its status before paying again.');
+      }
+    }
   };
 
   const handleRelease = async (e: React.FormEvent) => {
@@ -92,24 +104,39 @@ export const PharmacySettlementsView: React.FC = () => {
       setFormError('Enter a valid amount to release.');
       return;
     }
-    if (releaseAmount > activeRow.remainingAmount) {
+    if (releaseAmount > activeRow.remainingAmount && !localStorage.getItem('pharmacy-release:' + activeRow.id)) {
       setFormError(`Cannot release more than the remaining amount (${formatPKR(activeRow.remainingAmount)}).`);
       return;
     }
     setIsSaving(true);
     setFormError(null);
     try {
-      await releasePharmacySettlement(activeRow.id, {
+      const storageKey = 'pharmacy-release:' + activeRow.id;
+      const saved = localStorage.getItem(storageKey);
+      const values = {
+        idempotencyKey: saved ? JSON.parse(saved).idempotencyKey : crypto.randomUUID(),
         releasedAmount: releaseAmount,
         paymentMethod,
         paymentReference: paymentReference.trim() || undefined,
         remarks: remarks.trim() || undefined,
-      });
+      };
+      if (saved && JSON.stringify(values) !== saved) {
+        throw new Error('Retry the original payment details first. A pending payment must be reconciled before changing its amount or method.');
+      }
+      localStorage.setItem(storageKey, JSON.stringify(values));
+      const result = await releasePharmacySettlement(activeRow.id, values);
+      localStorage.removeItem(storageKey);
+      if (result.bridgeStatus === 'RECONCILIATION_REQUIRED') {
+        toast.error('Payment recorded in HMS. Pharmacy acknowledgement requires reconciliation; do not pay again.', 'Pharmacy Sync');
+      }
       toast.success(`Released ${formatPKR(releaseAmount)} to Pharmacy for ${activeRow.pharmacyInvoiceNumber}.`);
       setActiveRow(null);
       await load();
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || err?.message || 'Failed to release settlement.';
+      if (err?.response?.data?.error?.details?.paymentNotPosted === true) {
+        localStorage.removeItem('pharmacy-release:' + activeRow.id);
+      }
       setFormError(msg);
       toast.error(msg, 'Release Failed');
     } finally {
@@ -240,6 +267,7 @@ export const PharmacySettlementsView: React.FC = () => {
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${STATUS_STYLE[s.status] || ''}`}>
                       {s.status.replace('_', ' ')}
                     </span>
+                    {s.reconciliationRequired && <div className="text-[11px] text-amber-800 mt-1">Reconciliation required</div>}
                   </td>
                   <td className="py-2.5 px-4 text-[11px] text-slate-500">{s.requestedAt}</td>
                   <td className="py-2.5 px-4 text-center">

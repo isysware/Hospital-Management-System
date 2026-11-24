@@ -5,6 +5,7 @@ import { prisma } from '@/db/client';
 import { NotFoundError, ValidationError, BusinessRuleError, AuthorizationError } from '@/shared/errors/AppError';
 import { resolveDateRange } from '@/modules/reports/dashboard.service';
 import { resolveCashModuleScope } from './moduleScope.util';
+import { notificationsService } from '@/modules/notifications/notifications.service';
 import type {
   ListBalanceSheetsQuery,
   ListSettlementsQuery,
@@ -265,7 +266,7 @@ export const financeControlService = {
 
     const newStatus = REVIEW_ACTION_TO_STATUS[body.action];
 
-    return prisma.$transaction(async (tx) => {
+    const reviewed = await prisma.$transaction(async (tx) => {
       await lockMainFund(tx);
       const current = await tx.accountSettlement.findUnique({ where: { id } });
       if (current?.status !== 'SUBMITTED') throw new BusinessRuleError('Only a submitted settlement can be reviewed.');
@@ -361,6 +362,53 @@ export const financeControlService = {
 
       return reviewed;
     });
+
+    try {
+      // Auto mark pending review notifications for this settlement as read for this reviewer
+      await prisma.hospitalNotification.updateMany({
+        where: { referenceId: id, recipientUserId: reviewerPortalUserId },
+        data: { isRead: true },
+      });
+
+      const submitterRole = settlement.submittedByUser.role;
+      const targetPortal = submitterRole === 'FRONT_DESK_BILLING' || settlement.moduleScope === 'BILLING' ? 'front-desk' : submitterRole === 'ADMIN' ? 'admin' : 'super-admin';
+      const returnedAmount = reviewed.handoverAmount ?? reviewed.physicalCash;
+      const amountStr = Number(returnedAmount).toLocaleString('en-PK', { maximumFractionDigits: 0 });
+      const reviewerName = reviewerUser.displayName || reviewerUser.username;
+
+      if (newStatus === 'ACCEPTED' || newStatus === 'PARTIALLY_ACCEPTED') {
+        await notificationsService.createNotification({
+          title: `Settlement ${newStatus === 'ACCEPTED' ? 'Accepted' : 'Partially Accepted'}`,
+          message: `Your shift settlement of Rs. ${amountStr} has been accepted by ${reviewerName}.`,
+          type: 'success',
+          module: 'Finance',
+          targetPortal,
+          actionUrl: '/front-desk/my_account_settlement',
+          referenceId: reviewed.id,
+          createdById: reviewerPortalUserId,
+          recipientUserId: settlement.portalUserId,
+          isBroadcast: false,
+        });
+      } else if (newStatus === 'RETURNED' || newStatus === 'REJECTED') {
+        await notificationsService.createNotification({
+          title: `Settlement ${newStatus === 'RETURNED' ? 'Returned' : 'Rejected'}`,
+          message: `Your shift settlement of Rs. ${amountStr} was returned by ${reviewerName}. Remarks: ${body.remarks || 'Please recount cash and resubmit.'}`,
+          type: 'warning',
+          module: 'Finance',
+          targetPortal,
+          actionUrl: '/front-desk/my_account_settlement',
+          referenceId: reviewed.id,
+          createdById: reviewerPortalUserId,
+          recipientUserId: settlement.portalUserId,
+          isBroadcast: false,
+        });
+      }
+    } catch (notifErr) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to dispatch settlement review notification:', notifErr);
+    }
+
+    return reviewed;
   },
 
   /**

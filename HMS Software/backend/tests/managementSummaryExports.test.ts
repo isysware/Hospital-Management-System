@@ -19,7 +19,7 @@ import { fetchManagementSummary, type SummaryRecord } from '../../frontend/src/s
 import { downloadTablePDF, downloadTableExcel, downloadTableCSV, printTable } from '../../frontend/src/services/tableExportService';
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 it('passes identical backend financial values to PDF, Excel, CSV and Print adapters', async () => {
-  api.get.mockResolvedValue({data:{data:{period:{label:'January'},rows:[],summary:{grossBilling:'2000',totalBilling:'2000',collections:'1500',collectedIncome:'1500',outstanding:'500',totalOperatingCosts:'0',operatingResult:'1500'}}}});
+  api.get.mockResolvedValue({data:{data:{period:{label:'November'},rows:[],summary:{grossBilling:'4500',totalBilling:'4500',netEarnedRevenue:'2500',collections:'4500',collectedIncome:'4500',outstanding:'0',totalOperatingCosts:'0',operatingResult:'2500'}}}});
   const {rows}=await fetchManagementSummary({preset:'today'});
   const request={documentTitle:'Management Summary',filenamePrefix:'Management',currentUser:null,rows,columns:[
     {header:'Metric',cell:(r:SummaryRecord)=>r.metric},
@@ -36,5 +36,7 @@ it('passes identical backend financial values to PDF, Excel, CSV and Print adapt
   expect(captured.sheets.mock.calls[2][0]).toEqual(spreadsheetRows);
   const html=captured.html.mock.calls[0][0];
   for(const [metric,value] of expected) expect(html).toContain(`>${metric}</td><td style="text-align:left">${value}</td>`);
-  expect(rows.find(r=>r.metric==='Collection-Based Operating Profit / Loss')?.value).toBe(1500);
+  expect(rows.find(r=>r.metric==='Net Patient Billing (All Streams)')?.value).toBe(4500);
+  expect(rows.find(r=>r.metric==='Net Earned Hospital Revenue')?.value).toBe(2500);
+  expect(rows.find(r=>r.metric==='Operating Profit / (Loss) [Accrual]')?.value).toBe(2500);
 });

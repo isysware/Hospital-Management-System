@@ -3,9 +3,7 @@ import { formatDisplayDate, getHospitalCurrentDate } from '../../utils/dateConst
 
 const CURRENT_OPERATIONAL_DATE = formatDisplayDate(getHospitalCurrentDate());
 
-// ==========================================
-// 1. DEPARTMENTS SCHEMA & DATA
-// ==========================================
+// Departments schema & data
 export interface DepartmentRecord {
   id: string;
   code: string;
@@ -153,9 +151,7 @@ export const MOCK_DEPARTMENTS: DepartmentRecord[] = [
   },
 ];
 
-// ==========================================
-// 2. SERVICES & RATES SCHEMA & DATA
-// ==========================================
+// Services & rates schema & data
 export interface ServiceRateRecord {
   id: string;
   code: string;
@@ -316,9 +312,7 @@ export const MOCK_SERVICES_RATES: ServiceRateRecord[] = [
   },
 ];
 
-// ==========================================
-// 3. WARDS, ROOMS & BEDS SCHEMA & DATA
-// ==========================================
+// Wards, rooms & beds schema & data
 export interface BedRecord {
   id: string;
   bedNumber: string;
@@ -482,9 +476,7 @@ export const MOCK_WARDS: WardRecord[] = [
   { id: 'WD-05', code: 'WD-PED', name: 'Pediatrics & NICU Ward', floor: '1st Floor, Wing B', totalBeds: 30, occupiedBeds: 22, inchargeNurse: 'Sister Parveen Bibi', dailyCharge: 5000, status: 'Active' },
 ];
 
-// ==========================================
-// 4. ADMIN USERS SCHEMA & DATA
-// ==========================================
+// Admin users schema & data
 export interface AdminUserRecord {
   id: string;
   name: string;
@@ -549,9 +541,7 @@ export const MOCK_ADMIN_USERS: AdminUserRecord[] = [
   },
 ];
 
-// ==========================================
-// 5. STAFF USERS SCHEMA & DATA
-// ==========================================
+// Staff users schema & data
 export interface StaffUserRecord {
   id: string;
   staffId: string;
@@ -640,9 +630,7 @@ export const MOCK_STAFF_USERS: StaffUserRecord[] = [
   },
 ];
 
-// ==========================================
-// 6. ROLES & PERMISSIONS SCHEMA & DATA
-// ==========================================
+// Roles & permissions schema & data
 export interface RoleRecord {
   id: string;
   roleCode: string;
@@ -717,9 +705,7 @@ export const MOCK_ROLES: RoleRecord[] = [
   },
 ];
 
-// ==========================================
-// 7. LOGIN ACTIVITY SCHEMA & DATA
-// ==========================================
+// Login activity schema & data
 export interface LoginActivityRecord {
   id: string;
   sessionId: string;
@@ -808,9 +794,7 @@ export const MOCK_LOGIN_ACTIVITY: LoginActivityRecord[] = [
   },
 ];
 
-// ==========================================
-// 8. AUDIT LOGS SCHEMA & DATA
-// ==========================================
+// Audit logs schema & data
 export interface AuditLogRecord {
   id: string;
   auditId: string;
@@ -881,9 +865,7 @@ export const MOCK_AUDIT_LOGS: AuditLogRecord[] = [
   },
 ];
 
-// ==========================================
-// 9. CORPORATE PANELS SCHEMA & DATA
-// ==========================================
+// Corporate panels schema & data
 export interface CorporatePanelRecord {
   id: string;
   code: string;
@@ -954,9 +936,7 @@ export const MOCK_CORPORATE_PANELS: CorporatePanelRecord[] = [
   },
 ];
 
-// ==========================================
-// 10. PANEL PATIENTS SCHEMA & DATA
-// ==========================================
+// Panel patients schema & data
 export interface PanelPatientRecord {
   id: string;
   mrn: string;

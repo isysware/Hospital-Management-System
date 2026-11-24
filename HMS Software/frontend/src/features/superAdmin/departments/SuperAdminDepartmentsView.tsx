@@ -214,7 +214,6 @@ export const SuperAdminDepartmentsView: React.FC = () => {
         if (!mCode && !mName && !mHead) return false;
       }
 
-      // Type
       if (filters.type !== 'All' && dept.type !== filters.type) {
         return false;
       }
@@ -272,7 +271,6 @@ export const SuperAdminDepartmentsView: React.FC = () => {
     return filteredDepartments.slice(startIndex, startIndex + pageSize);
   }, [filteredDepartments, currentPage, pageSize]);
 
-  // Handlers
   const handleResetFilters = () => {
     setFilters({
       searchTerm: '',

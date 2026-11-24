@@ -35,9 +35,7 @@ export function formatPKR(val?: number | null): string {
   return `PKR ${(val ?? 0).toLocaleString('en-PK')}`;
 }
 
-// ----------------------------------------------------
-// WARDS EXPORT
-// ----------------------------------------------------
+// Wards export
 export async function downloadWardsPDF(
   wards: Ward[],
   filtersOrUser?: Partial<WardFilterState> | User | null,
@@ -257,9 +255,7 @@ export function downloadWardsImportTemplate(): void {
   downloadWardsBulkTemplate();
 }
 
-// ----------------------------------------------------
-// ROOMS EXPORT
-// ----------------------------------------------------
+// Rooms export
 export async function downloadRoomsPDF(
   rooms: Room[],
   filtersOrUser?: Partial<RoomFilterState> | User | null,
@@ -475,9 +471,7 @@ export function downloadRoomsImportTemplate(): void {
   downloadRoomsBulkTemplate();
 }
 
-// ----------------------------------------------------
-// BEDS EXPORT
-// ----------------------------------------------------
+// Beds export
 export async function downloadBedsPDF(
   beds: Bed[],
   filtersOrUser?: Partial<BedFilterState> | User | null,

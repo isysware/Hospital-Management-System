@@ -152,7 +152,7 @@ If code changes are made in the future, run these commands locally before pushin
 2. **Repackage Deployment ZIPs:**
    Run the packaging script to generate clean production archives without `node_modules`:
    ```powershell
-   node "C:\Users\pc\.gemini\antigravity\brain\9496796d-f62a-4e86-ae28-9078c196b1f5\scratch\package_zips.js"
+   node scripts/package_deployments.js
    ```
 
 3. **Commit & Push:**

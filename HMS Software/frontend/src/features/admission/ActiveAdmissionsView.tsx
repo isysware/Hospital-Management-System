@@ -104,9 +104,7 @@ export const ActiveAdmissionsView: React.FC<ActiveAdmissionsViewProps> = ({
 
   return (
     <div className="space-y-4 pb-8 text-slate-800">
-      {/* =========================================================================
-          1. CARD PAGE HEADER BLOCK (design.md §4.1)
-      ========================================================================= */}
+      {/* Page header */}
       <div className="bg-white rounded-xl border border-[#e2eae5] p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-[#effaf5] text-[#08775A] border border-[#c2e7db] flex items-center justify-center shadow-2xs shrink-0">
@@ -165,9 +163,7 @@ export const ActiveAdmissionsView: React.FC<ActiveAdmissionsViewProps> = ({
         </div>
       )}
 
-      {/* =========================================================================
-          2. FILTER TOOLBAR (design.md §4.4)
-      ========================================================================= */}
+      {/* Filter toolbar */}
       <div className="bg-white rounded-xl border border-[#e2eae5] p-3 shadow-2xs">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
           {/* Search Box */}
@@ -224,9 +220,7 @@ export const ActiveAdmissionsView: React.FC<ActiveAdmissionsViewProps> = ({
         </div>
       </div>
 
-      {/* =========================================================================
-          3. DATA TABLE (design.md §4.5)
-      ========================================================================= */}
+      {/* Data table */}
       <div className="bg-white rounded-2xl border border-slate-300/80 shadow-[0_1px_4px_rgba(0,0,0,0.04)] overflow-hidden flex flex-col">
         {/* Dark Emerald Header Strip */}
         <div className="bg-[#0e5944] text-white px-4 py-2.5 flex items-center justify-between gap-3">

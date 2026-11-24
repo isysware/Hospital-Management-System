@@ -1236,7 +1236,9 @@ export const admissionService = {
               data: { status: 'PENDING', clearedById: null, clearedAt: null },
             });
           }
-        } catch {}
+        } catch {
+          // Ignore clearance status reset error if record is unavailable
+        }
       }
 
       // Notify Front Desk that bill has increased

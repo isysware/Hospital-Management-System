@@ -136,9 +136,7 @@ export const CentralHospitalLoginScreen: React.FC<CentralHospitalLoginScreenProp
 
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f6f8f7] font-sans antialiased text-[#111827]">
-      {/* ========================================================================= */}
-      {/* LEFT PANEL: 70% Desktop Solid Emerald Branded Area                        */}
-      {/* ========================================================================= */}
+      {/* Left branded panel */}
       <div className="w-full lg:w-[68%] xl:w-[70%] bg-[#129b70] text-white flex flex-col justify-between p-8 sm:p-12 lg:p-16 xl:p-20 relative overflow-hidden shrink-0">
         {/* Subtle decorative medical geometric accents */}
         <div className="absolute -right-24 -bottom-24 w-96 h-96 rounded-full bg-white/5 pointer-events-none" />
@@ -218,9 +216,7 @@ export const CentralHospitalLoginScreen: React.FC<CentralHospitalLoginScreenProp
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* RIGHT PANEL: ~30% Desktop Clean White/Off-White Authentication Panel      */}
-      {/* ========================================================================= */}
+      {/* Right authentication panel */}
       <div className="w-full lg:w-[32%] xl:w-[30%] bg-white flex flex-col justify-between p-6 sm:p-8 lg:p-10 xl:p-12 overflow-y-auto shadow-xl lg:shadow-none border-l border-[#e2eae5]">
         <div>
           {/* Top: Hospital Logo / Icon & Hospital Name */}

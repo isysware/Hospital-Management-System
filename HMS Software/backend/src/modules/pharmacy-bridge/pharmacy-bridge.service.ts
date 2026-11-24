@@ -136,7 +136,7 @@ export const pharmacyBridgeService = {
 
       // 5. Idempotency Check:
       // Prevent duplicate processing on retries using dispenseEventId or externalRequestRef
-      let existingCharge = await tx.hmsPharmacyCharge.findFirst({
+      const existingCharge = await tx.hmsPharmacyCharge.findFirst({
         where: {
           admissionRecordId: admission.id,
         },

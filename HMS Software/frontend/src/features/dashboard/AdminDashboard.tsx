@@ -172,9 +172,7 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4 pb-8 text-slate-800">
-      {/* =========================================================================
-          1. HERO / GREETING BANNER (Matches FrontDesk & PharmaCare Design)
-      ========================================================================= */}
+      {/* Hero greeting banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0c5944] via-[#0e7d5a] to-[#0a664c] text-white p-6 sm:p-8 shadow-lg shadow-emerald-950/10">
         {/* Large watermark hospital cross & pulse emblem */}
         <div className="absolute -right-4 sm:right-2 lg:right-6 top-1/2 -translate-y-1/2 w-64 h-64 sm:w-80 sm:h-80 lg:w-96 lg:h-96 opacity-20 sm:opacity-25 pointer-events-none select-none flex items-center justify-center">
@@ -265,9 +263,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* =========================================================================
-          2. FILTER & DATE RANGE TOOLBAR (design.md §4.4)
-      ========================================================================= */}
+      {/* Date range filter toolbar */}
       <div className="bg-white rounded-xl border border-[#e2eae5] p-3 shadow-2xs">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Segmented Tab Presets */}
@@ -326,9 +322,7 @@ export const AdminDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* =========================================================================
-          3. EXECUTIVE KPI INDICATORS (design.md §4.2)
-      ========================================================================= */}
+      {/* KPI indicators */}
       <div>
         <div className="flex items-center justify-between mb-2 px-0.5">
           <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -341,9 +335,7 @@ export const AdminDashboard: React.FC = () => {
         <HospitalKpiHeader items={kpiItems} columns="grid-cols-2 md:grid-cols-3 xl:grid-cols-6" />
       </div>
 
-      {/* =========================================================================
-          4. MAIN OPERATIONAL CONTENT LAYOUT
-      ========================================================================= */}
+      {/* Main operational content layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left 2 Cols: Doctors on Duty Table & Quick Actions */}
         <div className="lg:col-span-2 space-y-4">
@@ -574,9 +566,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* =========================================================================
-          5. ROLE & GOVERNANCE POLICY FOOTER
-      ========================================================================= */}
+      {/* Governance footer */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-[#effaf5] rounded-xl border border-[#c2e7db] text-xs text-[#08775A] shadow-2xs">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-[#129b70] shrink-0" />

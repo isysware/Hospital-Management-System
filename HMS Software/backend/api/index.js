@@ -13,8 +13,8 @@ var __commonJS = (cb, mod) => function __require() {
   }
 };
 var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
+  for (var name2 in all)
+    __defProp(target, name2, { get: all[name2], enumerable: true });
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
@@ -3041,8 +3041,8 @@ var require_http_errors = __commonJS({
       inherits(HttpError, Error);
       return HttpError;
     }
-    function createClientErrorConstructor(HttpError, name, code) {
-      var className = toClassName(name);
+    function createClientErrorConstructor(HttpError, name2, code) {
+      var className = toClassName(name2);
       function ClientError(message) {
         var msg = message != null ? message : statuses.message[code];
         var err = new Error(msg);
@@ -3080,8 +3080,8 @@ var require_http_errors = __commonJS({
         return val instanceof Error && typeof val.expose === "boolean" && typeof val.statusCode === "number" && val.status === val.statusCode;
       };
     }
-    function createServerErrorConstructor(HttpError, name, code) {
-      var className = toClassName(name);
+    function createServerErrorConstructor(HttpError, name2, code) {
+      var className = toClassName(name2);
       function ServerError(message) {
         var msg = message != null ? message : statuses.message[code];
         var err = new Error(msg);
@@ -3108,33 +3108,33 @@ var require_http_errors = __commonJS({
       ServerError.prototype.expose = false;
       return ServerError;
     }
-    function nameFunc(func, name) {
+    function nameFunc(func, name2) {
       var desc = Object.getOwnPropertyDescriptor(func, "name");
       if (desc && desc.configurable) {
-        desc.value = name;
+        desc.value = name2;
         Object.defineProperty(func, "name", desc);
       }
     }
     function populateConstructorExports(exports3, codes, HttpError) {
       codes.forEach(function forEachCode(code) {
         var CodeError;
-        var name = toIdentifier(statuses.message[code]);
+        var name2 = toIdentifier(statuses.message[code]);
         switch (codeClass(code)) {
           case 400:
-            CodeError = createClientErrorConstructor(HttpError, name, code);
+            CodeError = createClientErrorConstructor(HttpError, name2, code);
             break;
           case 500:
-            CodeError = createServerErrorConstructor(HttpError, name, code);
+            CodeError = createServerErrorConstructor(HttpError, name2, code);
             break;
         }
         if (CodeError) {
           exports3[code] = CodeError;
-          exports3[name] = CodeError;
+          exports3[name2] = CodeError;
         }
       });
     }
-    function toClassName(name) {
-      return name.slice(-5) === "Error" ? name : name + "Error";
+    function toClassName(name2) {
+      return name2.slice(-5) === "Error" ? name2 : name2 + "Error";
     }
   }
 });
@@ -3229,14 +3229,14 @@ var require_ms = __commonJS({
     function fmtLong(ms) {
       return plural(ms, d, "day") || plural(ms, h, "hour") || plural(ms, m, "minute") || plural(ms, s, "second") || ms + " ms";
     }
-    function plural(ms, n, name) {
+    function plural(ms, n, name2) {
       if (ms < n) {
         return;
       }
       if (ms < n * 1.5) {
-        return Math.floor(ms / n) + " " + name;
+        return Math.floor(ms / n) + " " + name2;
       }
-      return Math.ceil(ms / n) + " " + name + "s";
+      return Math.ceil(ms / n) + " " + name2 + "s";
     }
   }
 });
@@ -3325,15 +3325,15 @@ var require_debug = __commonJS({
     function disable() {
       exports2.enable("");
     }
-    function enabled(name) {
+    function enabled(name2) {
       var i, len;
       for (i = 0, len = exports2.skips.length; i < len; i++) {
-        if (exports2.skips[i].test(name)) {
+        if (exports2.skips[i].test(name2)) {
           return false;
         }
       }
       for (i = 0, len = exports2.names.length; i < len; i++) {
-        if (exports2.names[i].test(name)) {
+        if (exports2.names[i].test(name2)) {
           return true;
         }
       }
@@ -3479,15 +3479,15 @@ var require_node = __commonJS({
       return util2.inspect(v, this.inspectOpts);
     };
     function formatArgs(args) {
-      var name = this.namespace;
+      var name2 = this.namespace;
       var useColors2 = this.useColors;
       if (useColors2) {
         var c = this.color;
-        var prefix = "  \x1B[3" + c + ";1m" + name + " \x1B[0m";
+        var prefix = "  \x1B[3" + c + ";1m" + name2 + " \x1B[0m";
         args[0] = prefix + args[0].split("\n").join("\n" + prefix);
         args.push("\x1B[3" + c + "m+" + exports2.humanize(this.diff) + "\x1B[0m");
       } else {
-        args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name + " " + args[0];
+        args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name2 + " " + args[0];
       }
     }
     function log2() {
@@ -16859,9 +16859,9 @@ var require_object_inspect = __commonJS({
         return inspect_(value, opts, depth + 1, seen);
       }
       if (typeof obj === "function" && !isRegExp(obj)) {
-        var name = nameOf(obj);
+        var name2 = nameOf(obj);
         var keys = arrObjKeys(obj, inspect);
-        return "[Function" + (name ? ": " + name : " (anonymous)") + "]" + (keys.length > 0 ? " { " + $join.call(keys, ", ") + " }" : "");
+        return "[Function" + (name2 ? ": " + name2 : " (anonymous)") + "]" + (keys.length > 0 ? " { " + $join.call(keys, ", ") + " }" : "");
       }
       if (isSymbol(obj)) {
         var symString = hasShammedSymbols ? $replace.call(String(obj), /^(Symbol\(.*\))_[^)]*$/, "$1") : symToString.call(obj);
@@ -17953,26 +17953,26 @@ var require_get_intrinsic = __commonJS({
       }
     }
     var errorProto;
-    var doEval = function doEval2(name) {
+    var doEval = function doEval2(name2) {
       var value;
-      if (name === "%AsyncFunction%") {
+      if (name2 === "%AsyncFunction%") {
         value = getEvalledConstructor("async function () {}");
-      } else if (name === "%GeneratorFunction%") {
+      } else if (name2 === "%GeneratorFunction%") {
         value = getEvalledConstructor("function* () {}");
-      } else if (name === "%AsyncGeneratorFunction%") {
+      } else if (name2 === "%AsyncGeneratorFunction%") {
         value = getEvalledConstructor("async function* () {}");
-      } else if (name === "%AsyncGenerator%") {
+      } else if (name2 === "%AsyncGenerator%") {
         var fn = doEval2("%AsyncGeneratorFunction%");
         if (fn) {
           value = fn.prototype;
         }
-      } else if (name === "%AsyncIteratorPrototype%") {
+      } else if (name2 === "%AsyncIteratorPrototype%") {
         var gen = doEval2("%AsyncGenerator%");
         if (gen && getProto) {
           value = getProto(gen.prototype);
         }
       }
-      INTRINSICS[name] = value;
+      INTRINSICS[name2] = value;
       return value;
     };
     var LEGACY_ALIASES = {
@@ -18052,8 +18052,8 @@ var require_get_intrinsic = __commonJS({
       });
       return result;
     };
-    var getBaseIntrinsic = function getBaseIntrinsic2(name, allowMissing) {
-      var intrinsicName = name;
+    var getBaseIntrinsic = function getBaseIntrinsic2(name2, allowMissing) {
+      var intrinsicName = name2;
       var alias;
       if (hasOwn(LEGACY_ALIASES, intrinsicName)) {
         alias = LEGACY_ALIASES[intrinsicName];
@@ -18065,7 +18065,7 @@ var require_get_intrinsic = __commonJS({
           value = doEval(intrinsicName);
         }
         if (typeof value === "undefined" && !allowMissing) {
-          throw new $TypeError("intrinsic " + name + " exists, but is not available. Please file an issue!");
+          throw new $TypeError("intrinsic " + name2 + " exists, but is not available. Please file an issue!");
         }
         return {
           alias,
@@ -18073,19 +18073,19 @@ var require_get_intrinsic = __commonJS({
           value
         };
       }
-      throw new $SyntaxError("intrinsic " + name + " does not exist!");
+      throw new $SyntaxError("intrinsic " + name2 + " does not exist!");
     };
-    module2.exports = function GetIntrinsic(name, allowMissing) {
-      if (typeof name !== "string" || name.length === 0) {
+    module2.exports = function GetIntrinsic(name2, allowMissing) {
+      if (typeof name2 !== "string" || name2.length === 0) {
         throw new $TypeError("intrinsic name must be a non-empty string");
       }
       if (arguments.length > 1 && typeof allowMissing !== "boolean") {
         throw new $TypeError('"allowMissing" argument must be a boolean');
       }
-      if ($exec(/^%?[^%]*%?$/, name) === null) {
+      if ($exec(/^%?[^%]*%?$/, name2) === null) {
         throw new $SyntaxError("`%` may not be present anywhere but at the beginning and end of the intrinsic name");
       }
-      var parts = stringToPath(name);
+      var parts = stringToPath(name2);
       var intrinsicBaseName = parts.length > 0 ? parts[0] : "";
       var intrinsic = getBaseIntrinsic("%" + intrinsicBaseName + "%", allowMissing);
       var intrinsicRealName = intrinsic.name;
@@ -18113,7 +18113,7 @@ var require_get_intrinsic = __commonJS({
         } else if (value != null) {
           if (!(part in value)) {
             if (!allowMissing) {
-              throw new $TypeError("base intrinsic for " + name + " exists, but the property is not available.");
+              throw new $TypeError("base intrinsic for " + name2 + " exists, but the property is not available.");
             }
             return void undefined2;
           }
@@ -18146,12 +18146,12 @@ var require_call_bound = __commonJS({
     var GetIntrinsic = require_get_intrinsic();
     var callBindBasic = require_call_bind_apply_helpers();
     var $indexOf = callBindBasic([GetIntrinsic("%String.prototype.indexOf%")]);
-    module2.exports = function callBoundIntrinsic(name, allowMissing) {
+    module2.exports = function callBoundIntrinsic(name2, allowMissing) {
       var intrinsic = (
         /** @type {(this: unknown, ...args: unknown[]) => unknown} */
-        GetIntrinsic(name, !!allowMissing)
+        GetIntrinsic(name2, !!allowMissing)
       );
-      if (typeof intrinsic === "function" && $indexOf(name, ".prototype.") > -1) {
+      if (typeof intrinsic === "function" && $indexOf(name2, ".prototype.") > -1) {
         return callBindBasic(
           /** @type {const} */
           [intrinsic]
@@ -19434,12 +19434,12 @@ var require_urlencoded = __commonJS({
       } while (index !== -1);
       return count;
     }
-    function parser(name) {
-      var mod = parsers[name];
+    function parser(name2) {
+      var mod = parsers[name2];
       if (mod !== void 0) {
         return mod.parse;
       }
-      switch (name) {
+      switch (name2) {
         case "qs":
           mod = require_lib2();
           break;
@@ -19447,7 +19447,7 @@ var require_urlencoded = __commonJS({
           mod = require("querystring");
           break;
       }
-      parsers[name] = mod;
+      parsers[name2] = mod;
       return mod.parse;
     }
     function simpleparser(options) {
@@ -19527,9 +19527,9 @@ var require_body_parser = __commonJS({
         });
       };
     }
-    function createParserGetter(name) {
+    function createParserGetter(name2) {
       return function get() {
-        return loadParser(name);
+        return loadParser(name2);
       };
     }
     function loadParser(parserName) {
@@ -19572,12 +19572,12 @@ var require_merge_descriptors = __commonJS({
       if (redefine === void 0) {
         redefine = true;
       }
-      Object.getOwnPropertyNames(src).forEach(function forEachOwnPropertyName(name) {
-        if (!redefine && hasOwnProperty.call(dest, name)) {
+      Object.getOwnPropertyNames(src).forEach(function forEachOwnPropertyName(name2) {
+        if (!redefine && hasOwnProperty.call(dest, name2)) {
           return;
         }
-        var descriptor = Object.getOwnPropertyDescriptor(src, name);
-        Object.defineProperty(dest, name, descriptor);
+        var descriptor = Object.getOwnPropertyDescriptor(src, name2);
+        Object.defineProperty(dest, name2, descriptor);
       });
       return dest;
     }
@@ -19674,14 +19674,14 @@ var require_ms2 = __commonJS({
     function fmtLong(ms) {
       return plural(ms, d, "day") || plural(ms, h, "hour") || plural(ms, m, "minute") || plural(ms, s, "second") || ms + " ms";
     }
-    function plural(ms, n, name) {
+    function plural(ms, n, name2) {
       if (ms < n) {
         return;
       }
       if (ms < n * 1.5) {
-        return Math.floor(ms / n) + " " + name;
+        return Math.floor(ms / n) + " " + name2;
       }
-      return Math.ceil(ms / n) + " " + name + "s";
+      return Math.ceil(ms / n) + " " + name2 + "s";
     }
   }
 });
@@ -19770,15 +19770,15 @@ var require_debug2 = __commonJS({
     function disable() {
       exports2.enable("");
     }
-    function enabled(name) {
+    function enabled(name2) {
       var i, len;
       for (i = 0, len = exports2.skips.length; i < len; i++) {
-        if (exports2.skips[i].test(name)) {
+        if (exports2.skips[i].test(name2)) {
           return false;
         }
       }
       for (i = 0, len = exports2.names.length; i < len; i++) {
-        if (exports2.names[i].test(name)) {
+        if (exports2.names[i].test(name2)) {
           return true;
         }
       }
@@ -19924,15 +19924,15 @@ var require_node2 = __commonJS({
       return util2.inspect(v, this.inspectOpts);
     };
     function formatArgs(args) {
-      var name = this.namespace;
+      var name2 = this.namespace;
       var useColors2 = this.useColors;
       if (useColors2) {
         var c = this.color;
-        var prefix = "  \x1B[3" + c + ";1m" + name + " \x1B[0m";
+        var prefix = "  \x1B[3" + c + ";1m" + name2 + " \x1B[0m";
         args[0] = prefix + args[0].split("\n").join("\n" + prefix);
         args.push("\x1B[3" + c + "m+" + exports2.humanize(this.diff) + "\x1B[0m");
       } else {
-        args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name + " " + args[0];
+        args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name2 + " " + args[0];
       }
     }
     function log2() {
@@ -20393,14 +20393,14 @@ var require_ms3 = __commonJS({
     function fmtLong(ms) {
       return plural(ms, d, "day") || plural(ms, h, "hour") || plural(ms, m, "minute") || plural(ms, s, "second") || ms + " ms";
     }
-    function plural(ms, n, name) {
+    function plural(ms, n, name2) {
       if (ms < n) {
         return;
       }
       if (ms < n * 1.5) {
-        return Math.floor(ms / n) + " " + name;
+        return Math.floor(ms / n) + " " + name2;
       }
-      return Math.ceil(ms / n) + " " + name + "s";
+      return Math.ceil(ms / n) + " " + name2 + "s";
     }
   }
 });
@@ -20489,15 +20489,15 @@ var require_debug3 = __commonJS({
     function disable() {
       exports2.enable("");
     }
-    function enabled(name) {
+    function enabled(name2) {
       var i, len;
       for (i = 0, len = exports2.skips.length; i < len; i++) {
-        if (exports2.skips[i].test(name)) {
+        if (exports2.skips[i].test(name2)) {
           return false;
         }
       }
       for (i = 0, len = exports2.names.length; i < len; i++) {
-        if (exports2.names[i].test(name)) {
+        if (exports2.names[i].test(name2)) {
           return true;
         }
       }
@@ -20643,15 +20643,15 @@ var require_node3 = __commonJS({
       return util2.inspect(v, this.inspectOpts);
     };
     function formatArgs(args) {
-      var name = this.namespace;
+      var name2 = this.namespace;
       var useColors2 = this.useColors;
       if (useColors2) {
         var c = this.color;
-        var prefix = "  \x1B[3" + c + ";1m" + name + " \x1B[0m";
+        var prefix = "  \x1B[3" + c + ";1m" + name2 + " \x1B[0m";
         args[0] = prefix + args[0].split("\n").join("\n" + prefix);
         args.push("\x1B[3" + c + "m+" + exports2.humanize(this.diff) + "\x1B[0m");
       } else {
-        args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name + " " + args[0];
+        args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name2 + " " + args[0];
       }
     }
     function log2() {
@@ -20778,7 +20778,7 @@ var require_path_to_regexp = __commonJS({
       var extraOffset = 0;
       var keysOffset = keys.length;
       var i = 0;
-      var name = 0;
+      var name2 = 0;
       var pos = 0;
       var backtrack = "";
       var m;
@@ -20786,7 +20786,7 @@ var require_path_to_regexp = __commonJS({
         while (m = MATCHING_GROUP_REGEXP.exec(path.source)) {
           if (m[0][0] === "\\") continue;
           keys.push({
-            name: m[1] || name++,
+            name: m[1] || name2++,
             optional: false,
             offset: m.index
           });
@@ -20853,7 +20853,7 @@ var require_path_to_regexp = __commonJS({
         if (m[0][0] === "\\") continue;
         if (keysOffset + i === keys.length || keys[keysOffset + i].offset > m.index) {
           keys.splice(keysOffset + i, 0, {
-            name: name++,
+            name: name2++,
             // Unnamed matching groups must be consistently linear.
             optional: false,
             offset: m.index
@@ -21032,11 +21032,11 @@ var require_route = __commonJS({
       if (this.methods._all) {
         return true;
       }
-      var name = typeof method === "string" ? method.toLowerCase() : method;
-      if (name === "head" && !this.methods["head"]) {
-        name = "get";
+      var name2 = typeof method === "string" ? method.toLowerCase() : method;
+      if (name2 === "head" && !this.methods["head"]) {
+        name2 = "get";
       }
-      return Boolean(this.methods[name]);
+      return Boolean(this.methods[name2]);
     };
     Route.prototype._options = function _options() {
       var methods2 = Object.keys(this.methods);
@@ -21167,28 +21167,28 @@ var require_router = __commonJS({
       router25.stack = [];
       return router25;
     };
-    proto.param = function param(name, fn) {
-      if (typeof name === "function") {
+    proto.param = function param(name2, fn) {
+      if (typeof name2 === "function") {
         deprecate("router.param(fn): Refactor to use path params");
-        this._params.push(name);
+        this._params.push(name2);
         return;
       }
       var params = this._params;
       var len = params.length;
       var ret;
-      if (name[0] === ":") {
-        deprecate("router.param(" + JSON.stringify(name) + ", fn): Use router.param(" + JSON.stringify(name.slice(1)) + ", fn) instead");
-        name = name.slice(1);
+      if (name2[0] === ":") {
+        deprecate("router.param(" + JSON.stringify(name2) + ", fn): Use router.param(" + JSON.stringify(name2.slice(1)) + ", fn) instead");
+        name2 = name2.slice(1);
       }
       for (var i = 0; i < len; ++i) {
-        if (ret = params[i](name, fn)) {
+        if (ret = params[i](name2, fn)) {
           fn = ret;
         }
       }
       if ("function" !== typeof fn) {
-        throw new Error("invalid param() call for " + name + ", got " + fn);
+        throw new Error("invalid param() call for " + name2 + ", got " + fn);
       }
-      (this.params[name] = this.params[name] || []).push(fn);
+      (this.params[name2] = this.params[name2] || []).push(fn);
       return this;
     };
     proto.handle = function handle(req, res, out) {
@@ -21321,7 +21321,7 @@ var require_router = __commonJS({
         return done();
       }
       var i = 0;
-      var name;
+      var name2;
       var paramIndex = 0;
       var key;
       var paramVal;
@@ -21336,18 +21336,18 @@ var require_router = __commonJS({
         }
         paramIndex = 0;
         key = keys[i++];
-        name = key.name;
-        paramVal = req.params[name];
-        paramCallbacks = params[name];
-        paramCalled = called[name];
+        name2 = key.name;
+        paramVal = req.params[name2];
+        paramCallbacks = params[name2];
+        paramCalled = called[name2];
         if (paramVal === void 0 || !paramCallbacks) {
           return param();
         }
         if (paramCalled && (paramCalled.match === paramVal || paramCalled.error && paramCalled.error !== "route")) {
-          req.params[name] = paramCalled.value;
+          req.params[name2] = paramCalled.value;
           return param(paramCalled.error);
         }
-        called[name] = paramCalled = {
+        called[name2] = paramCalled = {
           error: null,
           match: paramVal,
           value: paramVal
@@ -22541,16 +22541,16 @@ var require_view = __commonJS({
     var join = path.join;
     var resolve = path.resolve;
     module2.exports = View;
-    function View(name, options) {
+    function View(name2, options) {
       var opts = options || {};
       this.defaultEngine = opts.defaultEngine;
-      this.ext = extname(name);
-      this.name = name;
+      this.ext = extname(name2);
+      this.name = name2;
       this.root = opts.root;
       if (!this.ext && !this.defaultEngine) {
         throw new Error("No default engine was specified and no extension was provided.");
       }
-      var fileName = name;
+      var fileName = name2;
       if (!this.ext) {
         this.ext = this.defaultEngine[0] !== "." ? "." + this.defaultEngine : this.defaultEngine;
         fileName += this.ext;
@@ -22567,13 +22567,13 @@ var require_view = __commonJS({
       this.engine = opts.engines[this.ext];
       this.path = this.lookup(fileName);
     }
-    View.prototype.lookup = function lookup(name) {
+    View.prototype.lookup = function lookup(name2) {
       var path2;
       var roots = [].concat(this.root);
-      debug('lookup "%s"', name);
+      debug('lookup "%s"', name2);
       for (var i = 0; i < roots.length && !path2; i++) {
         var root = roots[i];
-        var loc = resolve(root, name);
+        var loc = resolve(root, name2);
         var dir = dirname(loc);
         var file = basename(loc);
         path2 = this.resolve(dir, file);
@@ -22708,15 +22708,15 @@ var require_content_disposition = __commonJS({
       if (typeof fallback === "string" && NON_LATIN1_REGEXP.test(fallback)) {
         throw new TypeError("fallback must be ISO-8859-1 string");
       }
-      var name = basename(filename);
-      var isQuotedString = TEXT_REGEXP.test(name);
-      var fallbackName = typeof fallback !== "string" ? fallback && getlatin1(name) : basename(fallback);
-      var hasFallback = typeof fallbackName === "string" && fallbackName !== name;
-      if (hasFallback || !isQuotedString || HEX_ESCAPE_REGEXP.test(name)) {
-        params["filename*"] = name;
+      var name2 = basename(filename);
+      var isQuotedString = TEXT_REGEXP.test(name2);
+      var fallbackName = typeof fallback !== "string" ? fallback && getlatin1(name2) : basename(fallback);
+      var hasFallback = typeof fallbackName === "string" && fallbackName !== name2;
+      if (hasFallback || !isQuotedString || HEX_ESCAPE_REGEXP.test(name2)) {
+        params["filename*"] = name2;
       }
       if (isQuotedString || hasFallback) {
-        params.filename = hasFallback ? fallbackName : name;
+        params.filename = hasFallback ? fallbackName : name2;
       }
       return params;
     }
@@ -22919,14 +22919,14 @@ var require_ms4 = __commonJS({
     function fmtLong(ms) {
       return plural(ms, d, "day") || plural(ms, h, "hour") || plural(ms, m, "minute") || plural(ms, s, "second") || ms + " ms";
     }
-    function plural(ms, n, name) {
+    function plural(ms, n, name2) {
       if (ms < n) {
         return;
       }
       if (ms < n * 1.5) {
-        return Math.floor(ms / n) + " " + name;
+        return Math.floor(ms / n) + " " + name2;
       }
-      return Math.ceil(ms / n) + " " + name + "s";
+      return Math.ceil(ms / n) + " " + name2 + "s";
     }
   }
 });
@@ -23015,15 +23015,15 @@ var require_debug4 = __commonJS({
     function disable() {
       exports2.enable("");
     }
-    function enabled(name) {
+    function enabled(name2) {
       var i, len;
       for (i = 0, len = exports2.skips.length; i < len; i++) {
-        if (exports2.skips[i].test(name)) {
+        if (exports2.skips[i].test(name2)) {
           return false;
         }
       }
       for (i = 0, len = exports2.names.length; i < len; i++) {
-        if (exports2.names[i].test(name)) {
+        if (exports2.names[i].test(name2)) {
           return true;
         }
       }
@@ -23169,15 +23169,15 @@ var require_node4 = __commonJS({
       return util2.inspect(v, this.inspectOpts);
     };
     function formatArgs(args) {
-      var name = this.namespace;
+      var name2 = this.namespace;
       var useColors2 = this.useColors;
       if (useColors2) {
         var c = this.color;
-        var prefix = "  \x1B[3" + c + ";1m" + name + " \x1B[0m";
+        var prefix = "  \x1B[3" + c + ";1m" + name2 + " \x1B[0m";
         args[0] = prefix + args[0].split("\n").join("\n" + prefix);
         args.push("\x1B[3" + c + "m+" + exports2.humanize(this.diff) + "\x1B[0m");
       } else {
-        args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name + " " + args[0];
+        args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name2 + " " + args[0];
       }
     }
     function log2() {
@@ -23538,9 +23538,9 @@ var require_ms5 = __commonJS({
       }
       return ms + " ms";
     }
-    function plural(ms, msAbs, n, name) {
+    function plural(ms, msAbs, n, name2) {
       var isPlural = msAbs >= n * 1.5;
-      return Math.round(ms / n) + " " + name + (isPlural ? "s" : "");
+      return Math.round(ms / n) + " " + name2 + (isPlural ? "s" : "");
     }
   }
 });
@@ -24121,11 +24121,11 @@ var require_send = __commonJS({
     function headersSent(res) {
       return typeof res.headersSent !== "boolean" ? Boolean(res._header) : res.headersSent;
     }
-    function normalizeList(val, name) {
+    function normalizeList(val, name2) {
       var list = [].concat(val || []);
       for (var i = 0; i < list.length; i++) {
         if (typeof list[i] !== "string") {
-          throw new TypeError(name + " must be array of strings or false");
+          throw new TypeError(name2 + " must be array of strings or false");
         }
       }
       return list;
@@ -25278,15 +25278,15 @@ var require_application = __commonJS({
       this.engines[extension] = fn;
       return this;
     };
-    app2.param = function param(name, fn) {
+    app2.param = function param(name2, fn) {
       this.lazyrouter();
-      if (Array.isArray(name)) {
-        for (var i = 0; i < name.length; i++) {
-          this.param(name[i], fn);
+      if (Array.isArray(name2)) {
+        for (var i = 0; i < name2.length; i++) {
+          this.param(name2[i], fn);
         }
         return this;
       }
-      this._router.param(name, fn);
+      this._router.param(name2, fn);
       return this;
     };
     app2.set = function set(setting, val) {
@@ -25355,7 +25355,7 @@ var require_application = __commonJS({
       return this;
     };
     app2.del = deprecate.function(app2.delete, "app.del: Use app.delete instead");
-    app2.render = function render(name, options, callback) {
+    app2.render = function render(name2, options, callback) {
       var cache = this.cache;
       var done = callback;
       var engines = this.engines;
@@ -25375,23 +25375,23 @@ var require_application = __commonJS({
         renderOptions.cache = this.enabled("view cache");
       }
       if (renderOptions.cache) {
-        view18 = cache[name];
+        view18 = cache[name2];
       }
       if (!view18) {
         var View2 = this.get("view");
-        view18 = new View2(name, {
+        view18 = new View2(name2, {
           defaultEngine: this.get("view engine"),
           root: this.get("views"),
           engines
         });
         if (!view18.path) {
           var dirs = Array.isArray(view18.root) && view18.root.length > 1 ? 'directories "' + view18.root.slice(0, -1).join('", "') + '" or "' + view18.root[view18.root.length - 1] + '"' : 'directory "' + view18.root + '"';
-          var err = new Error('Failed to lookup view "' + name + '" in views ' + dirs);
+          var err = new Error('Failed to lookup view "' + name2 + '" in views ' + dirs);
           err.view = view18;
           return done(err);
         }
         if (renderOptions.cache) {
-          cache[name] = view18;
+          cache[name2] = view18;
         }
       }
       tryRender(view18, renderOptions, done);
@@ -26006,14 +26006,14 @@ var require_request = __commonJS({
     var proxyaddr = require_proxy_addr();
     var req = Object.create(http.IncomingMessage.prototype);
     module2.exports = req;
-    req.get = req.header = function header(name) {
-      if (!name) {
+    req.get = req.header = function header(name2) {
+      if (!name2) {
         throw new TypeError("name argument is required to req.get");
       }
-      if (typeof name !== "string") {
+      if (typeof name2 !== "string") {
         throw new TypeError("name must be a string to req.get");
       }
-      var lc = name.toLowerCase();
+      var lc = name2.toLowerCase();
       switch (lc) {
         case "referer":
         case "referrer":
@@ -26055,15 +26055,15 @@ var require_request = __commonJS({
       if (!range2) return;
       return parseRange(size, range2, options);
     };
-    req.param = function param(name, defaultValue) {
+    req.param = function param(name2, defaultValue) {
       var params = this.params || {};
       var body = this.body || {};
       var query = this.query || {};
       var args = arguments.length === 1 ? "name" : "name, default";
       deprecate("req.param(" + args + "): Use req.params, req.body, or req.query instead");
-      if (null != params[name] && params.hasOwnProperty(name)) return params[name];
-      if (null != body[name]) return body[name];
-      if (null != query[name]) return query[name];
+      if (null != params[name2] && params.hasOwnProperty(name2)) return params[name2];
+      if (null != body[name2]) return body[name2];
+      if (null != query[name2]) return query[name2];
       return defaultValue;
     };
     req.is = function is(types) {
@@ -26145,8 +26145,8 @@ var require_request = __commonJS({
       var val = this.get("X-Requested-With") || "";
       return val.toLowerCase() === "xmlhttprequest";
     });
-    function defineGetter(obj, name, getter) {
-      Object.defineProperty(obj, name, {
+    function defineGetter(obj, name2, getter) {
+      Object.defineProperty(obj, name2, {
         configurable: true,
         enumerable: true,
         get: getter
@@ -26240,19 +26240,19 @@ var require_cookie = __commonJS({
       }
       return min;
     }
-    function serialize(name, val, opt) {
+    function serialize(name2, val, opt) {
       var enc = opt && opt.encode || encodeURIComponent;
       if (typeof enc !== "function") {
         throw new TypeError("option encode is invalid");
       }
-      if (!cookieNameRegExp.test(name)) {
+      if (!cookieNameRegExp.test(name2)) {
         throw new TypeError("argument name is invalid");
       }
       var value = enc(val);
       if (!cookieValueRegExp.test(value)) {
         throw new TypeError("argument val is invalid");
       }
-      var str = name + "=" + value;
+      var str = name2 + "=" + value;
       if (!opt) return str;
       if (null != opt.maxAge) {
         var maxAge = Math.floor(opt.maxAge);
@@ -26670,22 +26670,22 @@ var require_response = __commonJS({
     );
     res.download = function download(path2, filename, options, callback) {
       var done = callback;
-      var name = filename;
+      var name2 = filename;
       var opts = options || null;
       if (typeof filename === "function") {
         done = filename;
-        name = null;
+        name2 = null;
         opts = null;
       } else if (typeof options === "function") {
         done = options;
         opts = null;
       }
       if (typeof filename === "object" && (typeof options === "function" || options === void 0)) {
-        name = null;
+        name2 = null;
         opts = filename;
       }
       var headers = {
-        "Content-Disposition": contentDisposition(name || path2)
+        "Content-Disposition": contentDisposition(name2 || path2)
       };
       if (opts && opts.headers) {
         var keys = Object.keys(opts.headers);
@@ -26765,7 +26765,7 @@ var require_response = __commonJS({
     res.get = function(field) {
       return this.getHeader(field);
     };
-    res.clearCookie = function clearCookie(name, options) {
+    res.clearCookie = function clearCookie(name2, options) {
       if (options) {
         if (options.maxAge) {
           deprecate('res.clearCookie: Passing "options.maxAge" is deprecated. In v5.0.0 of Express, this option will be ignored, as res.clearCookie will automatically set cookies to expire immediately. Please update your code to omit this option.');
@@ -26775,9 +26775,9 @@ var require_response = __commonJS({
         }
       }
       var opts = merge({ expires: /* @__PURE__ */ new Date(1), path: "/" }, options);
-      return this.cookie(name, "", opts);
+      return this.cookie(name2, "", opts);
     };
-    res.cookie = function(name, value, options) {
+    res.cookie = function(name2, value, options) {
       var opts = merge({}, options);
       var secret = this.req.secret;
       var signed = opts.signed;
@@ -26798,7 +26798,7 @@ var require_response = __commonJS({
       if (opts.path == null) {
         opts.path = "/";
       }
-      this.append("Set-Cookie", cookie.serialize(name, String(val), opts));
+      this.append("Set-Cookie", cookie.serialize(name2, String(val), opts));
       return this;
     };
     res.location = function location(url) {
@@ -27120,10 +27120,10 @@ var require_express = __commonJS({
       "multipart",
       "staticCache"
     ];
-    removedMiddlewares.forEach(function(name) {
-      Object.defineProperty(exports2, name, {
+    removedMiddlewares.forEach(function(name2) {
+      Object.defineProperty(exports2, name2, {
         get: function() {
-          throw new Error("Most middleware (like " + name + ") is no longer bundled with Express and must be installed separately. Please see https://github.com/senchalabs/connect#middleware.");
+          throw new Error("Most middleware (like " + name2 + ") is no longer bundled with Express and must be installed separately. Please see https://github.com/senchalabs/connect#middleware.");
         },
         configurable: true
       });
@@ -28409,11 +28409,11 @@ var require_re = __commonJS({
       }
       return value;
     };
-    var createToken = (name, value, isGlobal) => {
+    var createToken = (name2, value, isGlobal) => {
       const safe = makeSafeRegex(value);
       const index = R++;
-      debug(name, index, value);
-      t[name] = index;
+      debug(name2, index, value);
+      t[name2] = index;
       src[index] = value;
       safeSrc[index] = safe;
       re[index] = new RegExp(value, isGlobal ? "g" : void 0);
@@ -35908,11 +35908,32 @@ var import_library3 = require("@prisma/client/runtime/library");
 
 // src/shared/departmentCollections.ts
 var import_library2 = require("@prisma/client/runtime/library");
-var department = { select: { id: true, name: true } };
+
+// src/shared/hospitalRevenueRecognition.ts
+var financialDepartmentSelect = { id: true, name: true, fulfillmentOwnership: true };
+function hospitalServiceDepartment(line, invoice) {
+  if (line.serviceRate?.department) return line.serviceRate.department;
+  const outsourced = line.billingSource === "OUTSOURCED_SERVICE" || line.serviceRate?.providerType === "OUTSOURCED";
+  const internal = !outsourced && (line.serviceRate?.providerType === "INTERNAL" || line.billingSource !== void 0 && line.billingSource !== "PHARMACY");
+  if (line.billingSource === "PHARMACY") return invoice.department ?? invoice.appointment?.department ?? invoice.admissionRecord?.department;
+  return [invoice.department, invoice.appointment?.department, invoice.admissionRecord?.department].find((department2) => department2 && (!internal || department2.fulfillmentOwnership !== "OUTSOURCED"));
+}
+function isOutsourcedService(line, invoice) {
+  if (line.billingSource === "PHARMACY") return false;
+  return hospitalServiceDepartment(line, invoice)?.fulfillmentOwnership === "OUTSOURCED" || line.serviceRate?.providerType === "OUTSOURCED" || line.billingSource === "OUTSOURCED_SERVICE";
+}
+function isInternalHospitalEarning(line, invoice) {
+  return invoice.status !== "VOID" && line.isCompleted === true && line.billingSource !== "PHARMACY" && !isOutsourcedService(line, invoice);
+}
+
+// src/shared/departmentCollections.ts
+var department = { select: financialDepartmentSelect };
 var collectionInvoiceSelect = {
   departmentId: true,
   department,
-  lines: { select: { lineNet: true, patientShare: true, panelReceivable: true, serviceRate: { select: { department } } } }
+  appointment: { select: { department } },
+  admissionRecord: { select: { department } },
+  lines: { select: { billingSource: true, lineNet: true, patientShare: true, panelReceivable: true, serviceRate: { select: { providerType: true, department } } } }
 };
 var collectionSelect = {
   amount: true,
@@ -35922,7 +35943,7 @@ var collectionSelect = {
   appointment: { select: { department } }
 };
 function allocateWeightedAmount(amount, rows) {
-  const total = rows.reduce((sum, row) => sum.plus(row.weight), new import_library2.Decimal(0));
+  const total = rows.reduce((sum2, row) => sum2.plus(row.weight), new import_library2.Decimal(0));
   let allocated = new import_library2.Decimal(0), cumulative = new import_library2.Decimal(0);
   return rows.map((row, index) => {
     cumulative = cumulative.plus(row.weight);
@@ -35935,21 +35956,37 @@ function allocateWeightedAmount(amount, rows) {
 function allocateInvoiceLines(amount, invoice, basis) {
   const hasCoverage = invoice.lines.some((line) => new import_library2.Decimal(line[basis] ?? 0).gt(0)) && (basis !== "patientShare" || invoice.lines.some((line) => new import_library2.Decimal(line.panelReceivable ?? 0).gt(0)));
   return allocateInvoiceAmount(amount, invoice, basis).flatMap((dept) => {
-    const lines = invoice.lines.filter((line) => (line.serviceRate?.department?.id ?? invoice.department?.id ?? null) === dept.departmentId).map((line) => ({ id: line.id, weight: import_library2.Decimal.max(hasCoverage ? line[basis] : line.lineNet, 0) })).sort((a, b) => a.id.localeCompare(b.id));
+    const lines = invoice.lines.filter((line) => (hospitalServiceDepartment(line, invoice)?.id ?? null) === dept.departmentId).map((line) => ({ id: line.id, weight: import_library2.Decimal.max(hasCoverage ? line[basis] : line.lineNet, 0) })).sort((a, b) => a.id.localeCompare(b.id));
     return allocateWeightedAmount(dept.amount, lines);
   });
 }
-function allocateCollection(receipt) {
+function allocateCollection(receipt, options = {}) {
   const invoice = receipt.hospitalInvoice;
-  if (invoice) return allocateInvoiceAmount(receipt.amount, invoice, "patientShare");
+  if (invoice) return allocateInvoiceAmount(receipt.amount, invoice, "patientShare", options);
   const d = receipt.admissionRecord?.department ?? receipt.appointment?.department;
   return [{ departmentId: d?.id ?? null, name: d?.name ?? "Unassigned", amount: receipt.amount }];
 }
-function allocateInvoiceAmount(amount, invoice, basis) {
+function allocateInvoiceAmount(amount, invoice, basis, options = {}) {
   const weights = /* @__PURE__ */ new Map();
   const hasCoverage = (invoice.lines ?? []).some((line) => new import_library2.Decimal(line[basis] ?? 0).gt(0)) && (basis !== "patientShare" || invoice.lines.some((line) => new import_library2.Decimal(line.panelReceivable ?? 0).gt(0)));
+  if (options.excludePharmacy && invoice.lines.some((l) => l.billingSource === "PHARMACY")) {
+    if (!invoice.lines.some((l) => new import_library2.Decimal(hasCoverage ? l[basis] : l.lineNet).gt(0))) return [];
+    return allocateInvoiceAmount(amount, invoice, basis).flatMap((allocation) => {
+      const lines = invoice.lines.filter((l) => (hospitalServiceDepartment(l, invoice)?.id ?? null) === allocation.departmentId);
+      if (!lines.some((l) => l.billingSource === "PHARMACY")) return [allocation];
+      let eligible = new import_library2.Decimal(0), pharmacy = new import_library2.Decimal(0);
+      for (const line of lines) {
+        const weight = import_library2.Decimal.max(hasCoverage ? line[basis] : line.lineNet, 0);
+        if (line.billingSource === "PHARMACY") pharmacy = pharmacy.plus(weight);
+        else eligible = eligible.plus(weight);
+      }
+      if (!eligible.gt(0)) return [];
+      const [share] = allocateWeightedAmount(allocation.amount, [{ weight: eligible }, { weight: pharmacy }]);
+      return [{ ...allocation, amount: share.amount }];
+    });
+  }
   for (const line of invoice?.lines ?? []) {
-    const d = line.serviceRate?.department ?? invoice?.department;
+    const d = hospitalServiceDepartment(line, invoice);
     const key = d?.id ?? "";
     const row = weights.get(key) ?? { departmentId: d?.id ?? null, name: d?.name ?? "Unassigned", weight: new import_library2.Decimal(0) };
     row.weight = row.weight.plus(import_library2.Decimal.max(hasCoverage ? line[basis] : line.lineNet, 0));
@@ -35961,11 +35998,11 @@ function allocateInvoiceAmount(amount, invoice, basis) {
     const d = invoice.department;
     return [{ departmentId: d?.id ?? invoice.departmentId ?? null, name: d?.name ?? "Unassigned", amount }];
   }
-  return allocateWeightedAmount(amount, rows).map(({ departmentId, name, amount: amount2 }) => ({ departmentId, name, amount: amount2 }));
+  return allocateWeightedAmount(amount, rows).map(({ departmentId, name: name2, amount: amount2 }) => ({ departmentId, name: name2, amount: amount2 }));
 }
 function invoiceBalance(invoice) {
   const panelBilled = invoice.panelReceivable ?? new import_library2.Decimal(0);
-  const panelPaid = (invoice.panelRemittanceAllocations ?? []).reduce((sum, a) => sum.plus(a.allocatedAmount), new import_library2.Decimal(0));
+  const panelPaid = (invoice.panelRemittanceAllocations ?? []).reduce((sum2, a) => sum2.plus(a.allocatedAmount), new import_library2.Decimal(0));
   const patientDue = import_library2.Decimal.max(invoice.total.minus(panelBilled).minus(invoice.paidTotal), 0);
   const panelDue = import_library2.Decimal.max(panelBilled.minus(panelPaid), 0);
   return { patientDue, panelDue, due: patientDue.plus(panelDue), panelPaid, collected: invoice.paidTotal.plus(panelPaid) };
@@ -36003,7 +36040,7 @@ async function panelCollectionLedger(db, end, filters = {}) {
     },
     select: panelCollectionSelect
   });
-  return allocations.flatMap((a) => allocateInvoiceAmount(a.allocatedAmount, a.hospitalInvoice, "panelReceivable").map((row) => ({ ...row, collectedAt: a.panelRemittance.receivedAt })));
+  return allocations.flatMap((a) => allocateInvoiceAmount(a.allocatedAmount, a.hospitalInvoice, "panelReceivable", filters).map((row) => ({ ...row, collectedAt: a.panelRemittance.receivedAt })));
 }
 var signedReceiptWhere = {
   OR: [{ isReversed: false }, { amount: { lt: 0 } }]
@@ -36023,8 +36060,8 @@ async function departmentCollectionLedger(db, end, departmentId) {
     select: collectionSelect
   });
   return receipts.flatMap(
-    (receipt) => allocateCollection(receipt).map((row) => ({ ...row, collectedAt: receipt.collectedAt }))
-  ).concat(await panelCollectionLedger(db, end, { departmentId }));
+    (receipt) => allocateCollection(receipt, { excludePharmacy: true }).map((row) => ({ ...row, collectedAt: receipt.collectedAt }))
+  ).concat(await panelCollectionLedger(db, end, { departmentId, excludePharmacy: true }));
 }
 
 // src/modules/commission/commission.collections.ts
@@ -36144,7 +36181,7 @@ async function syncLineCollections(tx, lineId, actorId17) {
       }
     }
     const closingRows = await tx.doctorCommissionAccrual.findMany({ where: { invoiceLineItemId: lineId }, include: { reversals: true, payouts: true, adjustments: true } });
-    let taxCorrection = closingRows.reduce((sum, row) => sum.plus(commissionBalance(row).tax), zero()).minus(target.tax);
+    let taxCorrection = closingRows.reduce((sum2, row) => sum2.plus(commissionBalance(row).tax), zero()).minus(target.tax);
     for (const row of closingRows) {
       if (taxCorrection.isZero()) break;
       const balance = commissionBalance(row);
@@ -36468,7 +36505,7 @@ var commissionService = {
       if (rows.length !== ids.length || rows.some((row) => row.staffId !== body.staffId)) throw new ValidationError("Commission entries must belong to the selected doctor.");
       const previous = await tx.commissionPayout.findMany({ where: { requestKey: { startsWith: `${body.requestKey}:` } } });
       if (previous.length) {
-        const total2 = previous.reduce((sum, p) => sum.plus(p.amount), new import_library4.Decimal(0));
+        const total2 = previous.reduce((sum2, p) => sum2.plus(p.amount), new import_library4.Decimal(0));
         if (previous.length !== ids.length || !total2.equals(body.amount) || previous.some((p) => !ids.includes(p.doctorCommissionAccrualId) || p.paidById !== actorId17 || p.method !== body.method || (p.reference ?? "") !== (body.reference ?? ""))) {
           throw new ConflictError("Payment request key was already used for different payment details.");
         }
@@ -36476,7 +36513,7 @@ var commissionService = {
       }
       const balances = rows.map((row) => commissionBalance(row));
       if (rows.some((row, i) => !["APPROVED", "PARTIALLY_PAID"].includes(row.status) || balances[i].remaining.lte(0))) throw new ConflictError("Commission balances changed. Refresh and review the total before paying.");
-      const total = balances.reduce((sum, balance) => sum.plus(balance.remaining), new import_library4.Decimal(0));
+      const total = balances.reduce((sum2, balance) => sum2.plus(balance.remaining), new import_library4.Decimal(0));
       if (!total.equals(body.amount)) throw new ConflictError("Commission balances changed. Refresh and review the total before paying.");
       for (const [i, row] of rows.entries()) {
         const amount = balances[i].remaining;
@@ -36530,11 +36567,13 @@ var commissionService = {
 var notificationsService = {
   async createNotification(params) {
     if (!prisma.hospitalNotification?.create) return null;
+    const isBroadcast = params.isBroadcast ?? (!params.recipientUserId ? false : false);
     if (params.referenceId && params.title) {
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1e3);
       const existing = await prisma.hospitalNotification.findFirst({
         where: {
           referenceId: params.referenceId,
+          recipientUserId: params.recipientUserId || null,
           targetPortal: params.targetPortal || "all",
           title: params.title,
           isRead: false,
@@ -36552,37 +36591,162 @@ var notificationsService = {
         targetPortal: params.targetPortal || "all",
         actionUrl: params.actionUrl || null,
         referenceId: params.referenceId || null,
-        createdById: params.createdById || null
+        createdById: params.createdById || null,
+        recipientUserId: params.recipientUserId || null,
+        isBroadcast
       }
     });
   },
-  async listNotifications(targetPortal, limit = 30) {
+  async listNotifications(userId, portal, limit = 30) {
     await this.syncRealStateNotifications();
-    const where = {};
-    if (targetPortal && targetPortal !== "all") {
-      where.targetPortal = targetPortal;
-    }
-    return prisma.hospitalNotification.findMany({
-      where,
+    const notifications = await prisma.hospitalNotification.findMany({
+      where: {
+        OR: [
+          // 1. Private personal notifications explicitly addressed to this user
+          { recipientUserId: userId },
+          // 2. Legitimate authorized broadcast announcements for this portal
+          {
+            isBroadcast: true,
+            OR: [
+              { targetPortal: portal },
+              { targetPortal: "all" },
+              { targetPortal: null }
+            ]
+          }
+        ]
+      },
       orderBy: { createdAt: "desc" },
       take: limit
     });
-  },
-  async markAsRead(id) {
-    return prisma.hospitalNotification.update({
-      where: { id },
-      data: { isRead: true }
-    });
-  },
-  async markAllAsRead(targetPortal) {
-    const where = { isRead: false };
-    if (targetPortal && targetPortal !== "all") {
-      where.targetPortal = targetPortal;
+    const broadcastIds = notifications.filter((n) => n.isBroadcast).map((n) => n.id);
+    let readBroadcastIds = /* @__PURE__ */ new Set();
+    if (broadcastIds.length > 0) {
+      const reads = await prisma.hospitalNotificationRead.findMany({
+        where: {
+          userId,
+          notificationId: { in: broadcastIds }
+        },
+        select: { notificationId: true }
+      });
+      readBroadcastIds = new Set(reads.map((r) => r.notificationId));
     }
-    return prisma.hospitalNotification.updateMany({
-      where,
+    return notifications.map((item) => ({
+      id: item.id,
+      title: item.title,
+      message: item.message,
+      type: item.type,
+      module: item.module,
+      targetPortal: item.targetPortal,
+      actionUrl: item.actionUrl,
+      referenceId: item.referenceId,
+      read: item.recipientUserId ? item.isRead : readBroadcastIds.has(item.id),
+      recipientUserId: item.recipientUserId,
+      isBroadcast: item.isBroadcast,
+      createdAt: item.createdAt.toISOString()
+    }));
+  },
+  async getUnreadCount(userId, portal) {
+    const privateUnreadCount = await prisma.hospitalNotification.count({
+      where: {
+        recipientUserId: userId,
+        isRead: false
+      }
+    });
+    const broadcastNotifs = await prisma.hospitalNotification.findMany({
+      where: {
+        isBroadcast: true,
+        OR: [
+          { targetPortal: portal },
+          { targetPortal: "all" },
+          { targetPortal: null }
+        ]
+      },
+      select: { id: true },
+      take: 200
+    });
+    if (broadcastNotifs.length === 0) {
+      return privateUnreadCount;
+    }
+    const broadcastIds = broadcastNotifs.map((b) => b.id);
+    const readCount = await prisma.hospitalNotificationRead.count({
+      where: {
+        userId,
+        notificationId: { in: broadcastIds }
+      }
+    });
+    const broadcastUnreadCount = Math.max(0, broadcastIds.length - readCount);
+    return privateUnreadCount + broadcastUnreadCount;
+  },
+  async markAsRead(id, userId) {
+    const item = await prisma.hospitalNotification.findUnique({
+      where: { id }
+    });
+    if (!item) {
+      throw new NotFoundError("Notification not found");
+    }
+    if (item.recipientUserId) {
+      if (item.recipientUserId !== userId) {
+        throw new AuthorizationError("You are not authorized to modify another user's notification");
+      }
+      return prisma.hospitalNotification.update({
+        where: { id },
+        data: { isRead: true }
+      });
+    }
+    if (item.isBroadcast) {
+      return prisma.hospitalNotificationRead.upsert({
+        where: {
+          notificationId_userId: { notificationId: id, userId }
+        },
+        create: {
+          notificationId: id,
+          userId
+        },
+        update: {}
+      });
+    }
+    throw new AuthorizationError("Cannot modify an unassigned private notification");
+  },
+  async markAllAsRead(userId, portal) {
+    await prisma.hospitalNotification.updateMany({
+      where: {
+        recipientUserId: userId,
+        isRead: false
+      },
       data: { isRead: true }
     });
+    const broadcastNotifs = await prisma.hospitalNotification.findMany({
+      where: {
+        isBroadcast: true,
+        OR: [
+          { targetPortal: portal },
+          { targetPortal: "all" },
+          { targetPortal: null }
+        ]
+      },
+      select: { id: true },
+      take: 200
+    });
+    if (broadcastNotifs.length > 0) {
+      const alreadyRead = await prisma.hospitalNotificationRead.findMany({
+        where: {
+          userId,
+          notificationId: { in: broadcastNotifs.map((b) => b.id) }
+        },
+        select: { notificationId: true }
+      });
+      const readSet = new Set(alreadyRead.map((r) => r.notificationId));
+      const toMark = broadcastNotifs.filter((b) => !readSet.has(b.id)).map((b) => ({
+        notificationId: b.id,
+        userId
+      }));
+      if (toMark.length > 0) {
+        await prisma.hospitalNotificationRead.createMany({
+          data: toMark,
+          skipDuplicates: true
+        });
+      }
+    }
   },
   /**
    * Automatically synchronizes real database state so pending admissions from
@@ -36617,6 +36781,7 @@ var notificationsService = {
               targetPortal: "admission",
               actionUrl: "/admission/planned_admissions",
               referenceId: adm.id,
+              isBroadcast: true,
               createdAt: adm.createdAt
             }
           });
@@ -36649,6 +36814,7 @@ var notificationsService = {
               targetPortal: "front-desk",
               actionUrl: "/front-desk/billing_pending_discharges",
               referenceId: adm.id,
+              isBroadcast: true,
               createdAt: adm.updatedAt
             }
           });
@@ -36692,7 +36858,50 @@ var notificationsService = {
               targetPortal: "front-desk",
               actionUrl: isFinal ? "/front-desk/billing_pending_discharges" : "/front-desk/admission_payment_requests",
               referenceId: req.id,
+              isBroadcast: true,
               createdAt: req.requestedAt
+            }
+          });
+        }
+      }
+      const pendingSettlements = await prisma.accountSettlement.findMany({
+        where: { status: "SUBMITTED" },
+        include: {
+          submittedByUser: { select: { id: true, username: true, displayName: true, role: true } },
+          receiverUser: { select: { id: true, username: true, displayName: true, role: true } }
+        },
+        take: 10,
+        orderBy: { submittedAt: "desc" }
+      });
+      for (const st of pendingSettlements) {
+        const submitterName = st.submittedByUser?.displayName || st.submittedByUser?.username || "Cashier";
+        const roleLabel = st.submittedByUser?.role === "FRONT_DESK_BILLING" || st.moduleScope === "BILLING" ? "Front Desk" : st.submittedByUser?.role || "Staff";
+        const handoverNum = Number(st.handoverAmount ?? st.physicalCash);
+        const amountStr = handoverNum.toLocaleString("en-PK", { maximumFractionDigits: 0 });
+        const receiverId = st.receiverUserId;
+        if (!receiverId) continue;
+        const receiverRole = st.receiverUser?.role;
+        const targetPortal = receiverRole === "SUPER_ADMIN" ? "super-admin" : "admin";
+        const existing = await prisma.hospitalNotification.findFirst({
+          where: {
+            referenceId: st.id,
+            recipientUserId: receiverId
+          }
+        });
+        if (!existing) {
+          await prisma.hospitalNotification.create({
+            data: {
+              title: `Shift Settlement Submitted: ${submitterName}`,
+              message: `${submitterName} (${roleLabel}) submitted a shift settlement of Rs. ${amountStr} awaiting review and acceptance.`,
+              type: "urgent",
+              module: "Finance",
+              targetPortal,
+              actionUrl: `/${targetPortal}/account_settlements`,
+              referenceId: st.id,
+              recipientUserId: receiverId,
+              isBroadcast: false,
+              createdById: st.portalUserId,
+              createdAt: st.submittedAt || st.createdAt
             }
           });
         }
@@ -37047,11 +37256,12 @@ var pharmacyBridgeClient = {
   async releaseSettlement(payload) {
     const urlsToTry = getPharmacyBaseUrls();
     let lastError = null;
-    for (const baseUrl of urlsToTry) {
+    for (const baseUrl of urlsToTry.slice(0, 1)) {
       try {
         const url = `${baseUrl}/hms-requests/settlement/release`;
         const res = await fetch(url, {
           method: "POST",
+          signal: AbortSignal.timeout(15e3),
           headers: {
             "Content-Type": "application/json",
             "x-bridge-token": env.INTERNAL_BRIDGE_SECRET
@@ -37078,7 +37288,7 @@ async function syncRemoteMedicineToLocal(rm) {
   if (!rm || !rm.id) return;
   const saleRate = rm.saleRate !== void 0 && rm.saleRate !== null ? Number(rm.saleRate) : 0;
   const code = rm.code || `MED-${rm.id.slice(0, 8)}`;
-  const name = rm.name;
+  const name2 = rm.name;
   const unit = rm.unit || "Unit";
   const isActive = rm.isActive ?? true;
   try {
@@ -37088,7 +37298,7 @@ async function syncRemoteMedicineToLocal(rm) {
         where: { id: rm.id },
         data: {
           code,
-          name,
+          name: name2,
           saleRate: new import_library7.Decimal(saleRate),
           unit,
           isActive
@@ -37102,7 +37312,7 @@ async function syncRemoteMedicineToLocal(rm) {
         await prisma.$executeRawUnsafe(
           `UPDATE medicine_masters SET id = $1, name = $2, sale_rate = $3, unit = $4, is_active = $5 WHERE code = $6`,
           rm.id,
-          name,
+          name2,
           saleRate,
           unit,
           isActive,
@@ -37123,14 +37333,14 @@ async function syncRemoteMedicineToLocal(rm) {
       data: {
         id: rm.id,
         code,
-        name,
+        name: name2,
         unit,
         saleRate: new import_library7.Decimal(saleRate),
         isActive
       }
     });
   } catch (err) {
-    console.warn(`[syncRemoteMedicineToLocal] Failed to sync medicine ${rm.id} (${name}):`, err.message);
+    console.warn(`[syncRemoteMedicineToLocal] Failed to sync medicine ${rm.id} (${name2}):`, err.message);
   }
 }
 var pharmacyService = {
@@ -37273,7 +37483,7 @@ var pharmacyService = {
     const now = /* @__PURE__ */ new Date();
     return batches.map((b) => {
       const stock = b.stockLedgerEntries.reduce(
-        (sum, e) => sum.plus(e.quantityDelta),
+        (sum2, e) => sum2.plus(e.quantityDelta),
         new import_library7.Decimal(0)
       );
       const isExpired = b.expiryDate <= now;
@@ -37311,7 +37521,7 @@ var pharmacyService = {
         where: { medicineId },
         select: { quantityDelta: true }
       });
-      const totalStock = allEntries.reduce((sum, e) => sum.plus(e.quantityDelta), new import_library7.Decimal(0));
+      const totalStock = allEntries.reduce((sum2, e) => sum2.plus(e.quantityDelta), new import_library7.Decimal(0));
       if (totalStock.lessThan(requestedQuantity)) {
         throw new ValidationError(
           `Insufficient stock for medicine "${medicine.name}". Available: ${totalStock.toString()}, Requested: ${requestedQuantity.toString()}`
@@ -37328,7 +37538,7 @@ var pharmacyService = {
     const now = /* @__PURE__ */ new Date();
     const activeBatchesWithStock = medicine.batches.filter((b) => b.expiryDate > now).map((b) => {
       const available = b.stockLedgerEntries.reduce(
-        (sum, e) => sum.plus(e.quantityDelta),
+        (sum2, e) => sum2.plus(e.quantityDelta),
         new import_library7.Decimal(0)
       );
       return {
@@ -37353,7 +37563,7 @@ var pharmacyService = {
     }
     if (remaining.greaterThan(0)) {
       const totalAvailable = activeBatchesWithStock.reduce(
-        (sum, b) => sum.plus(b.available),
+        (sum2, b) => sum2.plus(b.available),
         new import_library7.Decimal(0)
       );
       throw new ValidationError(
@@ -37578,12 +37788,11 @@ function getQueuePrefix(encounterType) {
   if (norm === "OPD") return "OPD-";
   if (norm === "EMERGENCY" || norm === "ER") return "ER-";
   if (norm === "OBSERVATION" || norm === "OBS") return "OBS-";
-  if (norm === "CUSTOM") return "OPD-";
   return null;
 }
 function getNormalizedEncounterType(encounterType) {
   const norm = String(encounterType || "").toUpperCase();
-  if (norm === "OPD" || norm === "CUSTOM") return "OPD";
+  if (norm === "OPD") return "OPD";
   if (norm === "EMERGENCY" || norm === "ER") return "EMERGENCY";
   if (norm === "OBSERVATION" || norm === "OBS") return "OBSERVATION";
   return null;
@@ -38175,7 +38384,8 @@ var admissionService = {
         targetPortal: "admission",
         actionUrl: "/admission/planned_admissions",
         referenceId: result.admission.id,
-        createdById: actorId17
+        createdById: actorId17,
+        isBroadcast: true
       });
     } catch (notifErr) {
       console.error("Failed to dispatch admission notification:", notifErr);
@@ -38360,7 +38570,8 @@ var admissionService = {
         targetPortal: "front-desk",
         actionUrl,
         referenceId: admission.id,
-        createdById: actorId17
+        createdById: actorId17,
+        isBroadcast: true
       });
     } catch (notifErr) {
       console.error("Failed to notify payment request:", notifErr);
@@ -38692,7 +38903,8 @@ var admissionService = {
           targetPortal: "front-desk",
           actionUrl: "/front-desk/admission_patient_records",
           referenceId: admission.id,
-          createdById: actorId17
+          createdById: actorId17,
+          isBroadcast: true
         });
       } catch (notifErr) {
         console.error("Failed to notify bill update:", notifErr);
@@ -39114,7 +39326,7 @@ var admissionService = {
       });
       if (!admission) throw new NotFoundError("Admission record not found");
       if (body.clearanceType === "HOSPITAL_BILLING") {
-        const totalCharges = admission.hospitalInvoices.reduce((sum, inv) => sum.plus(inv.total), new import_library8.Decimal(0));
+        const totalCharges = admission.hospitalInvoices.reduce((sum2, inv) => sum2.plus(inv.total), new import_library8.Decimal(0));
         const receipts = await tx.paymentReceipt.aggregate({
           where: {
             isReversed: false,
@@ -39190,7 +39402,8 @@ var admissionService = {
               targetPortal: "front-desk",
               actionUrl: `/front-desk/admission_patient_records?admissionId=${admission.id}`,
               referenceId: admission.id,
-              createdById: actorId17
+              createdById: actorId17,
+              isBroadcast: true
             });
           } catch (notifErr) {
             console.error("Failed to notify Front Desk of discharge clearance request:", notifErr);
@@ -39250,7 +39463,7 @@ var admissionService = {
     if (!admission || admission.status === "DISCHARGED" || admission.status === "CANCELLED") {
       return { isDischarged: admission?.status === "DISCHARGED", isDischargePending: false, admission };
     }
-    const totalCharges = admission.hospitalInvoices.reduce((sum, inv) => sum.plus(patientResponsibility(inv)), new import_library8.Decimal(0));
+    const totalCharges = admission.hospitalInvoices.reduce((sum2, inv) => sum2.plus(patientResponsibility(inv)), new import_library8.Decimal(0));
     const invoiceIds = admission.hospitalInvoices.map((inv) => inv.id);
     const receipts = await tx.paymentReceipt.aggregate({
       where: {
@@ -39431,7 +39644,8 @@ var admissionService = {
         targetPortal: "front-desk",
         actionUrl: "/front-desk/billing_pending_discharges",
         referenceId: result.admission.id,
-        createdById: actorId17
+        createdById: actorId17,
+        isBroadcast: true
       });
     } catch (notifErr) {
       console.error("Failed to dispatch clinical discharge notification:", notifErr);
@@ -39450,7 +39664,7 @@ var admissionService = {
       }
     });
     if (admission) {
-      const totalCharges = admission.hospitalInvoices.reduce((sum, inv) => sum.plus(inv.total), new import_library8.Decimal(0));
+      const totalCharges = admission.hospitalInvoices.reduce((sum2, inv) => sum2.plus(inv.total), new import_library8.Decimal(0));
       const invoiceIds = admission.hospitalInvoices.map((inv) => inv.id);
       const receipts = await prisma.paymentReceipt.aggregate({
         where: {
@@ -39504,7 +39718,7 @@ var admissionService = {
       }
       if (!reconcile.admission) throw new NotFoundError("Admission record not found");
       const admission = reconcile.admission;
-      const totalCharges = (admission.hospitalInvoices || []).reduce((sum, inv) => sum.plus(patientResponsibility(inv)), new import_library8.Decimal(0));
+      const totalCharges = (admission.hospitalInvoices || []).reduce((sum2, inv) => sum2.plus(patientResponsibility(inv)), new import_library8.Decimal(0));
       const invoiceIds = (admission.hospitalInvoices || []).map((inv) => inv.id);
       const receipts = await tx.paymentReceipt.aggregate({
         where: {
@@ -39534,7 +39748,8 @@ var admissionService = {
               targetPortal: "front-desk",
               actionUrl: "/front-desk/billing_pending_discharges",
               referenceId: admission.id,
-              createdById: _actorId
+              createdById: _actorId,
+              isBroadcast: true
             });
           } catch (e) {
             console.error("Failed to notify Front Desk on blocked discharge:", e);
@@ -39587,7 +39802,8 @@ var admissionService = {
         targetPortal: "admission",
         actionUrl: "/admission/discharged_patients",
         referenceId: admissionId,
-        createdById: _actorId
+        createdById: _actorId,
+        isBroadcast: true
       });
     } catch (notifErr) {
       console.error("Failed to dispatch final discharge notification:", notifErr);
@@ -39661,11 +39877,11 @@ var admissionService = {
     });
     if (!admission) throw new NotFoundError("Admission record not found");
     const totalHospitalBill = admission.hospitalInvoices.reduce(
-      (sum, inv) => sum.plus(inv.total),
+      (sum2, inv) => sum2.plus(inv.total),
       new import_library8.Decimal(0)
     );
     const totalHospitalPaid = admission.hospitalInvoices.reduce(
-      (sum, inv) => sum.plus(inv.paidTotal),
+      (sum2, inv) => sum2.plus(inv.paidTotal),
       new import_library8.Decimal(0)
     );
     const hospitalOutstanding = totalHospitalBill.minus(totalHospitalPaid);
@@ -39838,15 +40054,15 @@ var setDraft7Headers = (response, info, windowMs) => {
     `limit=${info.limit}, remaining=${info.remaining}, reset=${resetSeconds}`
   );
 };
-var setDraft8Headers = (response, info, windowMs, name, key) => {
+var setDraft8Headers = (response, info, windowMs, name2, key) => {
   if (response.headersSent) return;
   const windowSeconds = Math.ceil(windowMs / 1e3);
   const resetSeconds = getResetSeconds(info.resetTime, windowMs);
   const partitionKey = getPartitionKey(key);
   const policy2 = `q=${info.limit}; w=${windowSeconds}; pk=:${partitionKey}:`;
   const header = `r=${info.remaining}; t=${resetSeconds}`;
-  response.append("RateLimit-Policy", `"${name}"; ${policy2}`);
-  response.append("RateLimit", `"${name}"; ${header}`);
+  response.append("RateLimit-Policy", `"${name2}"; ${policy2}`);
+  response.append("RateLimit", `"${name2}"; ${header}`);
 };
 var setRetryAfterHeader = (response, info, windowMs) => {
   if (response.headersSent) return;
@@ -40139,10 +40355,10 @@ var getValidations = (_enabled) => {
   const wrappedValidations = {
     enabled
   };
-  for (const [name, validation] of Object.entries(validations)) {
+  for (const [name2, validation] of Object.entries(validations)) {
     if (typeof validation === "function")
-      wrappedValidations[name] = (...args) => {
-        if (!(enabled[name] ?? enabled.default)) {
+      wrappedValidations[name2] = (...args) => {
+        if (!(enabled[name2] ?? enabled.default)) {
           return;
         }
         try {
@@ -40493,9 +40709,9 @@ var rateLimit = (passedOptions) => {
           }
           case "draft-8": {
             const retrieveName = typeof config.identifier === "function" ? config.identifier(request, response) : config.identifier;
-            const name = await retrieveName;
+            const name2 = await retrieveName;
             config.validations.headersResetTime(info.resetTime);
-            setDraft8Headers(response, info, config.windowMs, name, key);
+            setDraft8Headers(response, info, config.windowMs, name2, key);
             break;
           }
           default: {
@@ -40564,7 +40780,7 @@ var import_crypto2 = require("crypto");
 // src/modules/devices/deviceTime.ts
 function localParts(at, timezone) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(at);
-  const get = (name) => parts.find((p) => p.type === name).value;
+  const get = (name2) => parts.find((p) => p.type === name2).value;
   return { date: `${get("year")}-${get("month")}-${get("day")}`, time: `${get("hour")}:${get("minute")}:${get("second")}`, minutes: Number(get("hour")) * 60 + Number(get("minute")) };
 }
 function dateOffset(date, days) {
@@ -42384,8 +42600,8 @@ function formatRoleLabel(role) {
 }
 function formatActorFromRelation(user) {
   if (!user) return "System";
-  const name = user.staff?.fullName || user.username;
-  return `${name} (${formatRoleLabel(user.role)})`;
+  const name2 = user.staff?.fullName || user.username;
+  return `${name2} (${formatRoleLabel(user.role)})`;
 }
 async function resolveActorLabel(portalUserId) {
   const user = await prisma.portalUser.findUnique({
@@ -43863,7 +44079,7 @@ var remittancesThrough = (end) => ({
   select: { allocatedAmount: true }
 });
 function invoiceAsOf(invoice) {
-  const paidTotal = invoice.paymentReceipts.reduce((sum, receipt) => sum.plus(receipt.amount), new import_library11.Decimal(0));
+  const paidTotal = invoice.paymentReceipts.reduce((sum2, receipt) => sum2.plus(receipt.amount), new import_library11.Decimal(0));
   const status = invoice.status === "VOID" ? "VOID" : invoicePaymentStatus(invoice.total.minus(invoice.panelReceivable ?? 0), paidTotal);
   return { ...invoice, paidTotal, status, balance: invoiceBalance({ ...invoice, paidTotal }) };
 }
@@ -44285,7 +44501,7 @@ var dashboardService = {
     }
     flaggedStockItems.sort((a, b) => a.status === b.status ? 0 : a.status === "OUT_OF_STOCK" ? -1 : 1);
     const topFlaggedStockItems = flaggedStockItems.slice(0, 6);
-    const pharmacySalesAmount = pharmacyDispenses.reduce((sum, d) => sum + Number(d.total || 0), 0);
+    const pharmacySalesAmount = pharmacyDispenses.reduce((sum2, d) => sum2 + Number(d.total || 0), 0);
     const pharmacyInvoicesCount = pharmacyDispenses.length;
     const panelsWithCounts = await prisma.corporatePanel.findMany({
       where: { isActive: true },
@@ -45241,7 +45457,7 @@ var setupService = {
     }
     if (isCoreEncounterService(existing)) {
       if (body.departmentId || body.providerType && body.providerType !== "INTERNAL" || body.isActive === false || body.isDefaultEncounterService === false || body.encounterType && body.encounterType !== existing.encounterType || body.code && body.code !== existing.code || body.serviceStream && body.serviceStream !== "HOSPITAL") throw new ValidationError("Default encounter services must remain active, internal and without a department");
-      const { standardRate, description, billingUnit, panelEligible, discountAllowed, manualRateOverrideAllowed, name } = body;
+      const { standardRate, description, billingUnit, panelEligible, discountAllowed, manualRateOverrideAllowed, name: name2 } = body;
       const data2 = {
         standardRate,
         description,
@@ -45251,8 +45467,8 @@ var setupService = {
         manualRateOverrideAllowed,
         updatedById
       };
-      if (name && typeof name === "string" && name.trim()) {
-        data2.name = name.trim();
+      if (name2 && typeof name2 === "string" && name2.trim()) {
+        data2.name = name2.trim();
       }
       const updated = await prisma.serviceRate.update({ where: { id }, data: data2, include: this.serviceRateInclude });
       return this.decorateServiceRates([updated])[0];
@@ -45934,6 +46150,49 @@ var setupService = {
     });
     return this.decorateOutsourcedProviders([updated])[0];
   },
+  async deleteOutsourcedProvider(id) {
+    const provider = await this.assertExists("outsourcedProvider", id);
+    const settlementCount = await prisma.providerSettlement.count({
+      where: { outsourcedProviderId: id }
+    });
+    if (settlementCount > 0) {
+      throw new ValidationError(
+        `Cannot delete outsourced department "${provider.name}" because it has ${settlementCount} recorded provider settlement(s). Please deactivate it instead to preserve financial audit history.`
+      );
+    }
+    const linkedDepts = await prisma.department.findMany({
+      where: { outsourcedProviderId: id },
+      select: { id: true, name: true }
+    });
+    for (const d of linkedDepts) {
+      const invCount = await prisma.hospitalInvoice.count({
+        where: { departmentId: d.id }
+      });
+      const lineCount = await prisma.invoiceLineItem.count({
+        where: { serviceRate: { departmentId: d.id } }
+      });
+      if (invCount > 0 || lineCount > 0) {
+        throw new ValidationError(
+          `Cannot delete outsourced department "${provider.name}" because department "${d.name}" has ${invCount} invoice(s) and ${lineCount} billed service(s). Please deactivate it instead to preserve financial records.`
+        );
+      }
+    }
+    await prisma.$transaction(async (tx) => {
+      const deptIds = linkedDepts.map((d) => d.id);
+      if (deptIds.length > 0) {
+        await tx.serviceRate.deleteMany({
+          where: { departmentId: { in: deptIds } }
+        });
+        await tx.department.deleteMany({
+          where: { id: { in: deptIds } }
+        });
+      }
+      await tx.outsourcedProvider.delete({
+        where: { id }
+      });
+    });
+    return { success: true, message: `Outsourced department "${provider.name}" deleted successfully.` };
+  },
   // ── High-Cost Medicine Policy (HMS_V7.2_NEW_REQUIREMENTS.md §2.6) ────
   // Singleton, same get-or-create pattern as Hospital Profile.
   async getHighCostMedicinePolicy() {
@@ -46010,7 +46269,7 @@ var setupService = {
           ] } });
           if (ambiguous) throw new ValidationError("Existing vouchers are unassigned or belong to a different provider. Reconcile these vouchers before making another payment.");
           const ledger = await departmentCollectionLedger(tx, /* @__PURE__ */ new Date(), body.departmentId);
-          const eligible = ledger.filter((r) => r.departmentId === body.departmentId).reduce((sum, r) => sum.plus(r.amount), new import_library13.Decimal(0));
+          const eligible = ledger.filter((r) => r.departmentId === body.departmentId).reduce((sum2, r) => sum2.plus(r.amount), new import_library13.Decimal(0));
           const prior = await tx.providerSettlement.aggregate({
             where: { departmentId: body.departmentId },
             _sum: { settlementAmount: true }
@@ -46023,7 +46282,7 @@ var setupService = {
           }
           if (body.paymentMethod === "CASH") {
             const rows = await tx.mainCashFundEntry.findMany({ select: { direction: true, amount: true } });
-            const available = rows.reduce((sum, r) => r.direction === "IN" ? sum.plus(r.amount) : sum.minus(r.amount), new import_library13.Decimal(0));
+            const available = rows.reduce((sum2, r) => r.direction === "IN" ? sum2.plus(r.amount) : sum2.minus(r.amount), new import_library13.Decimal(0));
             if (available.lt(amount)) {
               throw new ValidationError(`Insufficient Main Fund cash (${available.toFixed(2)} available). Deposit or accept cash handovers before paying the provider.`);
             }
@@ -46091,6 +46350,7 @@ var setupService = {
     });
     const invoiceLines = await prisma.invoiceLineItem.findMany({
       where: {
+        billingSource: { not: "PHARMACY" },
         hospitalInvoice: {
           status: { not: "VOID" },
           createdAt: { gte: start, lte: end }
@@ -46098,19 +46358,25 @@ var setupService = {
       },
       select: {
         id: true,
+        billingSource: true,
         lineGross: true,
         discountAmount: true,
         lineNet: true,
         serviceRateId: true,
         serviceRate: {
           select: {
-            departmentId: true
+            departmentId: true,
+            providerType: true,
+            department: { select: financialDepartmentSelect }
           }
         },
         hospitalInvoice: {
           select: {
             id: true,
             departmentId: true,
+            department: { select: financialDepartmentSelect },
+            appointment: { select: { department: { select: financialDepartmentSelect } } },
+            admissionRecord: { select: { department: { select: financialDepartmentSelect } } },
             total: true,
             paidTotal: true
           }
@@ -46129,13 +46395,7 @@ var setupService = {
       }
     });
     const summaryRows = departments.map((d) => {
-      const matchingLines = invoiceLines.filter((l) => {
-        const lineDeptId = l.serviceRate?.departmentId;
-        if (lineDeptId) {
-          return lineDeptId === d.id;
-        }
-        return l.hospitalInvoice.departmentId === d.id;
-      });
+      const matchingLines = invoiceLines.filter((l) => hospitalServiceDepartment(l, l.hospitalInvoice)?.id === d.id);
       const invoicesSet = /* @__PURE__ */ new Set();
       let periodGross = 0;
       let periodDiscount = 0;
@@ -46151,12 +46411,12 @@ var setupService = {
         periodBilled += net;
       }
       const collections = ledger.filter((r) => r.departmentId === d.id);
-      const sum = (values) => values.reduce((a, b) => a.plus(b), new import_library13.Decimal(0)).toNumber();
-      periodRealized = sum(collections.filter((r) => r.collectedAt >= start).map((r) => r.amount));
-      const cumulativeRealized = sum(collections.map((r) => r.amount));
+      const sum2 = (values) => values.reduce((a, b) => a.plus(b), new import_library13.Decimal(0)).toNumber();
+      periodRealized = sum2(collections.filter((r) => r.collectedAt >= start).map((r) => r.amount));
+      const cumulativeRealized = sum2(collections.map((r) => r.amount));
       const deptSettlements = settlements.filter((s) => s.departmentId === d.id);
-      const alreadySettled = sum(deptSettlements.map((s) => s.settlementAmount));
-      const periodSettled = sum(deptSettlements.filter((s) => s.settledAt >= start).map((s) => s.settlementAmount));
+      const alreadySettled = sum2(deptSettlements.map((s) => s.settlementAmount));
+      const periodSettled = sum2(deptSettlements.filter((s) => s.settledAt >= start).map((s) => s.settlementAmount));
       const isOutsourced = d.fulfillmentOwnership === "OUTSOURCED";
       const closingBalance = isOutsourced ? new import_library13.Decimal(cumulativeRealized).minus(alreadySettled).toNumber() : 0;
       const openingBalance = isOutsourced ? new import_library13.Decimal(closingBalance).minus(periodRealized).plus(periodSettled).toNumber() : 0;
@@ -46183,10 +46443,10 @@ var setupService = {
         remainingPayable: Math.round(remainingPayable * 100) / 100
       };
     });
-    const totalBilled = summaryRows.reduce((sum, r) => sum + r.periodBilled, 0);
-    const totalRealized = summaryRows.reduce((sum, r) => sum + r.periodRealized, 0);
-    const totalSettled = summaryRows.reduce((sum, r) => sum + r.periodSettled, 0);
-    const totalRemaining = summaryRows.reduce((sum, r) => sum + r.remainingPayable, 0);
+    const totalBilled = summaryRows.reduce((sum2, r) => sum2 + r.periodBilled, 0);
+    const totalRealized = summaryRows.reduce((sum2, r) => sum2 + r.periodRealized, 0);
+    const totalSettled = summaryRows.reduce((sum2, r) => sum2 + r.periodSettled, 0);
+    const totalRemaining = summaryRows.reduce((sum2, r) => sum2 + r.remainingPayable, 0);
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
       kpis: {
@@ -46527,6 +46787,9 @@ var setupController = {
   deactivateOutsourcedProvider: async (req, res) => {
     res.json({ data: await setupService.deactivateOutsourcedProvider(req.params.id, actorId2(req)) });
   },
+  deleteOutsourcedProvider: async (req, res) => {
+    res.json({ data: await setupService.deleteOutsourcedProvider(req.params.id) });
+  },
   // High-Cost Medicine Policy
   getHighCostMedicinePolicy: async (_req, res) => {
     res.json({ data: await setupService.getHighCostMedicinePolicy() });
@@ -46609,6 +46872,7 @@ router7.get("/outsourced-providers", view2, asyncHandler(setupController.listOut
 router7.post("/outsourced-providers", create2, validate({ body: createOutsourcedProviderSchema }), asyncHandler(setupController.createOutsourcedProvider));
 router7.patch("/outsourced-providers/:id", write2, validate({ params: idParamsSchema, body: updateOutsourcedProviderSchema }), asyncHandler(setupController.updateOutsourcedProvider));
 router7.post("/outsourced-providers/:id/deactivate", write2, validate({ params: idParamsSchema }), asyncHandler(setupController.deactivateOutsourcedProvider));
+router7.delete("/outsourced-providers/:id", remove2, validate({ params: idParamsSchema }), asyncHandler(setupController.deleteOutsourcedProvider));
 router7.get("/high-cost-medicine-policy", view2, asyncHandler(setupController.getHighCostMedicinePolicy));
 router7.put("/high-cost-medicine-policy", write2, validate({ body: updateHighCostMedicinePolicySchema }), asyncHandler(setupController.updateHighCostMedicinePolicy));
 router7.get("/provider-settlements", view2, validate({ query: listProviderSettlementsQuerySchema }), asyncHandler(setupController.listProviderSettlements));
@@ -47325,7 +47589,7 @@ var appointmentsService = {
           }
         });
         const totalAdvance = unlinkedReceipts.reduce(
-          (sum, r) => sum.plus(r.amount),
+          (sum2, r) => sum2.plus(r.amount),
           new import_library14.Decimal(0)
         );
         const newPaidTotal = totalAdvance;
@@ -47827,7 +48091,7 @@ var admissionBillingService = {
       paidByAdmission.set(admId, (paidByAdmission.get(admId) ?? new import_library16.Decimal(0)).plus(r.amount));
     }
     return admissions.map((a) => {
-      const billedCharges = a.hospitalInvoices.reduce((sum, inv) => sum.plus(patientResponsibility(inv)), new import_library16.Decimal(0));
+      const billedCharges = a.hospitalInvoices.reduce((sum2, inv) => sum2.plus(patientResponsibility(inv)), new import_library16.Decimal(0));
       const currentCharges = billedCharges;
       const totalPaid = paidByAdmission.get(a.id) ?? new import_library16.Decimal(0);
       const outstanding = import_library16.Decimal.max(0, currentCharges.minus(totalPaid));
@@ -47900,9 +48164,9 @@ var admissionBillingService = {
       },
       orderBy: { collectedAt: "asc" }
     });
-    const billedCharges = admission.hospitalInvoices.reduce((sum, inv) => sum.plus(patientResponsibility(inv)), new import_library16.Decimal(0));
+    const billedCharges = admission.hospitalInvoices.reduce((sum2, inv) => sum2.plus(patientResponsibility(inv)), new import_library16.Decimal(0));
     const totalCharges = billedCharges;
-    const totalPaid = receipts.reduce((sum, r) => sum.plus(r.amount), new import_library16.Decimal(0));
+    const totalPaid = receipts.reduce((sum2, r) => sum2.plus(r.amount), new import_library16.Decimal(0));
     const outstandingBalance = import_library16.Decimal.max(0, totalCharges.minus(totalPaid));
     const availableCredit = import_library16.Decimal.max(0, totalPaid.minus(totalCharges));
     if (!readOnly && admission.status === "DISCHARGE_PENDING" && outstandingBalance.lessThanOrEqualTo(0)) {
@@ -48002,14 +48266,14 @@ var admissionBillingService = {
     }));
     let panel = null;
     if (admission.panelPatientId) {
-      const patientShare = admission.hospitalInvoices.reduce((sum, inv) => sum.plus(inv.patientShare), new import_library16.Decimal(0));
-      const panelReceivable = admission.hospitalInvoices.reduce((sum, inv) => sum.plus(inv.panelReceivable), new import_library16.Decimal(0));
+      const patientShare = admission.hospitalInvoices.reduce((sum2, inv) => sum2.plus(inv.patientShare), new import_library16.Decimal(0));
+      const panelReceivable = admission.hospitalInvoices.reduce((sum2, inv) => sum2.plus(inv.panelReceivable), new import_library16.Decimal(0));
       const realizedGroups = invoiceIds.length === 0 ? [] : await prisma.panelRemittanceAllocation.groupBy({
         by: ["hospitalInvoiceId"],
         where: { hospitalInvoiceId: { in: invoiceIds } },
         _sum: { allocatedAmount: true }
       });
-      const panelRealized = realizedGroups.reduce((sum, g) => sum.plus(g._sum.allocatedAmount ?? new import_library16.Decimal(0)), new import_library16.Decimal(0));
+      const panelRealized = realizedGroups.reduce((sum2, g) => sum2.plus(g._sum.allocatedAmount ?? new import_library16.Decimal(0)), new import_library16.Decimal(0));
       const patientPaid = totalPaid;
       panel = {
         grossCharges: totalCharges,
@@ -48227,7 +48491,7 @@ var admissionBillingService = {
         throw new ValidationError("Duplicate invoice allocations are not allowed");
       }
       const byId = new Map(invoices.map((inv) => [inv.id, inv]));
-      let sum = new import_library16.Decimal(0);
+      let sum2 = new import_library16.Decimal(0);
       const explicit = body.allocations.map((a) => {
         const invoice = byId.get(a.invoiceId);
         if (!invoice) throw new ValidationError(`Invoice ${a.invoiceId} does not belong to this admission`);
@@ -48239,19 +48503,19 @@ var admissionBillingService = {
             `Allocation to ${invoice.invoiceNumber} (${amt.toString()}) exceeds its outstanding patient balance (${outstanding.toString()})`
           );
         }
-        sum = sum.plus(amt);
+        sum2 = sum2.plus(amt);
         return { invoiceId: a.invoiceId, amount: amt };
       });
-      if (sum.greaterThan(amountDecimal)) {
+      if (sum2.greaterThan(amountDecimal)) {
         throw new ValidationError(
-          `Allocations (${sum.toString()}) cannot exceed the collected amount (${amountDecimal.toString()})`
+          `Allocations (${sum2.toString()}) cannot exceed the collected amount (${amountDecimal.toString()})`
         );
       }
-      const remainder = amountDecimal.minus(sum);
+      const remainder = amountDecimal.minus(sum2);
       allocations = remainder.greaterThan(0) ? [...explicit, { invoiceId: null, amount: remainder }] : explicit;
     } else {
       const outstandingByInvoice = invoices.map((inv) => ({ invoice: inv, outstanding: (inv.panelPatientId ? inv.patientShare : inv.total).minus(inv.paidTotal) })).filter((x) => x.outstanding.greaterThan(0));
-      const totalOutstanding = outstandingByInvoice.reduce((sum, x) => sum.plus(x.outstanding), new import_library16.Decimal(0));
+      const totalOutstanding = outstandingByInvoice.reduce((sum2, x) => sum2.plus(x.outstanding), new import_library16.Decimal(0));
       if (totalOutstanding.lessThanOrEqualTo(0)) {
         allocations = [{ invoiceId: null, amount: amountDecimal }];
       } else if (amountDecimal.greaterThan(totalOutstanding)) {
@@ -48461,7 +48725,7 @@ var paymentRequestsService = {
       if (!request) throw new NotFoundError("Payment request not found");
       if (request.status === "FULFILLED") throw new ValidationError("This payment request is already fulfilled");
       if (request.status === "CANCELLED") throw new ValidationError("This payment request has been cancelled");
-      const alreadyCollected = request.paymentReceipts.reduce((sum, r) => sum.plus(r.amount), new import_library17.Decimal(0));
+      const alreadyCollected = request.paymentReceipts.reduce((sum2, r) => sum2.plus(r.amount), new import_library17.Decimal(0));
       const remaining = request.requestedAmount.minus(alreadyCollected);
       const amountDecimal = new import_library17.Decimal(body.amount);
       if (amountDecimal.greaterThan(remaining)) {
@@ -48851,7 +49115,7 @@ var panelBillingService = {
           seen.add(a.hospitalInvoiceId);
         }
         const byId = new Map(invoices.map((inv) => [inv.id, inv]));
-        let sum = new import_library18.Decimal(0);
+        let sum2 = new import_library18.Decimal(0);
         allocations = body.allocations.map((a) => {
           const invoice = byId.get(a.hospitalInvoiceId);
           if (!invoice) throw new ValidationError(`Invoice ${a.hospitalInvoiceId} does not belong to this panel`);
@@ -48862,15 +49126,15 @@ var panelBillingService = {
               `Allocation to ${invoice.invoiceNumber} (${amt.toString()}) exceeds its outstanding panel receivable (${outstanding.toString()})`
             );
           }
-          sum = sum.plus(amt);
+          sum2 = sum2.plus(amt);
           return { hospitalInvoiceId: invoice.id, amount: amt };
         });
-        if (!sum.equals(amountDecimal)) {
-          throw new ValidationError(`Allocations (${sum.toString()}) must sum to exactly the remittance amount (${amountDecimal.toString()})`);
+        if (!sum2.equals(amountDecimal)) {
+          throw new ValidationError(`Allocations (${sum2.toString()}) must sum to exactly the remittance amount (${amountDecimal.toString()})`);
         }
       } else {
         const eligible = invoices.map((inv) => ({ invoice: inv, outstanding: outstandingByInvoice.get(inv.id) })).filter((x) => x.outstanding.greaterThan(0));
-        const totalOutstanding = eligible.reduce((sum, x) => sum.plus(x.outstanding), new import_library18.Decimal(0));
+        const totalOutstanding = eligible.reduce((sum2, x) => sum2.plus(x.outstanding), new import_library18.Decimal(0));
         if (totalOutstanding.lessThanOrEqualTo(0)) {
           throw new ValidationError("Nothing outstanding to allocate this remittance against for this panel");
         }
@@ -48973,12 +49237,12 @@ var panelBillingService = {
       runningBalance = runningBalance.plus(e.debit).minus(e.credit);
       return { ...e, runningBalance };
     });
-    const totalDebit = entries.reduce((sum, e) => sum.plus(e.debit), new import_library18.Decimal(0));
-    const totalCredit = entries.reduce((sum, e) => sum.plus(e.credit), new import_library18.Decimal(0));
-    const patientShareTotal = allPatientInvoices.reduce((sum, inv) => sum.plus(inv.patientShare), new import_library18.Decimal(0));
-    const patientShareCollected = allPatientInvoices.reduce((sum, inv) => {
+    const totalDebit = entries.reduce((sum2, e) => sum2.plus(e.debit), new import_library18.Decimal(0));
+    const totalCredit = entries.reduce((sum2, e) => sum2.plus(e.credit), new import_library18.Decimal(0));
+    const patientShareTotal = allPatientInvoices.reduce((sum2, inv) => sum2.plus(inv.patientShare), new import_library18.Decimal(0));
+    const patientShareCollected = allPatientInvoices.reduce((sum2, inv) => {
       const collected = inv.paidTotal.lessThan(inv.patientShare) ? inv.paidTotal : inv.patientShare;
-      return sum.plus(collected);
+      return sum2.plus(collected);
     }, new import_library18.Decimal(0));
     return {
       corporatePanelId: corporatePanel.id,
@@ -49456,8 +49720,8 @@ var invoicesService = {
       const newSubtotal = allLines.reduce((acc, l) => acc.plus(l.lineGross), new import_library19.Decimal(0));
       const newDiscountTotal = allLines.reduce((acc, l) => acc.plus(l.discountAmount), new import_library19.Decimal(0));
       const newTotal = allLines.reduce((acc, l) => acc.plus(l.lineNet), new import_library19.Decimal(0));
-      const newPatientShare = allLines.reduce((sum, line) => sum.plus(line.patientShare ?? line.lineNet), new import_library19.Decimal(0));
-      const newPanelReceivable = allLines.reduce((sum, line) => sum.plus(line.panelReceivable ?? 0), new import_library19.Decimal(0));
+      const newPatientShare = allLines.reduce((sum2, line) => sum2.plus(line.patientShare ?? line.lineNet), new import_library19.Decimal(0));
+      const newPanelReceivable = allLines.reduce((sum2, line) => sum2.plus(line.panelReceivable ?? 0), new import_library19.Decimal(0));
       const newStatus = patientPaymentStatus(
         { panelPatientId: invoice.panelPatientId, total: newTotal, patientShare: newPatientShare, panelReceivable: newPanelReceivable },
         invoice.paidTotal
@@ -50019,7 +50283,7 @@ var invoicesService = {
       invoiceNumber: invoice.invoiceNumber,
       encounterType: invoice.encounterType ?? (invoice.sourceType === "ADMISSION" ? "ADMISSION" : "OPD"),
       encounterRef: invoice.sourceType,
-      tokenNumber: invoice.queueNumber || null,
+      tokenNumber: invoice.encounterType === "CUSTOM" || invoice.sourceType === "ADMISSION" ? null : invoice.queueNumber || null,
       mrNumber,
       patientName: patientName2,
       patientAge,
@@ -50056,7 +50320,7 @@ var invoicesService = {
         invoiceNumber: invoice.invoiceNumber,
         sourceType: invoice.sourceType,
         encounterType: invoice.encounterType,
-        queueNumber: invoice.queueNumber,
+        queueNumber: invoice.encounterType === "CUSTOM" || invoice.sourceType === "ADMISSION" ? null : invoice.queueNumber,
         createdAt: invoice.createdAt,
         status: invoice.status === "VOID" ? "VOID" : patientPaymentStatus(invoice, invoice.paidTotal),
         subtotal: invoice.subtotal,
@@ -51351,7 +51615,7 @@ var payrollService = {
   /** Read-only preview — exactly what a Generate would produce, without writing anything. */
   async preview(filters) {
     const { eligible, skipped } = await computeEligibility(filters);
-    const totalAmount = eligible.reduce((sum, r) => sum.plus(r.netAmount), new import_library22.Decimal(0)).toDecimalPlaces(2);
+    const totalAmount = eligible.reduce((sum2, r) => sum2.plus(r.netAmount), new import_library22.Decimal(0)).toDecimalPlaces(2);
     return { eligible, skipped, totalAmount, staffCount: eligible.length };
   },
   async generate(filters, actorId17) {
@@ -51359,7 +51623,7 @@ var payrollService = {
     if (eligible.length === 0) {
       throw new ConflictError("No staff have both a Salary Profile and approved attendance for this period \u2014 nothing to generate.");
     }
-    const totalAmount = eligible.reduce((sum, r) => sum.plus(r.netAmount), new import_library22.Decimal(0)).toDecimalPlaces(2);
+    const totalAmount = eligible.reduce((sum2, r) => sum2.plus(r.netAmount), new import_library22.Decimal(0)).toDecimalPlaces(2);
     return prisma.$transaction(async (tx) => {
       for (const row of [...eligible].sort((a, b) => a.staffId.localeCompare(b.staffId))) {
         await tx.$queryRaw`SELECT id FROM staff WHERE id = ${row.staffId} FOR UPDATE`;
@@ -52496,7 +52760,7 @@ async function allocateInventoryFefoBatches(stockItemId, requestedQuantity, tx) 
     throw new NotFoundError(`Stock item ${stockItemId} not found or inactive`);
   }
   const activeBatches = computeInventoryActiveBatches(item.stockLedgerEntries, item.purchaseOrderLines);
-  const totalAvailable = activeBatches.reduce((sum, b) => sum.plus(b.available), new import_library24.Decimal(0));
+  const totalAvailable = activeBatches.reduce((sum2, b) => sum2.plus(b.available), new import_library24.Decimal(0));
   if (totalAvailable.lessThan(requestedQuantity)) {
     throw new ValidationError(
       `Insufficient non-expired stock for "${item.name}". Available: ${totalAvailable.toString()} ${item.unit}, Requested: ${requestedQuantity.toString()} ${item.unit}. Cannot drive stock negative.`
@@ -52649,7 +52913,7 @@ var inventoryService = {
           where: { portalUserId: actorId17, isSettled: false, isPhysicalCash: true }
         });
         const currentPhysicalCash = userCashEntries.reduce(
-          (sum, e) => e.direction === "IN" ? sum.plus(e.amount) : sum.minus(e.amount),
+          (sum2, e) => e.direction === "IN" ? sum2.plus(e.amount) : sum2.minus(e.amount),
           new import_library24.Decimal(0)
         );
         if (currentPhysicalCash.lessThan(amount)) {
@@ -52824,7 +53088,7 @@ var inventoryService = {
     });
     return items.map((item) => {
       const currentStock = item.stockLedgerEntries.reduce(
-        (sum, entry) => sum.plus(entry.quantityDelta),
+        (sum2, entry) => sum2.plus(entry.quantityDelta),
         new import_library24.Decimal(0)
       );
       const isLowStock = currentStock.lessThanOrEqualTo(item.reorderLevel);
@@ -52861,7 +53125,7 @@ var inventoryService = {
     });
     if (!item) throw new NotFoundError("Stock item not found");
     const runningStock = item.stockLedgerEntries.reduce(
-      (sum, e) => sum.plus(e.quantityDelta),
+      (sum2, e) => sum2.plus(e.quantityDelta),
       new import_library24.Decimal(0)
     );
     return {
@@ -52981,8 +53245,8 @@ var inventoryService = {
         const userCashEntries = await tx.userCashBalance.findMany({
           where: { portalUserId: actorId17, isSettled: false, isPhysicalCash: true }
         });
-        const currentPhysicalCash = userCashEntries.reduce((sum, entry) => {
-          return entry.direction === "IN" ? sum.plus(entry.amount) : sum.minus(entry.amount);
+        const currentPhysicalCash = userCashEntries.reduce((sum2, entry) => {
+          return entry.direction === "IN" ? sum2.plus(entry.amount) : sum2.minus(entry.amount);
         }, new import_library24.Decimal(0));
         if (currentPhysicalCash.lessThan(totalAmount)) {
           throw new ValidationError(
@@ -53224,7 +53488,7 @@ var inventoryService = {
           throw new NotFoundError(`Stock item ${line.stockItemId} not found or inactive`);
         }
         const currentStock = item.stockLedgerEntries.reduce(
-          (sum, e) => sum.plus(e.quantityDelta),
+          (sum2, e) => sum2.plus(e.quantityDelta),
           new import_library24.Decimal(0)
         );
         const qty = new import_library24.Decimal(line.quantity);
@@ -53298,7 +53562,7 @@ var inventoryService = {
       const qty = new import_library24.Decimal(body.quantity);
       if (body.direction === "DECREASE") {
         const currentStock = item.stockLedgerEntries.reduce(
-          (sum, e) => sum.plus(e.quantityDelta),
+          (sum2, e) => sum2.plus(e.quantityDelta),
           new import_library24.Decimal(0)
         );
         if (currentStock.lessThan(qty)) {
@@ -53934,6 +54198,114 @@ function bridgeAuth(req, _res, next) {
   throw new AuthenticationError("Unauthorized bridge request: invalid or missing internal bridge token");
 }
 
+// src/modules/pharmacy-bridge/settlementRelease.ts
+var import_library25 = require("@prisma/client/runtime/library");
+var notPosted = (message) => new ValidationError(message, { paymentNotPosted: true });
+async function releasePharmacySettlement(settlementId, body, actorId17, actorRole5) {
+  if (!["SUPER_ADMIN", "ADMIN"].includes(actorRole5)) throw new AuthorizationError("Only Super Admin or Admin can release a settlement payment to Pharmacy.");
+  const amount = new import_library25.Decimal(body.releasedAmount);
+  if (!amount.isFinite() || amount.lte(0) || amount.decimalPlaces() > 2) throw new ValidationError("Release amount must be positive with at most two decimal places.");
+  const reference = body.paymentReference?.trim() || null;
+  const key = body.idempotencyKey?.trim() || (reference ? `reference:${settlementId}:${reference}` : null);
+  if (!key) throw new ValidationError("An idempotency key is required. Reuse it when retrying this payment.");
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pharmacy-release:${key}`}))`;
+    const initial = await tx.hmsPharmacySettlement.findUnique({ where: { id: settlementId } });
+    if (!initial) throw new NotFoundError("Settlement not found");
+    await tx.$queryRaw`SELECT id FROM hms_pharmacy_charges WHERE id = ${initial.pharmacyChargeId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM hms_pharmacy_settlements WHERE id = ${settlementId} FOR UPDATE`;
+    const settlement = await tx.hmsPharmacySettlement.findUniqueOrThrow({ where: { id: settlementId }, include: { pharmacyCharge: true } });
+    const previous = await tx.hmsPharmacySettlementRelease.findUnique({ where: { idempotencyKey: key } }) ?? (reference ? await tx.hmsPharmacySettlementRelease.findUnique({ where: { settlementId_paymentReference: { settlementId, paymentReference: reference } } }) : null);
+    if (previous) {
+      if (previous.settlementId !== settlementId || !previous.amount.equals(amount) || previous.paymentMethod !== body.paymentMethod || previous.paymentReference !== reference || previous.releasedById !== actorId17 || previous.remarks !== (body.remarks?.trim() || null)) {
+        throw new ValidationError("Payment identity already used with different payment data.");
+      }
+      return { settlement, release: previous, replayed: true };
+    }
+    if (!["REQUESTED", "APPROVED", "PARTIALLY_RELEASED"].includes(settlement.status)) throw notPosted("Settlement is not eligible for release.");
+    const releases = await tx.hmsPharmacySettlementRelease.aggregate({ where: { settlementId }, _sum: { amount: true } });
+    const completed = releases._sum.amount ?? new import_library25.Decimal(0);
+    if (!completed.equals(settlement.releasedAmount)) throw notPosted("Historical settlement releases require manual reconciliation before another payment.");
+    const remaining = settlement.requestedAmount.minus(completed);
+    if (!remaining.equals(settlement.remainingAmount)) throw notPosted("Settlement balance requires reconciliation before another payment.");
+    if (amount.gt(remaining)) throw notPosted("Release amount cannot exceed remaining amount.");
+    const actor = await tx.portalUser.findUniqueOrThrow({ where: { id: actorId17 }, select: { role: true, displayName: true, username: true } });
+    if (!["SUPER_ADMIN", "ADMIN"].includes(actor.role)) throw new AuthorizationError("Cash payer must be an Admin or Super Admin.");
+    const now = /* @__PURE__ */ new Date();
+    let cashEntryId = null;
+    if (body.paymentMethod === "CASH") {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`settlement:${actorId17}`}))`;
+      await tx.$queryRaw`SELECT id FROM portal_users WHERE id = ${actorId17} FOR UPDATE`;
+      const entries = await tx.userCashBalance.findMany({ where: { portalUserId: actorId17, isSettled: false, isPhysicalCash: true } });
+      const prior = await tx.accountSettlement.findFirst({ where: { portalUserId: actorId17, status: { not: "REVERSED" } }, orderBy: { createdAt: "desc" }, select: { carryForwardAmount: true } });
+      const available = entries.reduce((sum2, entry) => entry.direction === "IN" ? sum2.plus(entry.amount) : sum2.minus(entry.amount), prior?.carryForwardAmount ?? new import_library25.Decimal(0));
+      if (available.lt(amount)) throw notPosted("Insufficient cash in the releasing user\u2019s custody.");
+      const cash = await tx.userCashBalance.create({ data: {
+        portalUserId: actorId17,
+        issuedById: actorId17,
+        moduleScope: resolveCashModuleScope(actor.role),
+        direction: "OUT",
+        amount,
+        category: "PHARMACY_SETTLEMENT",
+        isPhysicalCash: true,
+        occurredAt: now,
+        note: `Pharmacy settlement ${settlement.settlementNumber}${reference ? ` / ${reference}` : ""}`
+      } });
+      cashEntryId = cash.id;
+    }
+    const release = await tx.hmsPharmacySettlementRelease.create({ data: {
+      settlementId,
+      amount,
+      paymentMethod: body.paymentMethod,
+      paymentReference: reference,
+      idempotencyKey: key,
+      releasedAt: now,
+      releasedById: actorId17,
+      cashEntryId,
+      remarks: body.remarks?.trim() || null
+    } });
+    const releasedTotal = completed.plus(amount);
+    const remainingAmount = settlement.requestedAmount.minus(releasedTotal);
+    const status = remainingAmount.isZero() ? "SETTLED" : "PARTIALLY_RELEASED";
+    const updated = await tx.hmsPharmacySettlement.update({ where: { id: settlementId }, data: {
+      releasedAmount: releasedTotal,
+      remainingAmount,
+      status,
+      releasedAt: now,
+      releasedById: actorId17,
+      paymentMethod: body.paymentMethod,
+      paymentReference: reference,
+      remarks: body.remarks
+    } });
+    await tx.hmsPharmacyCharge.update({ where: { id: settlement.pharmacyChargeId }, data: {
+      settledAmount: { increment: amount },
+      settlementStatus: status
+    } });
+    return { settlement: updated, release, replayed: false };
+  }, { timeout: 15e3 });
+  if (!result.replayed) {
+    try {
+      await pharmacyBridgeClient.releaseSettlement({
+        settlementNumber: result.settlement.settlementNumber,
+        pharmacyInvoiceNumber: result.settlement.pharmacyInvoiceNumber,
+        releasedAmount: Number(result.release.amount),
+        remainingPayable: Number(result.settlement.remainingAmount),
+        paymentMethod: result.release.paymentMethod,
+        paymentReference: result.release.paymentReference ?? void 0,
+        releasedBy: actorId17,
+        releasedAt: result.release.releasedAt.toISOString(),
+        remarks: result.release.remarks ?? void 0
+      });
+      result.release = await prisma.hmsPharmacySettlementRelease.update({
+        where: { id: result.release.id },
+        data: { bridgeStatus: "DELIVERED", bridgeDeliveredAt: /* @__PURE__ */ new Date() }
+      });
+    } catch {
+    }
+  }
+  return { ...result.settlement, release: result.release, replayed: result.replayed };
+}
+
 // src/shared/pharmacyDepartment.ts
 async function requirePharmacyDepartment(tx) {
   const query = {
@@ -53981,7 +54353,7 @@ async function requirePharmacyDepartment(tx) {
 }
 
 // src/modules/pharmacy-bridge/pharmacy-bridge.service.ts
-var import_library25 = require("@prisma/client/runtime/library");
+var import_library26 = require("@prisma/client/runtime/library");
 var pharmacyBridgeService = {
   // ── List & Get Medicine Requests ──────────────────────────────────────────
   // Read-only. Requests are created via admission.service.ts's
@@ -54074,18 +54446,18 @@ var pharmacyBridgeService = {
             departmentId: admission.departmentId,
             panelPatientId: admission.panelPatientId,
             selfPayEncounterId: admission.selfPayEncounterId,
-            subtotal: new import_library25.Decimal(0),
-            discountTotal: new import_library25.Decimal(0),
-            total: new import_library25.Decimal(0),
-            paidTotal: new import_library25.Decimal(0),
-            patientShare: new import_library25.Decimal(0),
-            panelReceivable: new import_library25.Decimal(0),
+            subtotal: new import_library26.Decimal(0),
+            discountTotal: new import_library26.Decimal(0),
+            total: new import_library26.Decimal(0),
+            paidTotal: new import_library26.Decimal(0),
+            patientShare: new import_library26.Decimal(0),
+            panelReceivable: new import_library26.Decimal(0),
             status: "UNPAID"
           },
           include: { lines: true }
         });
       }
-      let existingCharge = await tx.hmsPharmacyCharge.findFirst({
+      const existingCharge = await tx.hmsPharmacyCharge.findFirst({
         where: {
           admissionRecordId: admission.id
         }
@@ -54097,14 +54469,14 @@ var pharmacyBridgeService = {
       }
       const pharmacyDepartment = await requirePharmacyDepartment(tx);
       const legacyService = await tx.serviceRate.findUnique({ where: { code: "SRV-PHARMACY" } });
-      const totalDecimal = new import_library25.Decimal(body.totalAmount);
-      const subtotalDecimal = new import_library25.Decimal(body.subtotal);
-      const taxDecimal = new import_library25.Decimal(body.taxTotal);
-      const discountDecimal = new import_library25.Decimal(body.discountTotal);
+      const totalDecimal = new import_library26.Decimal(body.totalAmount);
+      const subtotalDecimal = new import_library26.Decimal(body.subtotal);
+      const taxDecimal = new import_library26.Decimal(body.taxTotal);
+      const discountDecimal = new import_library26.Decimal(body.discountTotal);
       const panelDiscountRules = admission.panelPatient?.corporatePanel?.discountRules;
       const applyCoverage = (gross, quantity, reasonPrefix) => {
         if (!admission.panelPatientId) {
-          return { discountAmount: new import_library25.Decimal(0), discountReason: reasonPrefix, lineNet: gross, patientShare: gross, panelReceivable: new import_library25.Decimal(0), coverageSnapshot: void 0 };
+          return { discountAmount: new import_library26.Decimal(0), discountReason: reasonPrefix, lineNet: gross, patientShare: gross, panelReceivable: new import_library26.Decimal(0), coverageSnapshot: void 0 };
         }
         const coverage = resolvePanelCoverage(gross, panelDiscountRules, legacyService?.id ?? "PHARMACY", /* @__PURE__ */ new Date(), pharmacyDepartment.id, quantity, admission.panelPatient);
         return {
@@ -54117,17 +54489,17 @@ var pharmacyBridgeService = {
         };
       };
       const linesToCreate = body.lines && body.lines.length > 0 ? body.lines.map((l) => {
-        const gross = new import_library25.Decimal(l.lineNet);
+        const gross = new import_library26.Decimal(l.lineNet);
         const coverage = applyCoverage(
           gross,
-          new import_library25.Decimal(l.quantity),
+          new import_library26.Decimal(l.quantity),
           `Pharmacy: ${l.medicineName}${l.batchNumber ? ` [Batch: ${l.batchNumber}]` : ""}${l.externalRequestRef ? ` [Req: ${l.externalRequestRef}]` : ""}`
         );
         return {
           billingSource: "PHARMACY",
           descriptionSnapshot: l.medicineName,
-          rateSnapshot: new import_library25.Decimal(l.rate),
-          quantity: new import_library25.Decimal(l.quantity),
+          rateSnapshot: new import_library26.Decimal(l.rate),
+          quantity: new import_library26.Decimal(l.quantity),
           lineGross: gross,
           discountAmount: coverage.discountAmount,
           discountReason: coverage.discountReason,
@@ -54138,12 +54510,12 @@ var pharmacyBridgeService = {
         };
       }) : [
         (() => {
-          const coverage = applyCoverage(totalDecimal, new import_library25.Decimal(1), `Pharmacy Medication Charges${body.externalRequestRef ? ` [Req: ${body.externalRequestRef}]` : ""}`);
+          const coverage = applyCoverage(totalDecimal, new import_library26.Decimal(1), `Pharmacy Medication Charges${body.externalRequestRef ? ` [Req: ${body.externalRequestRef}]` : ""}`);
           return {
             billingSource: "PHARMACY",
             descriptionSnapshot: "Pharmacy Medication",
             rateSnapshot: totalDecimal,
-            quantity: new import_library25.Decimal(1),
+            quantity: new import_library26.Decimal(1),
             lineGross: totalDecimal,
             discountAmount: coverage.discountAmount,
             discountReason: coverage.discountReason,
@@ -54171,16 +54543,16 @@ var pharmacyBridgeService = {
         where: { hospitalInvoiceId: hospitalInvoice.id },
         orderBy: { createdAt: "asc" }
       });
-      const newSubtotal = allLines.reduce((sum, l) => sum.plus(l.lineGross), new import_library25.Decimal(0));
-      const newDiscount = allLines.reduce((sum, l) => sum.plus(l.discountAmount), new import_library25.Decimal(0));
-      const newTotal = allLines.reduce((sum, l) => sum.plus(l.lineNet), new import_library25.Decimal(0));
-      const newPatientShare = allLines.reduce((sum, l) => sum.plus(l.patientShare), new import_library25.Decimal(0));
-      const newPanelReceivable = allLines.reduce((sum, l) => sum.plus(l.panelReceivable), new import_library25.Decimal(0));
+      const newSubtotal = allLines.reduce((sum2, l) => sum2.plus(l.lineGross), new import_library26.Decimal(0));
+      const newDiscount = allLines.reduce((sum2, l) => sum2.plus(l.discountAmount), new import_library26.Decimal(0));
+      const newTotal = allLines.reduce((sum2, l) => sum2.plus(l.lineNet), new import_library26.Decimal(0));
+      const newPatientShare = allLines.reduce((sum2, l) => sum2.plus(l.patientShare), new import_library26.Decimal(0));
+      const newPanelReceivable = allLines.reduce((sum2, l) => sum2.plus(l.panelReceivable), new import_library26.Decimal(0));
       const previousPaidTotal = hospitalInvoice.paidTotal;
       const unlinkedAdvance = await tx.paymentReceipt.findMany({
         where: { admissionRecordId: admission.id, hospitalInvoiceId: null, isReversed: false }
       });
-      const advanceTotal = unlinkedAdvance.reduce((sum, r) => sum.plus(r.amount), new import_library25.Decimal(0));
+      const advanceTotal = unlinkedAdvance.reduce((sum2, r) => sum2.plus(r.amount), new import_library26.Decimal(0));
       if (advanceTotal.greaterThan(0)) {
         await tx.paymentReceipt.updateMany({
           where: { id: { in: unlinkedAdvance.map((r) => r.id) } },
@@ -54188,7 +54560,7 @@ var pharmacyBridgeService = {
         });
       }
       const paidTotal = previousPaidTotal.plus(advanceTotal);
-      const newOutstanding = import_library25.Decimal.max(0, newPatientShare.minus(paidTotal));
+      const newOutstanding = import_library26.Decimal.max(0, newPatientShare.minus(paidTotal));
       const newStatus = newOutstanding.equals(0) ? "PAID" : paidTotal.greaterThan(0) ? "PARTIALLY_PAID" : "UNPAID";
       hospitalInvoice = await tx.hospitalInvoice.update({
         where: { id: hospitalInvoice.id },
@@ -54203,8 +54575,8 @@ var pharmacyBridgeService = {
         },
         include: { lines: true }
       });
-      const pharmacyCovered = computePharmacyPortion(allLines, new import_library25.Decimal(0), paidTotal);
-      const pharmacyPortionFromAdvance = import_library25.Decimal.max(0, pharmacyCovered.minus(existingCharge?.patientPaid ?? 0));
+      const pharmacyCovered = computePharmacyPortion(allLines, new import_library26.Decimal(0), paidTotal);
+      const pharmacyPortionFromAdvance = import_library26.Decimal.max(0, pharmacyCovered.minus(existingCharge?.patientPaid ?? 0));
       const allRequestRefs = /* @__PURE__ */ new Set();
       if (body.externalRequestRef) allRequestRefs.add(body.externalRequestRef);
       for (const line of body.lines || []) {
@@ -54277,11 +54649,11 @@ var pharmacyBridgeService = {
         taxTotal: taxDecimal,
         discountTotal: discountDecimal,
         totalAmount: totalDecimal,
-        patientPaid: existingCharge ? existingCharge.patientPaid : new import_library25.Decimal(0),
-        patientOutstanding: import_library25.Decimal.max(0, totalDecimal.minus(existingCharge ? existingCharge.patientPaid : 0)),
+        patientPaid: existingCharge ? existingCharge.patientPaid : new import_library26.Decimal(0),
+        patientOutstanding: import_library26.Decimal.max(0, totalDecimal.minus(existingCharge ? existingCharge.patientPaid : 0)),
         patientPaymentStatus: existingCharge && existingCharge.patientPaid.greaterThanOrEqualTo(totalDecimal) ? "CLEARED" : existingCharge && existingCharge.patientPaid.greaterThan(0) ? "PARTIALLY_COLLECTED" : "PENDING",
         settlementStatus: existingCharge?.settlementStatus ?? "NOT_DUE",
-        settledAmount: existingCharge?.settledAmount ?? new import_library25.Decimal(0),
+        settledAmount: existingCharge?.settledAmount ?? new import_library26.Decimal(0),
         itemsJson: body.lines && body.lines.length > 0 ? body.lines : [],
         dispensedBySnapshot: body.dispensedBy || "Pharmacy Staff",
         dispensedAt: body.dispensedAt ? new Date(body.dispensedAt) : /* @__PURE__ */ new Date()
@@ -54299,7 +54671,7 @@ var pharmacyBridgeService = {
       }
       if (pharmacyPortionFromAdvance.greaterThan(0)) {
         const newPatientPaid = charge.patientPaid.plus(pharmacyPortionFromAdvance);
-        const newPatientOutstanding = import_library25.Decimal.max(0, charge.totalAmount.minus(newPatientPaid));
+        const newPatientOutstanding = import_library26.Decimal.max(0, charge.totalAmount.minus(newPatientPaid));
         const chargePaidInFull = newPatientOutstanding.equals(0);
         charge = await tx.hmsPharmacyCharge.update({
           where: { id: charge.id },
@@ -54352,7 +54724,8 @@ var pharmacyBridgeService = {
                 module: "BILLING",
                 targetPortal: "front-desk",
                 actionUrl: "/front-desk/billing_pending_discharges",
-                referenceId: admission.id
+                referenceId: admission.id,
+                isBroadcast: true
               });
             }
           }
@@ -54370,20 +54743,27 @@ var pharmacyBridgeService = {
     });
     if (!charge) throw new NotFoundError(`Pharmacy charge for invoice ${body.pharmacyInvoiceNumber} not found`);
     return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM hms_pharmacy_charges WHERE id = ${charge.id} FOR UPDATE`;
+      const existing = await tx.hmsPharmacySettlement.findUnique({ where: { settlementNumber: body.settlementNumber } });
+      if (existing && existing.pharmacyChargeId !== charge.id) throw new ValidationError("Settlement number belongs to a different Pharmacy charge.");
+      const released = existing?.releasedAmount ?? new import_library26.Decimal(0);
+      const requested = new import_library26.Decimal(body.requestedAmount);
+      if (requested.lt(released)) throw new ValidationError("Requested obligation cannot be less than completed payments.");
+      const status = released.gt(0) ? requested.equals(released) ? "SETTLED" : "PARTIALLY_RELEASED" : existing?.status === "APPROVED" && existing.requestedAmount.equals(requested) ? "APPROVED" : "REQUESTED";
       const settlement = await tx.hmsPharmacySettlement.upsert({
         where: { settlementNumber: body.settlementNumber },
         update: {
-          requestedAmount: new import_library25.Decimal(body.requestedAmount),
-          remainingAmount: new import_library25.Decimal(body.requestedAmount).minus(charge.settledAmount),
-          status: "REQUESTED",
+          requestedAmount: new import_library26.Decimal(body.requestedAmount),
+          remainingAmount: requested.minus(released),
+          status,
           remarks: body.remarks
         },
         create: {
           settlementNumber: body.settlementNumber,
           pharmacyChargeId: charge.id,
           pharmacyInvoiceNumber: body.pharmacyInvoiceNumber,
-          requestedAmount: new import_library25.Decimal(body.requestedAmount),
-          remainingAmount: new import_library25.Decimal(body.requestedAmount),
+          requestedAmount: new import_library26.Decimal(body.requestedAmount),
+          remainingAmount: new import_library26.Decimal(body.requestedAmount),
           status: "REQUESTED",
           requestedByExternal: body.requestedBy,
           remarks: body.remarks
@@ -54391,14 +54771,15 @@ var pharmacyBridgeService = {
       });
       await tx.hmsPharmacyCharge.update({
         where: { id: charge.id },
-        data: { settlementStatus: "REQUESTED" }
+        data: { settlementStatus: status }
       });
       return settlement;
     });
   },
   async listSettlements() {
-    return prisma.hmsPharmacySettlement.findMany({
+    const rows = await prisma.hmsPharmacySettlement.findMany({
       include: {
+        releases: { orderBy: { releasedAt: "asc" } },
         pharmacyCharge: {
           include: {
             admissionRecord: {
@@ -54413,6 +54794,10 @@ var pharmacyBridgeService = {
       },
       orderBy: { requestedAt: "desc" }
     });
+    return rows.map((row) => ({
+      ...row,
+      reconciliationRequired: !row.releasedAmount.equals(row.releases.reduce((sum2, r) => sum2.plus(r.amount), new import_library26.Decimal(0))) || row.releases.some((r) => r.bridgeStatus !== "DELIVERED")
+    }));
   },
   /**
    * Releasing money to Pharmacy is restricted to SUPER_ADMIN / ADMIN only —
@@ -54421,75 +54806,7 @@ var pharmacyBridgeService = {
    * their own requests), because this one action actually moves money out
    * of the hospital.
    */
-  async releaseSettlement(settlementId, body, actorId17, actorRole5) {
-    if (!["SUPER_ADMIN", "ADMIN"].includes(actorRole5)) {
-      throw new AuthorizationError("Only Super Admin or Admin can release a settlement payment to Pharmacy.");
-    }
-    const settlement = await prisma.hmsPharmacySettlement.findUnique({
-      where: { id: settlementId },
-      include: { pharmacyCharge: true }
-    });
-    if (!settlement) throw new NotFoundError("Settlement not found");
-    if (settlement.status === "SETTLED") throw new ValidationError("Settlement is already settled");
-    const releaseAmt = new import_library25.Decimal(body.releasedAmount);
-    if (releaseAmt.greaterThan(settlement.remainingAmount)) {
-      throw new ValidationError(`Release amount (${releaseAmt}) cannot exceed remaining amount (${settlement.remainingAmount})`);
-    }
-    const actor = await prisma.portalUser.findUnique({ where: { id: actorId17 } });
-    const newReleasedTotal = settlement.releasedAmount.plus(releaseAmt);
-    const newRemaining = settlement.requestedAmount.minus(newReleasedTotal);
-    const newStatus = newRemaining.equals(0) ? "SETTLED" : "PARTIALLY_RELEASED";
-    const result = await prisma.$transaction(async (tx) => {
-      const updatedSettlement = await tx.hmsPharmacySettlement.update({
-        where: { id: settlement.id },
-        data: {
-          releasedAmount: newReleasedTotal,
-          remainingAmount: newRemaining,
-          status: newStatus,
-          paymentMethod: body.paymentMethod,
-          paymentReference: body.paymentReference,
-          remarks: body.remarks,
-          releasedById: actorId17,
-          releasedAt: /* @__PURE__ */ new Date()
-        }
-      });
-      await tx.hmsPharmacyCharge.update({
-        where: { id: settlement.pharmacyChargeId },
-        data: {
-          settledAmount: settlement.pharmacyCharge.settledAmount.plus(releaseAmt),
-          settlementStatus: newStatus
-        }
-      });
-      const pharmacyDepartment = await requirePharmacyDepartment(tx);
-      await tx.expense.create({
-        data: {
-          expenseNumber: await generateExpenseNumber(tx),
-          expenseDate: /* @__PURE__ */ new Date(),
-          category: "MEDICAL_SUPPLIES",
-          amount: releaseAmt,
-          paymentMethod: body.paymentMethod,
-          paidTo: "Standalone Pharmacy",
-          reference: body.paymentReference,
-          description: `Pharmacy settlement release \u2014 ${settlement.pharmacyInvoiceNumber} (Settlement ${settlement.settlementNumber})${body.remarks ? `: ${body.remarks}` : ""}`,
-          departmentId: pharmacyDepartment.id,
-          createdById: actorId17
-        }
-      });
-      return updatedSettlement;
-    });
-    await pharmacyBridgeClient.releaseSettlement({
-      settlementNumber: settlement.settlementNumber,
-      pharmacyInvoiceNumber: settlement.pharmacyInvoiceNumber,
-      releasedAmount: Number(releaseAmt),
-      remainingPayable: Number(newRemaining),
-      paymentMethod: body.paymentMethod,
-      paymentReference: body.paymentReference,
-      releasedBy: actor?.displayName || actor?.username || "Admin",
-      releasedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      remarks: body.remarks
-    });
-    return result;
-  },
+  releaseSettlement: releasePharmacySettlement,
   /**
    * Manual "Resync to Pharmacy" — re-sends the already-correct
    * `HmsPharmacyCharge.patientPaid` (confirmed on this side) to Pharmacy's
@@ -54692,6 +55009,7 @@ var settlementRequestSchema = external_exports.object({
   remarks: external_exports.string().max(500).optional()
 });
 var releaseSettlementSchema = external_exports.object({
+  idempotencyKey: external_exports.string().trim().min(1).max(200).optional(),
   releasedAmount: external_exports.coerce.number().positive(),
   paymentMethod: external_exports.enum(["CASH", "BANK", "ONLINE"]).optional().default("BANK"),
   paymentReference: external_exports.string().max(100).optional(),
@@ -54759,7 +55077,7 @@ var pharmacy_bridge_routes_default = router19;
 var import_express21 = __toESM(require_express2());
 
 // src/modules/cash/cash.service.ts
-var import_library26 = require("@prisma/client/runtime/library");
+var import_library27 = require("@prisma/client/runtime/library");
 var cashService = {
   /**
    * Cashier Balance Sheet — §4.9, §8.12, D04 p.2–3
@@ -54809,19 +55127,19 @@ var cashService = {
         select: { physicalCash: true, variance: true }
       }) : Promise.resolve([])
     ]);
-    let physicalCashIn = new import_library26.Decimal(0);
-    let physicalCashOut = new import_library26.Decimal(0);
-    let nonPhysicalTotal = new import_library26.Decimal(0);
-    let totalCollections = new import_library26.Decimal(0);
-    let totalRefunds = new import_library26.Decimal(0);
-    let pettyCash = new import_library26.Decimal(0);
-    let cashCollections = new import_library26.Decimal(0);
-    let cashExpenses = new import_library26.Decimal(0);
-    let cashRefunds = new import_library26.Decimal(0);
-    let settlementCashIn = new import_library26.Decimal(0);
-    let settlementCashOut = new import_library26.Decimal(0);
-    let settledNet = new import_library26.Decimal(0);
-    let remainingNet = new import_library26.Decimal(0);
+    let physicalCashIn = new import_library27.Decimal(0);
+    let physicalCashOut = new import_library27.Decimal(0);
+    let nonPhysicalTotal = new import_library27.Decimal(0);
+    let totalCollections = new import_library27.Decimal(0);
+    let totalRefunds = new import_library27.Decimal(0);
+    let pettyCash = new import_library27.Decimal(0);
+    let cashCollections = new import_library27.Decimal(0);
+    let cashExpenses = new import_library27.Decimal(0);
+    let cashRefunds = new import_library27.Decimal(0);
+    let settlementCashIn = new import_library27.Decimal(0);
+    let settlementCashOut = new import_library27.Decimal(0);
+    let settledNet = new import_library27.Decimal(0);
+    let remainingNet = new import_library27.Decimal(0);
     for (const tx of transactions) {
       if (tx.isPhysicalCash) {
         const signed = tx.direction === "IN" ? tx.amount : tx.amount.negated();
@@ -54835,7 +55153,7 @@ var cashService = {
             cashCollections = cashCollections.plus(tx.amount);
           } else if (tx.category === "PETTY_CASH_ISSUE") {
             pettyCash = pettyCash.plus(tx.amount);
-          } else if (tx.category === "RECOVERY") {
+          } else if (tx.category === "RECOVERY" || tx.category === "PHARMACY_SETTLEMENT") {
             settlementCashIn = settlementCashIn.plus(tx.amount);
           }
         } else {
@@ -54845,7 +55163,7 @@ var cashService = {
             cashRefunds = cashRefunds.plus(tx.amount);
           } else if (tx.category === "EXPENSE") {
             cashExpenses = cashExpenses.plus(tx.amount);
-          } else if (tx.category === "RECOVERY") {
+          } else if (tx.category === "RECOVERY" || tx.category === "PHARMACY_SETTLEMENT") {
             settlementCashOut = settlementCashOut.plus(tx.amount);
           }
         }
@@ -54855,7 +55173,7 @@ var cashService = {
         else if (tx.category === "REFUND") totalRefunds = totalRefunds.plus(tx.amount);
       }
     }
-    const carriedForwardAmount = previousSettlement?.carryForwardAmount ?? new import_library26.Decimal(0);
+    const carriedForwardAmount = previousSettlement?.carryForwardAmount ?? new import_library27.Decimal(0);
     const expectedPhysicalCash = physicalCashIn.minus(physicalCashOut).plus(carriedForwardAmount);
     return {
       portalUserId,
@@ -54880,8 +55198,8 @@ var cashService = {
         // Only meaningful for a historical period — the counted cash and
         // variance come from settlements submitted inside that period.
         settlementCount: periodSettlements.length,
-        physicalCashCounted: periodSettlements.reduce((s, p) => s.plus(p.physicalCash), new import_library26.Decimal(0)),
-        variance: periodSettlements.reduce((s, p) => s.plus(p.variance), new import_library26.Decimal(0))
+        physicalCashCounted: periodSettlements.reduce((s, p) => s.plus(p.physicalCash), new import_library27.Decimal(0)),
+        variance: periodSettlements.reduce((s, p) => s.plus(p.variance), new import_library27.Decimal(0))
       },
       transactions: transactions.map((t) => ({
         id: t.id,
@@ -54892,7 +55210,7 @@ var cashService = {
         isSettled: t.isSettled,
         occurredAt: t.occurredAt,
         paymentAccount: t.paymentReceipt?.paymentAccount ?? null,
-        receiptNumber: t.paymentReceipt?.receiptNumber ?? (t.category === "RECOVERY" ? "SETTLEMENT" : null),
+        receiptNumber: t.paymentReceipt?.receiptNumber ?? (t.category === "RECOVERY" || t.category === "PHARMACY_SETTLEMENT" ? "SETTLEMENT" : null),
         invoiceNumber: t.paymentReceipt?.hospitalInvoice?.invoiceNumber ?? null,
         paymentMethod: t.paymentReceipt?.method ?? (t.isPhysicalCash ? "CASH" : "NON_CASH"),
         note: t.note
@@ -54902,7 +55220,7 @@ var cashService = {
 };
 
 // src/modules/cash/settlement.service.ts
-var import_library27 = require("@prisma/client/runtime/library");
+var import_library28 = require("@prisma/client/runtime/library");
 var settlementService = {
   /**
    * Returns active, authorized receiver accounts that the given submitter can settle to:
@@ -54930,7 +55248,7 @@ var settlementService = {
     });
   },
   async submitSettlement(portalUserId, body) {
-    return prisma.$transaction(async (tx) => {
+    const createdSettlement = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`settlement:${portalUserId}`}))`;
       const targetUser = await tx.portalUser.findUniqueOrThrow({
         where: { id: portalUserId },
@@ -54977,12 +55295,12 @@ var settlementService = {
           select: { carryForwardAmount: true }
         })
       ]);
-      const broughtForward = previousSettlement?.carryForwardAmount ?? new import_library27.Decimal(0);
+      const broughtForward = previousSettlement?.carryForwardAmount ?? new import_library28.Decimal(0);
       if (unsettled.length === 0 && broughtForward.isZero()) {
         throw new ValidationError("No unsettled transactions to settle.");
       }
-      let physicalCashIn = new import_library27.Decimal(0);
-      let physicalCashOut = new import_library27.Decimal(0);
+      let physicalCashIn = new import_library28.Decimal(0);
+      let physicalCashOut = new import_library28.Decimal(0);
       for (const t of unsettled) {
         if (t.isPhysicalCash) {
           if (t.direction === "IN") physicalCashIn = physicalCashIn.plus(t.amount);
@@ -54990,9 +55308,9 @@ var settlementService = {
         }
       }
       const expectedCash = physicalCashIn.minus(physicalCashOut).plus(broughtForward);
-      const physicalCash = new import_library27.Decimal(body.physicalCash);
+      const physicalCash = new import_library28.Decimal(body.physicalCash);
       const variance = physicalCash.minus(expectedCash);
-      const carryForwardAmount = variance.isNegative() ? variance.abs() : new import_library27.Decimal(0);
+      const carryForwardAmount = variance.isNegative() ? variance.abs() : new import_library28.Decimal(0);
       if (!variance.isZero() && !body.varianceReason?.trim()) {
         throw new ValidationError(
           `Physical cash (${physicalCash.toString()}) does not match expected cash (${expectedCash.toString()}) \u2014 a variance reason is required.`
@@ -55013,7 +55331,7 @@ var settlementService = {
           physicalCash,
           variance,
           varianceReason: body.varianceReason?.trim() || null,
-          handoverAmount: body.handoverAmount != null ? new import_library27.Decimal(body.handoverAmount) : null,
+          handoverAmount: body.handoverAmount != null ? new import_library28.Decimal(body.handoverAmount) : null,
           carryForwardAmount,
           status: "SUBMITTED",
           submittedAt: now,
@@ -55031,6 +55349,36 @@ var settlementService = {
       }
       return settlement;
     });
+    try {
+      const submitterUser = prisma.portalUser?.findUnique ? await prisma.portalUser.findUnique({
+        where: { id: portalUserId },
+        select: { displayName: true, username: true, role: true }
+      }) : null;
+      const submitterName = submitterUser?.displayName || submitterUser?.username || "Cashier";
+      const roleLabel = submitterUser?.role === "FRONT_DESK_BILLING" || createdSettlement.moduleScope === "BILLING" ? "Front Desk" : submitterUser?.role || "Staff";
+      const handoverNum = Number(createdSettlement.handoverAmount ?? createdSettlement.physicalCash);
+      const amountStr = handoverNum.toLocaleString("en-PK", { maximumFractionDigits: 0 });
+      const receiver = createdSettlement.receiverUserId && prisma.portalUser?.findUnique ? await prisma.portalUser.findUnique({
+        where: { id: createdSettlement.receiverUserId },
+        select: { id: true, role: true }
+      }) : null;
+      const targetPortal = receiver?.role === "SUPER_ADMIN" ? "super-admin" : "admin";
+      await notificationsService.createNotification({
+        title: `Shift Settlement Submitted: ${submitterName}`,
+        message: `${submitterName} (${roleLabel}) submitted a shift settlement of Rs. ${amountStr} awaiting review and acceptance.`,
+        type: "urgent",
+        module: "Finance",
+        targetPortal,
+        actionUrl: `/${targetPortal}/account_settlements`,
+        referenceId: createdSettlement.id,
+        createdById: portalUserId,
+        recipientUserId: createdSettlement.receiverUserId,
+        isBroadcast: false
+      });
+    } catch (notifErr) {
+      console.error("Failed to dispatch settlement notification:", notifErr);
+    }
+    return createdSettlement;
   },
   /** reporting.md §2 #9 — own settlement history, filterable by From/To (settlement creation) and Settlement Status. */
   async listMySettlements(portalUserId, query) {
@@ -55061,7 +55409,7 @@ var settlementService = {
 };
 
 // src/modules/cash/financeControl.service.ts
-var import_library28 = require("@prisma/client/runtime/library");
+var import_library29 = require("@prisma/client/runtime/library");
 var userSummarySelect = { id: true, displayName: true, username: true, role: true };
 var HMS_OVERSIGHT_SCOPES = ["BILLING", "INVENTORY"];
 var ISSUABLE_ROLES = ["INVENTORY_MANAGEMENT", "FRONT_DESK_BILLING"];
@@ -55111,13 +55459,13 @@ var financeControlService = {
         bucket = {
           portalUserId: row.portalUserId,
           user: row.portalUser,
-          physicalCashIn: new import_library28.Decimal(0),
-          physicalCashOut: new import_library28.Decimal(0),
-          nonPhysicalTotal: new import_library28.Decimal(0),
-          totalCollections: new import_library28.Decimal(0),
-          totalRefunds: new import_library28.Decimal(0),
-          pettyCashIssued: new import_library28.Decimal(0),
-          cashExpenses: new import_library28.Decimal(0),
+          physicalCashIn: new import_library29.Decimal(0),
+          physicalCashOut: new import_library29.Decimal(0),
+          nonPhysicalTotal: new import_library29.Decimal(0),
+          totalCollections: new import_library29.Decimal(0),
+          totalRefunds: new import_library29.Decimal(0),
+          pettyCashIssued: new import_library29.Decimal(0),
+          cashExpenses: new import_library29.Decimal(0),
           settledCount: 0,
           unsettledCount: 0
         };
@@ -55147,20 +55495,20 @@ var financeControlService = {
         byUser.set(portalUserId, {
           portalUserId,
           user: cf.user,
-          physicalCashIn: new import_library28.Decimal(0),
-          physicalCashOut: new import_library28.Decimal(0),
-          nonPhysicalTotal: new import_library28.Decimal(0),
-          totalCollections: new import_library28.Decimal(0),
-          totalRefunds: new import_library28.Decimal(0),
-          pettyCashIssued: new import_library28.Decimal(0),
-          cashExpenses: new import_library28.Decimal(0),
+          physicalCashIn: new import_library29.Decimal(0),
+          physicalCashOut: new import_library29.Decimal(0),
+          nonPhysicalTotal: new import_library29.Decimal(0),
+          totalCollections: new import_library29.Decimal(0),
+          totalRefunds: new import_library29.Decimal(0),
+          pettyCashIssued: new import_library29.Decimal(0),
+          cashExpenses: new import_library29.Decimal(0),
           settledCount: 0,
           unsettledCount: 0
         });
       }
     }
     const sheets = Array.from(byUser.values()).map((b) => {
-      const carriedForwardAmount = carryForwards.get(b.portalUserId)?.amount ?? new import_library28.Decimal(0);
+      const carriedForwardAmount = carryForwards.get(b.portalUserId)?.amount ?? new import_library29.Decimal(0);
       return {
         portalUserId: b.portalUserId,
         user: b.user,
@@ -55230,7 +55578,7 @@ var financeControlService = {
       throw new ValidationError("Settlement receiver must hold an Admin or Super Admin role.");
     }
     const newStatus = REVIEW_ACTION_TO_STATUS[body.action];
-    return prisma.$transaction(async (tx) => {
+    const reviewed = await prisma.$transaction(async (tx) => {
       await lockMainFund(tx);
       const current = await tx.accountSettlement.findUnique({ where: { id } });
       if (current?.status !== "SUBMITTED") throw new BusinessRuleError("Only a submitted settlement can be reviewed.");
@@ -55239,7 +55587,7 @@ var financeControlService = {
           "Only the designated settlement receiver is authorized to review, accept, or reject this settlement."
         );
       }
-      const reviewed = await tx.accountSettlement.update({
+      const reviewed2 = await tx.accountSettlement.update({
         where: { id },
         data: {
           status: newStatus,
@@ -55262,7 +55610,7 @@ var financeControlService = {
         }
       }
       if (newStatus === "ACCEPTED" || newStatus === "PARTIALLY_ACCEPTED") {
-        const returnedAmount = reviewed.handoverAmount ?? reviewed.physicalCash;
+        const returnedAmount = reviewed2.handoverAmount ?? reviewed2.physicalCash;
         if (returnedAmount.greaterThan(0)) {
           await tx.mainCashFundEntry.create({
             data: {
@@ -55271,10 +55619,10 @@ var financeControlService = {
               type: "SETTLEMENT_RETURN",
               note: `Settlement handover from ${settlement.submittedByUser.displayName || settlement.submittedByUser.username}`,
               performedById: reviewerPortalUserId,
-              relatedAccountSettlementId: reviewed.id
+              relatedAccountSettlementId: reviewed2.id
             }
           });
-          const occurredAt = reviewed.reviewedAt ?? /* @__PURE__ */ new Date();
+          const occurredAt = reviewed2.reviewedAt ?? /* @__PURE__ */ new Date();
           const senderName = settlement.submittedByUser.displayName || settlement.submittedByUser.username;
           const receiverName = receiverUser.displayName || receiverUser.username;
           const approverName = reviewerUser.displayName || reviewerUser.username;
@@ -55288,7 +55636,7 @@ var financeControlService = {
               isPhysicalCash: true,
               isSettled: true,
               issuedById: reviewerPortalUserId,
-              note: `Settlement handover to ${receiverName} [settlement:${reviewed.id}]`,
+              note: `Settlement handover to ${receiverName} [settlement:${reviewed2.id}]`,
               occurredAt
             }
           });
@@ -55303,14 +55651,55 @@ var financeControlService = {
               isPhysicalCash: true,
               isSettled: false,
               issuedById: settlement.portalUserId,
-              note: `Settlement received from ${senderName} (Approved by ${approverName}) [settlement:${reviewed.id}]`,
+              note: `Settlement received from ${senderName} (Approved by ${approverName}) [settlement:${reviewed2.id}]`,
               occurredAt
             }
           });
         }
       }
-      return reviewed;
+      return reviewed2;
     });
+    try {
+      await prisma.hospitalNotification.updateMany({
+        where: { referenceId: id, recipientUserId: reviewerPortalUserId },
+        data: { isRead: true }
+      });
+      const submitterRole = settlement.submittedByUser.role;
+      const targetPortal = submitterRole === "FRONT_DESK_BILLING" || settlement.moduleScope === "BILLING" ? "front-desk" : submitterRole === "ADMIN" ? "admin" : "super-admin";
+      const returnedAmount = reviewed.handoverAmount ?? reviewed.physicalCash;
+      const amountStr = Number(returnedAmount).toLocaleString("en-PK", { maximumFractionDigits: 0 });
+      const reviewerName = reviewerUser.displayName || reviewerUser.username;
+      if (newStatus === "ACCEPTED" || newStatus === "PARTIALLY_ACCEPTED") {
+        await notificationsService.createNotification({
+          title: `Settlement ${newStatus === "ACCEPTED" ? "Accepted" : "Partially Accepted"}`,
+          message: `Your shift settlement of Rs. ${amountStr} has been accepted by ${reviewerName}.`,
+          type: "success",
+          module: "Finance",
+          targetPortal,
+          actionUrl: "/front-desk/my_account_settlement",
+          referenceId: reviewed.id,
+          createdById: reviewerPortalUserId,
+          recipientUserId: settlement.portalUserId,
+          isBroadcast: false
+        });
+      } else if (newStatus === "RETURNED" || newStatus === "REJECTED") {
+        await notificationsService.createNotification({
+          title: `Settlement ${newStatus === "RETURNED" ? "Returned" : "Rejected"}`,
+          message: `Your shift settlement of Rs. ${amountStr} was returned by ${reviewerName}. Remarks: ${body.remarks || "Please recount cash and resubmit."}`,
+          type: "warning",
+          module: "Finance",
+          targetPortal,
+          actionUrl: "/front-desk/my_account_settlement",
+          referenceId: reviewed.id,
+          createdById: reviewerPortalUserId,
+          recipientUserId: settlement.portalUserId,
+          isBroadcast: false
+        });
+      }
+    } catch (notifErr) {
+      console.error("Failed to dispatch settlement review notification:", notifErr);
+    }
+    return reviewed;
   },
   /**
    * Reverses a posted settlement — never edits or deletes the original
@@ -55359,7 +55748,7 @@ var financeControlService = {
         where: { relatedAccountSettlementId: id, direction: "IN" },
         select: { amount: true }
       });
-      const creditedAmount = priorCredits.reduce((sum, e) => sum.plus(e.amount), new import_library28.Decimal(0));
+      const creditedAmount = priorCredits.reduce((sum2, e) => sum2.plus(e.amount), new import_library29.Decimal(0));
       if (creditedAmount.greaterThan(0)) {
         await tx.mainCashFundEntry.create({
           data: {
@@ -55398,14 +55787,14 @@ var financeControlService = {
       }),
       getLatestCarryForwardsByUser()
     ]);
-    let totalCashCollectedToday = new import_library28.Decimal(0);
-    const byMethod = { CARD: new import_library28.Decimal(0), BANK: new import_library28.Decimal(0), ONLINE: new import_library28.Decimal(0) };
+    let totalCashCollectedToday = new import_library29.Decimal(0);
+    const byMethod = { CARD: new import_library29.Decimal(0), BANK: new import_library29.Decimal(0), ONLINE: new import_library29.Decimal(0) };
     for (const c of collectionRows) {
       if (c.isPhysicalCash) {
         totalCashCollectedToday = totalCashCollectedToday.plus(c.amount);
       } else {
         const method = c.paymentReceipt?.method ?? "CARD";
-        if (!byMethod[method]) byMethod[method] = new import_library28.Decimal(0);
+        if (!byMethod[method]) byMethod[method] = new import_library29.Decimal(0);
         byMethod[method] = byMethod[method].plus(c.amount);
       }
     }
@@ -55414,12 +55803,12 @@ var financeControlService = {
         totalCashCollectedToday = totalCashCollectedToday.minus(refund.amount);
       } else {
         const method = refund.paymentReceipt?.method ?? "CARD";
-        byMethod[method] = (byMethod[method] ?? new import_library28.Decimal(0)).minus(refund.amount);
+        byMethod[method] = (byMethod[method] ?? new import_library29.Decimal(0)).minus(refund.amount);
       }
     }
-    const totalNonCashCollectedToday = Object.values(byMethod).reduce((s, v) => s.plus(v), new import_library28.Decimal(0));
-    const totalRefundsToday = refundRows.reduce((s, r) => s.plus(r.amount), new import_library28.Decimal(0));
-    let totalUnsettledCash = new import_library28.Decimal(0);
+    const totalNonCashCollectedToday = Object.values(byMethod).reduce((s, v) => s.plus(v), new import_library29.Decimal(0));
+    const totalRefundsToday = refundRows.reduce((s, r) => s.plus(r.amount), new import_library29.Decimal(0));
+    let totalUnsettledCash = new import_library29.Decimal(0);
     const usersPendingSettlement = /* @__PURE__ */ new Set();
     for (const u of allTimeUnsettled) {
       if (u.isPhysicalCash) {
@@ -55432,8 +55821,8 @@ var financeControlService = {
       totalUnsettledCash = totalUnsettledCash.plus(cf.amount);
       usersPendingSettlement.add(portalUserId);
     }
-    let totalExpectedCash = new import_library28.Decimal(0);
-    let totalSettledCash = new import_library28.Decimal(0);
+    let totalExpectedCash = new import_library29.Decimal(0);
+    let totalSettledCash = new import_library29.Decimal(0);
     let settlementsCompletedToday = 0;
     let settlementDifferences = 0;
     for (const s of settlementsInRange) {
@@ -55488,8 +55877,8 @@ var financeControlService = {
       await lockMainFund(tx);
       const fundRows = await tx.mainCashFundEntry.findMany({ select: { direction: true, amount: true } });
       const fundBalance = fundRows.reduce(
-        (sum, r) => r.direction === "IN" ? sum.plus(r.amount) : sum.minus(r.amount),
-        new import_library28.Decimal(0)
+        (sum2, r) => r.direction === "IN" ? sum2.plus(r.amount) : sum2.minus(r.amount),
+        new import_library29.Decimal(0)
       );
       if (fundBalance.lessThan(body.amount)) {
         throw new BusinessRuleError(
@@ -55525,16 +55914,16 @@ var financeControlService = {
 };
 
 // src/modules/cash/mainFund.service.ts
-var import_library29 = require("@prisma/client/runtime/library");
+var import_library30 = require("@prisma/client/runtime/library");
 var userSummarySelect2 = { id: true, displayName: true, username: true, role: true };
 var mainFundService = {
   async getSummary() {
     const entries = await prisma.mainCashFundEntry.findMany({ select: { direction: true, amount: true, type: true } });
-    let currentBalance = new import_library29.Decimal(0);
-    let totalDeposited = new import_library29.Decimal(0);
-    let totalIssued = new import_library29.Decimal(0);
-    let totalWithdrawn = new import_library29.Decimal(0);
-    let totalSettlementReturns = new import_library29.Decimal(0);
+    let currentBalance = new import_library30.Decimal(0);
+    let totalDeposited = new import_library30.Decimal(0);
+    let totalIssued = new import_library30.Decimal(0);
+    let totalWithdrawn = new import_library30.Decimal(0);
+    let totalSettlementReturns = new import_library30.Decimal(0);
     for (const e of entries) {
       currentBalance = e.direction === "IN" ? currentBalance.plus(e.amount) : currentBalance.minus(e.amount);
       if (e.type === "DEPOSIT") totalDeposited = totalDeposited.plus(e.amount);
@@ -55574,7 +55963,7 @@ var mainFundService = {
     return prisma.$transaction(async (tx) => {
       await lockMainFund(tx);
       const entries = await tx.mainCashFundEntry.findMany({ select: { direction: true, amount: true } });
-      const balance = entries.reduce((sum, row) => row.direction === "IN" ? sum.plus(row.amount) : sum.minus(row.amount), new import_library29.Decimal(0));
+      const balance = entries.reduce((sum2, row) => row.direction === "IN" ? sum2.plus(row.amount) : sum2.minus(row.amount), new import_library30.Decimal(0));
       if (balance.lessThan(body.amount)) {
         throw new BusinessRuleError(`Insufficient Main Fund balance \u2014 PKR ${balance.toFixed(2)} available.`);
       }
@@ -55787,7 +56176,7 @@ var cash_routes_default = router20;
 var import_express22 = __toESM(require_express2());
 
 // src/modules/reports/frontdeskBilling.service.ts
-var import_library30 = require("@prisma/client/runtime/library");
+var import_library31 = require("@prisma/client/runtime/library");
 var frontdeskBillingReportService = {
   async getReport(query) {
     const { start, end, label } = resolveDateRange(query);
@@ -55813,12 +56202,12 @@ var frontdeskBillingReportService = {
         }
       })
     ]);
-    const zero3 = () => new import_library30.Decimal(0);
+    const zero3 = () => new import_library31.Decimal(0);
     const byMethod = { CASH: zero3(), CARD: zero3(), BANK: zero3(), ONLINE: zero3() };
     const byAccount = {};
     let collected = zero3(), refunds = zero3();
     for (const receipt of receipts) {
-      const amount = allocateCollection(receipt).filter((a) => !deptId || a.departmentId === deptId).reduce((sum, a) => sum.plus(a.amount), zero3());
+      const amount = allocateCollection(receipt).filter((a) => !deptId || a.departmentId === deptId).reduce((sum2, a) => sum2.plus(a.amount), zero3());
       byMethod[receipt.method] = byMethod[receipt.method].plus(amount);
       if (receipt.method !== "CASH") {
         const account = receipt.paymentAccount ?? "Legacy / account not recorded";
@@ -55829,29 +56218,68 @@ var frontdeskBillingReportService = {
     }
     let totalGross = zero3(), totalDiscounts = zero3(), totalNet = zero3(), totalOutstanding = zero3(), invoiceCount = 0;
     const invoiceCountsByStatus = {};
+    const byCategory = {
+      OPD: { category: "OPD", invoiceCount: 0, gross: zero3(), discounts: zero3(), net: zero3(), paid: zero3(), outstanding: zero3() },
+      OBSERVATION: { category: "Observation", invoiceCount: 0, gross: zero3(), discounts: zero3(), net: zero3(), paid: zero3(), outstanding: zero3() },
+      EMERGENCY: { category: "Emergency", invoiceCount: 0, gross: zero3(), discounts: zero3(), net: zero3(), paid: zero3(), outstanding: zero3() },
+      ADMISSION: { category: "Admission", invoiceCount: 0, gross: zero3(), discounts: zero3(), net: zero3(), paid: zero3(), outstanding: zero3() },
+      CUSTOM: { category: "Custom Billing", invoiceCount: 0, gross: zero3(), discounts: zero3(), net: zero3(), paid: zero3(), outstanding: zero3() }
+    };
+    const getInvCategoryKey = (inv) => {
+      if (inv.sourceType === "ADMISSION") return "ADMISSION";
+      if (inv.encounterType === "OBSERVATION") return "OBSERVATION";
+      if (inv.encounterType === "EMERGENCY") return "EMERGENCY";
+      if (inv.encounterType === "CUSTOM") return "CUSTOM";
+      return "OPD";
+    };
     for (const inv of allInvoices.map(invoiceAsOf)) {
-      const scoped = (amount, basis) => allocateInvoiceAmount(amount, inv, basis).filter((a) => !deptId || a.departmentId === deptId).reduce((sum, a) => sum.plus(a.amount), zero3());
-      totalOutstanding = totalOutstanding.plus(scoped(inv.balance.patientDue, "patientShare")).plus(scoped(inv.balance.panelDue, "panelReceivable"));
+      const scoped = (amount, basis) => allocateInvoiceAmount(amount, inv, basis).filter((a) => !deptId || a.departmentId === deptId).reduce((sum2, a) => sum2.plus(a.amount), zero3());
+      const invOutstanding = scoped(inv.balance.patientDue, "patientShare").plus(scoped(inv.balance.panelDue, "panelReceivable"));
+      totalOutstanding = totalOutstanding.plus(invOutstanding);
+      const catKey = getInvCategoryKey(inv);
+      if (byCategory[catKey]) {
+        byCategory[catKey].outstanding = byCategory[catKey].outstanding.plus(invOutstanding);
+      }
       if (inv.createdAt < start) continue;
       invoiceCount++;
       invoiceCountsByStatus[inv.status] = (invoiceCountsByStatus[inv.status] ?? 0) + 1;
+      let invGross = zero3(), invDiscounts = zero3(), invNet = zero3();
       if (deptId && inv.lines.length) {
         for (const line of inv.lines.filter((l) => (l.serviceRate?.department?.id ?? inv.departmentId) === deptId)) {
-          totalGross = totalGross.plus(line.lineGross);
-          totalDiscounts = totalDiscounts.plus(line.discountAmount);
-          totalNet = totalNet.plus(line.lineNet);
+          invGross = invGross.plus(line.lineGross);
+          invDiscounts = invDiscounts.plus(line.discountAmount);
+          invNet = invNet.plus(line.lineNet);
         }
       } else {
-        totalGross = totalGross.plus(inv.subtotal);
-        totalDiscounts = totalDiscounts.plus(inv.discountTotal);
-        totalNet = totalNet.plus(inv.total);
+        invGross = invGross.plus(inv.subtotal);
+        invDiscounts = invDiscounts.plus(inv.discountTotal);
+        invNet = invNet.plus(inv.total);
+      }
+      totalGross = totalGross.plus(invGross);
+      totalDiscounts = totalDiscounts.plus(invDiscounts);
+      totalNet = totalNet.plus(invNet);
+      const invPaid = scoped(inv.paidTotal, "patientShare").plus(scoped(inv.balance.panelPaid, "panelReceivable"));
+      if (byCategory[catKey]) {
+        byCategory[catKey].invoiceCount += 1;
+        byCategory[catKey].gross = byCategory[catKey].gross.plus(invGross);
+        byCategory[catKey].discounts = byCategory[catKey].discounts.plus(invDiscounts);
+        byCategory[catKey].net = byCategory[catKey].net.plus(invNet);
+        byCategory[catKey].paid = byCategory[catKey].paid.plus(invPaid);
       }
     }
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
       collections: { total: collected, byMethod, byAccount },
       refunds: { total: refunds },
-      billing: { invoiceCount, invoiceCountsByStatus, totalGross, totalDiscounts, totalNet, totalOutstanding }
+      billing: {
+        invoiceCount,
+        invoiceCountsByStatus,
+        totalGross,
+        totalDiscounts,
+        totalNet,
+        totalOutstanding,
+        byCategory
+      }
     };
   }
 };
@@ -55878,7 +56306,7 @@ var getSuperAdminDashboardQuerySchema = external_exports.object({
 });
 
 // src/modules/reports/frontdeskReports.service.ts
-var import_library31 = require("@prisma/client/runtime/library");
+var import_library32 = require("@prisma/client/runtime/library");
 var userSummarySelect3 = { id: true, displayName: true, username: true, role: true };
 var patientNameSelect = {
   panelPatient: { select: { id: true, fullName: true, mrNumber: true } },
@@ -55892,17 +56320,27 @@ var frontdeskReportsService = {
   async getEncounterRegister(query) {
     const { start, end, label } = resolveDateRange(query);
     const where = {
-      sourceType: { not: "ADMISSION" },
       createdAt: { gte: start, lte: end },
       ...query.departmentId ? {
         OR: [
           { departmentId: query.departmentId },
-          { lines: { some: { serviceRate: { departmentId: query.departmentId } } } }
+          { lines: { some: { serviceRate: { departmentId: query.departmentId } } } },
+          { admissionRecord: { departmentId: query.departmentId } }
         ]
       } : {},
-      ...query.encounterType ? { encounterType: query.encounterType } : {},
+      ...query.encounterType === "ADMISSION" ? { sourceType: "ADMISSION" } : query.encounterType ? {
+        OR: [
+          { encounterType: query.encounterType },
+          ...query.encounterType === "OPD" ? [{ sourceType: "APPOINTMENT" }] : []
+        ]
+      } : {},
       ...query.status ? { status: query.status } : {},
-      ...query.doctorStaffId ? { appointment: { doctorStaffId: query.doctorStaffId } } : {}
+      ...query.doctorStaffId ? {
+        OR: [
+          { appointment: { doctorStaffId: query.doctorStaffId } },
+          { admissionRecord: { doctorStaffId: query.doctorStaffId } }
+        ]
+      } : {}
     };
     const rows = await prisma.hospitalInvoice.findMany({
       where,
@@ -55911,6 +56349,7 @@ var frontdeskReportsService = {
         department: { select: { id: true, name: true } },
         lines: { select: { serviceRate: { select: { department: { select: { id: true, name: true } } } } } },
         appointment: { select: { doctor: { select: { id: true, fullName: true } } } },
+        admissionRecord: { select: { admissionNumber: true, department: { select: { id: true, name: true } }, doctor: { select: { id: true, fullName: true } } } },
         createdByUser: { select: userSummarySelect3 }
       },
       orderBy: { createdAt: "desc" },
@@ -55922,20 +56361,22 @@ var frontdeskReportsService = {
       rows: rows.map((r) => {
         const depts = Array.from(
           new Set(
-            [r.department?.name, ...r.lines.map((l) => l.serviceRate?.department?.name)].filter(
-              (name) => Boolean(name)
+            [r.department?.name, r.admissionRecord?.department?.name, ...r.lines.map((l) => l.serviceRate?.department?.name)].filter(
+              (name2) => Boolean(name2)
             )
           )
         );
+        const doctorName = r.appointment?.doctor?.fullName || r.admissionRecord?.doctor?.fullName || null;
+        const visitLabel = r.sourceType === "ADMISSION" ? "Admission" : r.encounterType ?? (r.sourceType === "APPOINTMENT" ? "OPD" : r.sourceType);
         return {
           invoiceNumber: r.invoiceNumber,
           occurredAt: r.createdAt,
           patient: patientDisplayName(r),
           payer: r.panelPatient ? "Panel" : "Self-Pay",
           department: query.departmentId ? depts.find((d) => d.toLowerCase().includes("lab")) || depts[0] || "Hospital Department" : depts.length > 0 ? depts.join(", ") : "Hospital Department",
-          doctor: r.appointment?.doctor?.fullName ?? null,
-          visitType: r.sourceType,
-          encounterType: r.encounterType,
+          doctor: doctorName,
+          visitType: visitLabel,
+          encounterType: r.encounterType || (r.sourceType === "ADMISSION" ? "ADMISSION" : "OPD"),
           status: r.status,
           createdBy: r.createdByUser?.displayName || r.createdByUser?.username || null
         };
@@ -55982,25 +56423,25 @@ var frontdeskReportsService = {
       },
       orderBy: { createdAt: "desc" }
     });
-    let gross = new import_library31.Decimal(0);
-    let discount = new import_library31.Decimal(0);
-    let net = new import_library31.Decimal(0);
-    let paid = new import_library31.Decimal(0);
+    let gross = new import_library32.Decimal(0);
+    let discount = new import_library32.Decimal(0);
+    let net = new import_library32.Decimal(0);
+    let paid = new import_library32.Decimal(0);
     const cutoffRows = rows.map(invoiceAsOf).filter((r) => !query.status || r.status === query.status);
     const mappedRows = cutoffRows.map((r) => {
       let rowGross = r.subtotal;
       let rowDiscount = r.discountTotal;
       let rowNet = r.total;
-      const scoped = (amount, basis) => !deptId ? amount : allocateInvoiceAmount(amount, r, basis).filter((a) => a.departmentId === deptId).reduce((sum, a) => sum.plus(a.amount), new import_library31.Decimal(0));
+      const scoped = (amount, basis) => !deptId ? amount : allocateInvoiceAmount(amount, r, basis).filter((a) => a.departmentId === deptId).reduce((sum2, a) => sum2.plus(a.amount), new import_library32.Decimal(0));
       const rowPaid = scoped(r.paidTotal, "patientShare").plus(scoped(r.balance.panelPaid, "panelReceivable"));
       const rowBalance = scoped(r.balance.patientDue, "patientShare").plus(scoped(r.balance.panelDue, "panelReceivable"));
       if (deptId && r.lines && r.lines.length > 0) {
         const matchingLines = r.lines.filter(
           (l) => l.serviceRate?.departmentId === deptId || !l.serviceRate?.departmentId && r.departmentId === deptId
         );
-        rowGross = matchingLines.reduce((s, l) => s.plus(l.lineGross), new import_library31.Decimal(0));
-        rowDiscount = matchingLines.reduce((s, l) => s.plus(l.discountAmount), new import_library31.Decimal(0));
-        rowNet = matchingLines.reduce((s, l) => s.plus(l.lineNet), new import_library31.Decimal(0));
+        rowGross = matchingLines.reduce((s, l) => s.plus(l.lineGross), new import_library32.Decimal(0));
+        rowDiscount = matchingLines.reduce((s, l) => s.plus(l.discountAmount), new import_library32.Decimal(0));
+        rowNet = matchingLines.reduce((s, l) => s.plus(l.lineNet), new import_library32.Decimal(0));
       }
       gross = gross.plus(rowGross);
       discount = discount.plus(rowDiscount);
@@ -56009,7 +56450,7 @@ var frontdeskReportsService = {
       const depts = Array.from(
         new Set(
           [r.department?.name, ...r.lines.map((l) => l.serviceRate?.department?.name)].filter(
-            (name) => Boolean(name)
+            (name2) => Boolean(name2)
           )
         )
       );
@@ -56031,7 +56472,7 @@ var frontdeskReportsService = {
     });
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
-      summary: { grossBilled: gross, discount, netBilled: net, paid, outstanding: mappedRows.reduce((sum, r) => sum.plus(r.balance), new import_library31.Decimal(0)), invoiceCount: mappedRows.length },
+      summary: { grossBilled: gross, discount, netBilled: net, paid, outstanding: mappedRows.reduce((sum2, r) => sum2.plus(r.balance), new import_library32.Decimal(0)), invoiceCount: mappedRows.length },
       rows: mappedRows
     };
   },
@@ -56057,8 +56498,8 @@ var frontdeskReportsService = {
       },
       orderBy: { collectedAt: "desc" }
     });
-    const byMethod = { CASH: new import_library31.Decimal(0), CARD: new import_library31.Decimal(0), BANK: new import_library31.Decimal(0), ONLINE: new import_library31.Decimal(0) };
-    let total = new import_library31.Decimal(0);
+    const byMethod = { CASH: new import_library32.Decimal(0), CARD: new import_library32.Decimal(0), BANK: new import_library32.Decimal(0), ONLINE: new import_library32.Decimal(0) };
+    let total = new import_library32.Decimal(0);
     for (const r of rows) {
       byMethod[r.method] = byMethod[r.method].plus(r.amount);
       total = total.plus(r.amount);
@@ -56102,17 +56543,25 @@ var frontdeskReportsService = {
       orderBy: { createdAt: "asc" }
     });
     const rows = invoices.map(invoiceAsOf).map((r) => {
-      const scoped = (amount, basis) => !deptId ? amount : allocateInvoiceAmount(amount, r, basis).filter((a) => a.departmentId === deptId).reduce((s, a) => s.plus(a.amount), new import_library31.Decimal(0));
+      const scoped = (amount, basis) => !deptId ? amount : allocateInvoiceAmount(amount, r, basis).filter((a) => a.departmentId === deptId).reduce((s, a) => s.plus(a.amount), new import_library32.Decimal(0));
+      const ageInDays = Math.max(0, Math.floor((end.getTime() - r.createdAt.getTime()) / (1e3 * 60 * 60 * 24)));
+      let aging = "Current (0 d)";
+      if (ageInDays >= 1 && ageInDays <= 30) aging = "1-30 Days";
+      else if (ageInDays >= 31 && ageInDays <= 60) aging = "31-60 Days";
+      else if (ageInDays >= 61 && ageInDays <= 90) aging = "61-90 Days";
+      else if (ageInDays > 90) aging = "90+ Days";
       return {
         id: r.id,
         invoiceNumber: r.invoiceNumber,
         createdAt: r.createdAt,
         patient: patientDisplayName(r),
         department: (deptId ? r.lines.find((l) => l.serviceRate?.department?.id === deptId)?.serviceRate?.department?.name : void 0) ?? r.department?.name ?? "Hospital Department",
+        gross: scoped(r.subtotal, "lineNet"),
         net: scoped(r.total, "lineNet"),
         paid: scoped(r.paidTotal, "patientShare").plus(scoped(r.balance.panelPaid, "panelReceivable")),
         outstanding: scoped(r.balance.patientDue, "patientShare").plus(scoped(r.balance.panelDue, "panelReceivable")),
         lastPaymentAt: r.paymentReceipts.reduce((latest, p) => !latest || p.collectedAt > latest ? p.collectedAt : latest, null),
+        aging,
         payer: r.corporatePanelId ? "Panel" : "Self-Pay",
         createdBy: r.createdByUser?.displayName || r.createdByUser?.username || null,
         status: r.status
@@ -56120,7 +56569,7 @@ var frontdeskReportsService = {
     }).filter((r) => r.outstanding.gt(0) && (!query.status || r.status === query.status) && (query.minOutstanding == null || r.outstanding.gte(query.minOutstanding)));
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
-      summary: { totalOutstanding: rows.reduce((sum, r) => sum.plus(r.outstanding), new import_library31.Decimal(0)), invoiceCount: rows.length },
+      summary: { totalOutstanding: rows.reduce((sum2, r) => sum2.plus(r.outstanding), new import_library32.Decimal(0)), invoiceCount: rows.length },
       rows
     };
   },
@@ -56153,8 +56602,8 @@ var frontdeskReportsService = {
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    const totalStandard = rows.reduce((s, r) => s.plus(r.lineGross), new import_library31.Decimal(0));
-    const totalDiscount = rows.reduce((s, r) => s.plus(r.discountAmount), new import_library31.Decimal(0));
+    const totalStandard = rows.reduce((s, r) => s.plus(r.lineGross), new import_library32.Decimal(0));
+    const totalDiscount = rows.reduce((s, r) => s.plus(r.discountAmount), new import_library32.Decimal(0));
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
       summary: { grossBeforeDiscount: totalStandard, discountAmount: totalDiscount, netAfterDiscount: totalStandard.minus(totalDiscount) },
@@ -56186,7 +56635,7 @@ var frontdeskReportsService = {
       orderBy: { collectedAt: "desc" }
     });
     const distinctVoids = voids.filter((v) => !refundReceiptIds.has(v.id));
-    const totalRefund = refunds.reduce((s, r) => s.plus(r.amount), new import_library31.Decimal(0));
+    const totalRefund = refunds.reduce((s, r) => s.plus(r.amount), new import_library32.Decimal(0));
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
       summary: { refundAmount: totalRefund, refundCount: refunds.length, voidCount: distinctVoids.length },
@@ -56261,7 +56710,7 @@ var frontdeskReportsService = {
       const key = `${dept}::${serviceName}`;
       let bucket = byKey.get(key);
       if (!bucket) {
-        bucket = { department: dept, service: serviceName, qty: new import_library31.Decimal(0), gross: new import_library31.Decimal(0), discount: new import_library31.Decimal(0), net: new import_library31.Decimal(0) };
+        bucket = { department: dept, service: serviceName, qty: new import_library32.Decimal(0), gross: new import_library32.Decimal(0), discount: new import_library32.Decimal(0), net: new import_library32.Decimal(0) };
         byKey.set(key, bucket);
       }
       bucket.qty = bucket.qty.plus(r.quantity);
@@ -56273,9 +56722,9 @@ var frontdeskReportsService = {
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
       summary: {
-        gross: list.reduce((s, b) => s.plus(b.gross), new import_library31.Decimal(0)),
-        discount: list.reduce((s, b) => s.plus(b.discount), new import_library31.Decimal(0)),
-        net: list.reduce((s, b) => s.plus(b.net), new import_library31.Decimal(0))
+        gross: list.reduce((s, b) => s.plus(b.gross), new import_library32.Decimal(0)),
+        discount: list.reduce((s, b) => s.plus(b.discount), new import_library32.Decimal(0)),
+        net: list.reduce((s, b) => s.plus(b.net), new import_library32.Decimal(0))
       },
       rows: list
     };
@@ -56306,8 +56755,8 @@ var frontdeskReportsService = {
       orderBy: { requestedAt: "desc" },
       take: 500
     });
-    let requested = new import_library31.Decimal(0);
-    let collected = new import_library31.Decimal(0);
+    let requested = new import_library32.Decimal(0);
+    let collected = new import_library32.Decimal(0);
     for (const r of rows) {
       requested = requested.plus(r.requestedAmount);
       for (const p of r.paymentReceipts) collected = collected.plus(p.amount);
@@ -56322,11 +56771,11 @@ var frontdeskReportsService = {
           patient: patientDisplayName(r.admissionRecord),
           department: r.admissionRecord.department?.name ?? null,
           requestedAmount: r.requestedAmount,
-          remainingDue: import_library31.Decimal.max(r.requestedAmount.minus(r.paymentReceipts.reduce((s, p) => s.plus(p.amount), new import_library31.Decimal(0))), 0),
+          remainingDue: import_library32.Decimal.max(r.requestedAmount.minus(r.paymentReceipts.reduce((s, p) => s.plus(p.amount), new import_library32.Decimal(0))), 0),
           status: r.status
         };
         if (r.paymentReceipts.length === 0) {
-          return receiptFilterActive ? [] : [{ ...base, receiptNo: null, collectedAmount: new import_library31.Decimal(0), method: null, collectedBy: null }];
+          return receiptFilterActive ? [] : [{ ...base, receiptNo: null, collectedAmount: new import_library32.Decimal(0), method: null, collectedBy: null }];
         }
         return r.paymentReceipts.map((p) => ({
           ...base,
@@ -56351,7 +56800,7 @@ var frontdeskReportsService = {
     if (!invoice) return null;
     const entries = [];
     for (const l of invoice.lines) {
-      entries.push({ occurredAt: l.createdAt, reference: invoice.invoiceNumber, type: "CHARGE", description: l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource, debit: l.lineNet, credit: new import_library31.Decimal(0), performedBy: "\u2014" });
+      entries.push({ occurredAt: l.createdAt, reference: invoice.invoiceNumber, type: "CHARGE", description: l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource, debit: l.lineNet, credit: new import_library32.Decimal(0), performedBy: "\u2014" });
     }
     for (const p of invoice.paymentReceipts) {
       entries.push({
@@ -56359,13 +56808,13 @@ var frontdeskReportsService = {
         reference: p.receiptNumber,
         type: p.amount.lt(0) ? "REFUND" : p.isReversed ? "VOID" : "PAYMENT",
         description: `${p.method} payment`,
-        debit: new import_library31.Decimal(0),
-        credit: p.isReversed && p.amount.gte(0) ? new import_library31.Decimal(0) : p.amount,
+        debit: new import_library32.Decimal(0),
+        credit: p.isReversed && p.amount.gte(0) ? new import_library32.Decimal(0) : p.amount,
         performedBy: p.collectedBy.displayName || p.collectedBy.username
       });
     }
     entries.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
-    let running = new import_library31.Decimal(0);
+    let running = new import_library32.Decimal(0);
     const withBalance = entries.map((e) => {
       running = running.plus(e.debit).minus(e.credit);
       return { ...e, runningBalance: running };
@@ -56389,7 +56838,7 @@ var frontdeskReportsService = {
       const payer = r.corporatePanel?.organizationName || "Self-Pay";
       let bucket = byPayer.get(payer);
       if (!bucket) {
-        bucket = { payer, invoiceCount: 0, gross: new import_library31.Decimal(0), discount: new import_library31.Decimal(0), net: new import_library31.Decimal(0), paid: new import_library31.Decimal(0), outstanding: new import_library31.Decimal(0) };
+        bucket = { payer, invoiceCount: 0, gross: new import_library32.Decimal(0), discount: new import_library32.Decimal(0), net: new import_library32.Decimal(0), paid: new import_library32.Decimal(0), outstanding: new import_library32.Decimal(0) };
         byPayer.set(payer, bucket);
       }
       bucket.invoiceCount += 1;
@@ -56448,7 +56897,7 @@ var frontdeskReportsService = {
       const key = r.collectedBy.displayName || r.collectedBy.username;
       let bucket = byCashier.get(key);
       if (!bucket) {
-        bucket = { cashier: key, receiptCount: 0, totalCollected: new import_library31.Decimal(0) };
+        bucket = { cashier: key, receiptCount: 0, totalCollected: new import_library32.Decimal(0) };
         byCashier.set(key, bucket);
       }
       bucket.receiptCount += 1;
@@ -56456,7 +56905,7 @@ var frontdeskReportsService = {
     }
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
-      rows: Array.from(byCashier.values()).map((b) => ({ ...b, averageTransaction: b.receiptCount === 0 ? new import_library31.Decimal(0) : b.totalCollected.div(b.receiptCount) })).sort((a, b) => b.totalCollected.comparedTo(a.totalCollected))
+      rows: Array.from(byCashier.values()).map((b) => ({ ...b, averageTransaction: b.receiptCount === 0 ? new import_library32.Decimal(0) : b.totalCollected.div(b.receiptCount) })).sort((a, b) => b.totalCollected.comparedTo(a.totalCollected))
     };
   },
   /**
@@ -56504,7 +56953,7 @@ var frontdeskReportsService = {
           invoiceNumber: l.hospitalInvoice.invoiceNumber,
           invoiceId: invId,
           patient: l.hospitalInvoice.corporatePanel?.organizationName || patientDisplayName(l.hospitalInvoice),
-          amount: new import_library31.Decimal(l.discountAmount),
+          amount: new import_library32.Decimal(l.discountAmount),
           reasons: new Set(l.discountReason ? [l.discountReason] : []),
           performedBy: l.hospitalInvoice.createdByUser?.displayName || l.hospitalInvoice.createdByUser?.username || "\u2014",
           occurredAt: l.createdAt
@@ -56545,7 +56994,7 @@ var frontdeskReportsService = {
         occurredAt: r.occurredAt
       }))
     ].sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
-    const sumOf2 = (t) => rows.filter((r) => r.type === t).reduce((s, r) => s.plus(r.amount), new import_library31.Decimal(0));
+    const sumOf2 = (t) => rows.filter((r) => r.type === t).reduce((s, r) => s.plus(r.amount), new import_library32.Decimal(0));
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
       summary: { discountAmount: sumOf2("DISCOUNT"), refundAmount: sumOf2("REFUND"), voidAmount: sumOf2("VOID"), count: rows.length },
@@ -56630,7 +57079,7 @@ var dateRangeSchema3 = external_exports.object({
 var encounterRegisterQuerySchema = dateRangeSchema3.extend({
   departmentId: external_exports.string().uuid().optional(),
   doctorStaffId: external_exports.string().uuid().optional(),
-  encounterType: external_exports.enum(["OPD", "OBSERVATION", "EMERGENCY", "CUSTOM"]).optional(),
+  encounterType: external_exports.enum(["OPD", "OBSERVATION", "EMERGENCY", "CUSTOM", "ADMISSION"]).optional(),
   status: external_exports.enum(["UNPAID", "PARTIALLY_PAID", "PAID", "VOID"]).optional()
 });
 var invoiceRegisterQuerySchema = dateRangeSchema3.extend({
@@ -56692,7 +57141,7 @@ var billingSummaryQuerySchema = dateRangeSchema3.extend({
 });
 
 // src/modules/reports/admissionReports.service.ts
-var import_library32 = require("@prisma/client/runtime/library");
+var import_library33 = require("@prisma/client/runtime/library");
 var patientNameSelect2 = {
   panelPatient: { select: { id: true, fullName: true, mrNumber: true } },
   selfPayEncounter: { select: { id: true, fullName: true, phone: true } }
@@ -56730,7 +57179,7 @@ var admissionReportsService = {
       })
     ]);
     const occupied = beds.filter((b) => b.status === "OCCUPIED").length;
-    const outstanding = outstandingInvoices.map(invoiceAsOf).reduce((s, i) => s.plus(i.balance.due), new import_library32.Decimal(0));
+    const outstanding = outstandingInvoices.map(invoiceAsOf).reduce((s, i) => s.plus(i.balance.due), new import_library33.Decimal(0));
     const dischargedWithStay = await prisma.admissionRecord.findMany({
       where: { dischargedAt: { not: null }, admittedAt: { not: null }, ...deptFilter },
       select: { admittedAt: true, dischargedAt: true },
@@ -56827,7 +57276,7 @@ var admissionReportsService = {
       asOf: asOf.toISOString(),
       activeCensus: rows.length,
       rows: rows.map((r) => {
-        const hospitalDue = r.hospitalInvoices.reduce((s, i) => s.plus(i.total.minus(i.paidTotal)), new import_library32.Decimal(0));
+        const hospitalDue = r.hospitalInvoices.reduce((s, i) => s.plus(i.total.minus(i.paidTotal)), new import_library33.Decimal(0));
         return {
           admissionNumber: r.admissionNumber,
           patient: patientDisplayName2(r),
@@ -56957,7 +57406,7 @@ var admissionReportsService = {
       }
     });
     if (!admission) return null;
-    let running = new import_library32.Decimal(0);
+    let running = new import_library33.Decimal(0);
     const rows = [];
     for (const inv of admission.hospitalInvoices) {
       for (const l of inv.lines) {
@@ -56965,10 +57414,10 @@ var admissionReportsService = {
         rows.push({ occurredAt: l.createdAt, chargeRef: inv.invoiceNumber, category: l.billingSource, service: l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource, qty: l.quantity, rate: l.rateSnapshot, gross: l.lineGross, discount: l.discountAmount, net: l.lineNet, runningBalance: running });
       }
     }
-    const hospitalPaid = admission.hospitalInvoices.reduce((s, inv) => s.plus(inv.paidTotal), new import_library32.Decimal(0));
-    const hospitalSubtotal = admission.hospitalInvoices.reduce((s, inv) => s.plus(inv.subtotal), new import_library32.Decimal(0));
-    const hospitalDiscount = admission.hospitalInvoices.reduce((s, inv) => s.plus(inv.discountTotal), new import_library32.Decimal(0));
-    const hospitalNet = admission.hospitalInvoices.reduce((s, inv) => s.plus(inv.total), new import_library32.Decimal(0));
+    const hospitalPaid = admission.hospitalInvoices.reduce((s, inv) => s.plus(inv.paidTotal), new import_library33.Decimal(0));
+    const hospitalSubtotal = admission.hospitalInvoices.reduce((s, inv) => s.plus(inv.subtotal), new import_library33.Decimal(0));
+    const hospitalDiscount = admission.hospitalInvoices.reduce((s, inv) => s.plus(inv.discountTotal), new import_library33.Decimal(0));
+    const hospitalNet = admission.hospitalInvoices.reduce((s, inv) => s.plus(inv.total), new import_library33.Decimal(0));
     return {
       admissionNumber: admission.admissionNumber,
       patient: patientDisplayName2(admission),
@@ -56993,7 +57442,7 @@ var admissionReportsService = {
       const key = `${dept}::${l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource}`;
       let bucket = byKey.get(key);
       if (!bucket) {
-        bucket = { department: dept, service: l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource, qty: new import_library32.Decimal(0), gross: new import_library32.Decimal(0), discount: new import_library32.Decimal(0), net: new import_library32.Decimal(0), admissions: /* @__PURE__ */ new Set() };
+        bucket = { department: dept, service: l.descriptionSnapshot ?? l.serviceRate?.name ?? l.billingSource, qty: new import_library33.Decimal(0), gross: new import_library33.Decimal(0), discount: new import_library33.Decimal(0), net: new import_library33.Decimal(0), admissions: /* @__PURE__ */ new Set() };
         byKey.set(key, bucket);
       }
       bucket.qty = bucket.qty.plus(l.quantity);
@@ -57027,11 +57476,11 @@ var admissionReportsService = {
     const totalOutstanding = rows.reduce((s, r) => {
       const diff = r.balance.due;
       return diff.greaterThan(0) ? s.plus(diff) : s;
-    }, new import_library32.Decimal(0));
+    }, new import_library33.Decimal(0));
     const activeOutstanding = rows.filter((r) => r.admissionRecord?.status !== "DISCHARGED").reduce((s, r) => {
       const diff = r.balance.due;
       return diff.greaterThan(0) ? s.plus(diff) : s;
-    }, new import_library32.Decimal(0));
+    }, new import_library33.Decimal(0));
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
       summary: { totalHospitalOutstanding: totalOutstanding, activeOutstanding, dischargedOutstanding: totalOutstanding.minus(activeOutstanding) },
@@ -57042,7 +57491,7 @@ var admissionReportsService = {
           patient: patientDisplayName2(r),
           hospitalNet: r.total,
           hospitalPaid: r.balance.collected,
-          hospitalOutstanding: diff.greaterThan(0) ? diff : new import_library32.Decimal(0),
+          hospitalOutstanding: diff.greaterThan(0) ? diff : new import_library33.Decimal(0),
           admissionStatus: r.admissionRecord.status,
           invoiceStatus: r.status
         };
@@ -57075,7 +57524,7 @@ var admissionReportsService = {
       const clinical = r.dischargeClearances.find((c) => c.clearanceType === "CLINICAL")?.status ?? (r.dischargeSummary ? "CLEARED" : "PENDING");
       const hospital = r.dischargeClearances.find((c) => c.clearanceType === "HOSPITAL_BILLING")?.status ?? "PENDING";
       const pharmacy = r.dischargeClearances.find((c) => c.clearanceType === "PHARMACY")?.status ?? "PENDING";
-      const hospitalDue = r.hospitalInvoices.reduce((s, i) => s.plus(i.total.minus(i.paidTotal)), new import_library32.Decimal(0));
+      const hospitalDue = r.hospitalInvoices.reduce((s, i) => s.plus(i.total.minus(i.paidTotal)), new import_library33.Decimal(0));
       return {
         admissionNumber: r.admissionNumber,
         patient: patientDisplayName2(r),
@@ -57110,7 +57559,7 @@ var admissionReportsService = {
 };
 
 // src/modules/reports/admissionSimpleReports.service.ts
-var import_library33 = require("@prisma/client/runtime/library");
+var import_library34 = require("@prisma/client/runtime/library");
 var patientNameSelect3 = {
   panelPatient: { select: { id: true, fullName: true, mrNumber: true } },
   selfPayEncounter: { select: { id: true, fullName: true, phone: true } }
@@ -57175,7 +57624,7 @@ var admissionSimpleReportsService = {
     const bucketFor = (dept) => {
       let b = byDept.get(dept);
       if (!b) {
-        b = { department: dept, admissions: 0, discharges: 0, active: 0, pendingDischarge: 0, occupiedBeds: 0, availableBeds: 0, hospitalOutstanding: new import_library33.Decimal(0) };
+        b = { department: dept, admissions: 0, discharges: 0, active: 0, pendingDischarge: 0, occupiedBeds: 0, availableBeds: 0, hospitalOutstanding: new import_library34.Decimal(0) };
         byDept.set(dept, b);
       }
       return b;
@@ -57191,23 +57640,23 @@ var admissionSimpleReportsService = {
       if (a.dischargedAt && a.dischargedAt >= start && a.dischargedAt <= end) b.discharges += 1;
       if (a.status === "ACTIVE") b.active += 1;
       if (a.status === "DISCHARGE_PENDING") b.pendingDischarge += 1;
-      const due = a.hospitalInvoices.reduce((s, i) => s.plus(i.total.minus(i.paidTotal)), new import_library33.Decimal(0));
+      const due = a.hospitalInvoices.reduce((s, i) => s.plus(i.total.minus(i.paidTotal)), new import_library34.Decimal(0));
       if (due.greaterThan(0)) b.hospitalOutstanding = b.hospitalOutstanding.plus(due);
     }
     const rows = Array.from(byDept.values()).sort((x, y) => x.department.localeCompare(y.department));
-    const sum = (k) => rows.reduce((s, r) => s + r[k], 0);
+    const sum2 = (k) => rows.reduce((s, r) => s + r[k], 0);
     const occupied = beds.filter((b) => b.status === "OCCUPIED").length;
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
       summary: {
-        admissions: sum("admissions"),
-        discharges: sum("discharges"),
-        activePatients: sum("active"),
-        pendingDischarge: sum("pendingDischarge"),
+        admissions: sum2("admissions"),
+        discharges: sum2("discharges"),
+        activePatients: sum2("active"),
+        pendingDischarge: sum2("pendingDischarge"),
         occupiedBeds: occupied,
         availableBeds: beds.filter((b) => b.status === "AVAILABLE").length,
         totalBeds: beds.length,
-        hospitalOutstanding: rows.reduce((s, r) => s.plus(r.hospitalOutstanding), new import_library33.Decimal(0))
+        hospitalOutstanding: rows.reduce((s, r) => s.plus(r.hospitalOutstanding), new import_library34.Decimal(0))
       },
       rows
     };
@@ -57261,7 +57710,7 @@ var admissionSimpleReportsService = {
         department: a?.department.name ?? null,
         doctor: a?.doctor?.fullName ?? null,
         admittedAt: a?.admittedAt ?? null,
-        hospitalDue: a ? a.hospitalInvoices.reduce((s, i) => s.plus(i.total.minus(i.paidTotal)), new import_library33.Decimal(0)) : new import_library33.Decimal(0)
+        hospitalDue: a ? a.hospitalInvoices.reduce((s, i) => s.plus(i.total.minus(i.paidTotal)), new import_library34.Decimal(0)) : new import_library34.Decimal(0)
       };
     }).filter((r) => !query.bedStatus || r.bedStatus === query.bedStatus).sort((x, y) => x.ward.localeCompare(y.ward) || (x.room ?? "").localeCompare(y.room ?? "") || x.bed.localeCompare(y.bed, void 0, { numeric: true }));
     return {
@@ -57374,8 +57823,8 @@ var admissionSimpleReportsService = {
       if (!latestInvoiceReceipt.has(id)) latestInvoiceReceipt.set(id, r);
     }
     const rows = admissions.map((a) => {
-      const charges = a.hospitalInvoices.reduce((s, i) => s.plus(i.total), new import_library33.Decimal(0));
-      const paid = a.hospitalInvoices.reduce((s, i) => s.plus(i.paidTotal), new import_library33.Decimal(0));
+      const charges = a.hospitalInvoices.reduce((s, i) => s.plus(i.total), new import_library34.Decimal(0));
+      const paid = a.hospitalInvoices.reduce((s, i) => s.plus(i.paidTotal), new import_library34.Decimal(0));
       const outstanding = charges.minus(paid);
       const paymentStatus = charges.isZero() ? "NO_CHARGES" : outstanding.lessThanOrEqualTo(0) ? "PAID" : paid.isZero() ? "UNPAID" : "PARTIALLY_PAID";
       const direct = a.paymentReceipts[0];
@@ -57626,7 +58075,7 @@ var pharmacyRequestFulfillmentQuerySchema = dateRangeSchema4.extend({
 });
 
 // src/modules/reports/admissionPharmacyReports.service.ts
-var import_library34 = require("@prisma/client/runtime/library");
+var import_library35 = require("@prisma/client/runtime/library");
 var patientNameSelect4 = {
   panelPatient: { select: { id: true, fullName: true, mrNumber: true } },
   selfPayEncounter: { select: { id: true, fullName: true, phone: true } }
@@ -57655,8 +58104,8 @@ var admissionPharmacyReportsService = {
       orderBy: { requestedAt: "desc" },
       take: 500
     });
-    let requestedQty = new import_library34.Decimal(0);
-    let dispensedQty = new import_library34.Decimal(0);
+    let requestedQty = new import_library35.Decimal(0);
+    let dispensedQty = new import_library35.Decimal(0);
     const statusCounts = {};
     for (const r of rows) {
       statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
@@ -57709,8 +58158,8 @@ var admissionPharmacyReportsService = {
       orderBy: { id: "desc" },
       take: 1e3
     });
-    const totalRequested = lines.reduce((s, l) => s.plus(l.requestedQuantity), new import_library34.Decimal(0));
-    const totalDispensed = lines.reduce((s, l) => s.plus(l.dispensedQuantity), new import_library34.Decimal(0));
+    const totalRequested = lines.reduce((s, l) => s.plus(l.requestedQuantity), new import_library35.Decimal(0));
+    const totalDispensed = lines.reduce((s, l) => s.plus(l.dispensedQuantity), new import_library35.Decimal(0));
     return {
       period: { label, start: start.toISOString(), end: end.toISOString() },
       summary: {
@@ -57755,7 +58204,7 @@ var admissionPharmacyReportsService = {
         pending: rows.filter((r) => r.status === "PENDING").length,
         approved: rows.filter((r) => r.status === "AUTHORIZED").length,
         rejected: rows.filter((r) => r.status === "REJECTED").length,
-        highValueRequestedAmount: rows.reduce((s, r) => s.plus(r.lineTotal), new import_library34.Decimal(0))
+        highValueRequestedAmount: rows.reduce((s, r) => s.plus(r.lineTotal), new import_library35.Decimal(0))
       },
       rows: rows.map((r) => ({
         requestRef: r.pharmacyClearance.medicineRequestNumber,
@@ -57845,11 +58294,520 @@ var pharmacyClearanceStatusQuerySchema = dateRangeSchema5.extend({
   departmentId: external_exports.string().uuid().optional()
 });
 
-// src/modules/reports/managementReports.service.ts
+// src/modules/reports/operatingPerformance.ts
+function operatingPerformance(revenue, directCosts, operatingExpenses) {
+  const grossProfit = revenue - directCosts;
+  const operatingProfit = grossProfit - operatingExpenses;
+  return { grossProfit, operatingProfit, operatingMargin: revenue ? operatingProfit / revenue * 100 : 0 };
+}
+
+// src/modules/reports/staffFinanceSummary.ts
 var import_library36 = require("@prisma/client/runtime/library");
+var approvedStatuses = ["APPROVED", "PARTIALLY_PAID", "PAID"];
+var zero2 = () => new import_library36.Decimal(0);
+async function staffFinanceSummary(start, end, departmentId, portalUserId, method) {
+  const salaryDepartment = departmentId ? { OR: [
+    { payrollRun: { departmentId } },
+    { AND: [{ OR: [{ payrollRunId: null }, { payrollRun: { departmentId: null } }] }, { staff: { staffDepartments: { some: { departmentId } } } }] }
+  ] } : {};
+  const commissionDepartment = departmentId ? { invoiceLineItem: commissionDepartmentFilter(departmentId) } : {};
+  const approval = { OR: [
+    { approvedAt: { lte: end } },
+    { approvedAt: null, status: { in: [...approvedStatuses] }, createdAt: { lte: end } }
+  ] };
+  const [salary, commission, salaryPayments, commissionPayments] = await Promise.all([
+    prisma.salarySlip.findMany({
+      where: { AND: [approval, salaryDepartment], ...portalUserId ? { approvedById: portalUserId } : {} },
+      include: { payments: { where: { paidAt: { lte: end } } }, correctionEntries: { where: { createdAt: { lte: end } } } }
+    }),
+    prisma.doctorCommissionAccrual.findMany({
+      where: { AND: [{ OR: [
+        { collectionEventId: { not: null }, collectionEvent: { occurredAt: { lte: end } } },
+        { collectionEventId: null, ...approval }
+      ] }, commissionDepartment], ...portalUserId ? { approvedById: portalUserId } : {} },
+      include: { collectionEvent: true, payouts: { where: { paidAt: { lte: end } } }, reversals: { where: { reversedAt: { lte: end } } }, adjustments: { where: { createdAt: { lte: end } } } }
+    }),
+    prisma.salaryPayment.findMany({ where: { paidAt: { gte: start, lte: end }, ...method ? { method } : {}, ...portalUserId ? { OR: [{ reversalOfId: null, paidById: portalUserId }, { reversalOf: { paidById: portalUserId } }] } : {}, salarySlip: salaryDepartment }, select: { amount: true } }),
+    prisma.commissionPayout.findMany({ where: { paidAt: { gte: start, lte: end }, ...method ? { method } : {}, ...portalUserId ? { OR: [{ reversalOfId: null, paidById: portalUserId }, { reversalOf: { paidById: portalUserId } }] } : {}, doctorCommissionAccrual: commissionDepartment }, select: { amount: true } })
+  ]);
+  const sources = [];
+  let salaryGenerated = zero2(), salaryOutstanding = zero2(), commissionGenerated = zero2(), commissionOutstanding = zero2();
+  for (const row of salary) {
+    const balance = salaryBalance(row);
+    const before = (row.approvedAt ?? row.createdAt) < start ? salaryBalance({ ...row, correctionEntries: row.correctionEntries.filter((a) => a.createdAt < start) }).payable : zero2();
+    const recognized = balance.payable.minus(before);
+    salaryGenerated = salaryGenerated.plus(recognized);
+    if (!recognized.isZero()) sources.push({ id: row.id, date: ((row.approvedAt ?? row.createdAt) >= start ? row.approvedAt ?? row.createdAt : row.correctionEntries.filter((a) => a.createdAt >= start).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]?.createdAt ?? start).toISOString(), reference: row.id, category: "payroll", amount: Number(recognized), actor: row.approvedById ?? "Unassigned", status: row.status, details: { staffId: row.staffId, approvedAt: row.approvedAt, generatedAmount: row.generatedAmount, adjustments: row.correctionEntries, payments: row.payments } });
+    salaryOutstanding = salaryOutstanding.plus(balance.remaining);
+  }
+  for (const row of commission) {
+    const balance = commissionBalance(row);
+    const before = (row.collectionEvent?.occurredAt ?? row.approvedAt ?? row.createdAt) < start ? commissionBalance({ ...row, reversals: row.reversals.filter((r) => r.reversedAt < start), adjustments: row.adjustments.filter((a) => a.createdAt < start) }).payable : zero2();
+    const recognized = balance.payable.minus(before);
+    commissionGenerated = commissionGenerated.plus(recognized);
+    if (!recognized.isZero()) sources.push({ id: row.id, date: ((row.collectionEvent?.occurredAt ?? row.approvedAt ?? row.createdAt) >= start ? row.collectionEvent?.occurredAt ?? row.approvedAt ?? row.createdAt : [...row.reversals.map((r) => r.reversedAt), ...row.adjustments.map((a) => a.createdAt)].filter((d) => d >= start).sort((a, b) => b.getTime() - a.getTime())[0] ?? start).toISOString(), reference: row.id, category: "commission", amount: Number(recognized), actor: row.approvedById ?? "Unassigned", status: row.status, details: { doctorId: row.staffId, collectionEvent: row.collectionEvent, commissionAmount: row.commissionAmount, ruleSnapshot: row.ruleSnapshot, reversals: row.reversals, adjustments: row.adjustments, payouts: row.payouts } });
+    commissionOutstanding = commissionOutstanding.plus(balance.remaining);
+  }
+  return {
+    sources,
+    salaryGenerated,
+    salaryPaid: salaryPayments.reduce((s, p) => s.plus(p.amount), zero2()),
+    salaryOutstanding,
+    commissionGenerated,
+    commissionPaid: commissionPayments.reduce((s, p) => s.plus(p.amount), zero2()),
+    commissionOutstanding
+  };
+}
+
+// src/modules/reports/operatingProfitStatement.ts
+var hospitalStatementCategories = [
+  ["opd", "1. HOSPITAL OPERATING REVENUE", "OPD Services Revenue", "REVENUE"],
+  ["emergency", "1. HOSPITAL OPERATING REVENUE", "Emergency Services Revenue", "REVENUE"],
+  ["observation", "1. HOSPITAL OPERATING REVENUE", "Observation Services Revenue", "REVENUE"],
+  ["admission", "1. HOSPITAL OPERATING REVENUE", "Admission / Inpatient Hospital Services Revenue", "REVENUE"],
+  ["otherRevenue", "1. HOSPITAL OPERATING REVENUE", "Other Valid Hospital Services Revenue", "REVENUE"],
+  ["discounts", "1. HOSPITAL OPERATING REVENUE", "Less: Approved Discounts", "REVENUE"],
+  ["serviceCredits", "1. HOSPITAL OPERATING REVENUE", "Less: Valid Service Credits / Reversals", "REVENUE"],
+  ["netRevenue", "1. HOSPITAL OPERATING REVENUE", "TOTAL NET EARNED HOSPITAL REVENUE", "SUBTOTAL"],
+  ["consumables", "2. DIRECT SERVICE COSTS", "Clinical Consumables / Materials Used", "COST"],
+  ["procedure", "2. DIRECT SERVICE COSTS", "Procedure / Treatment Direct Consumable Costs", "COST"],
+  ["otherDirect", "2. DIRECT SERVICE COSTS", "Other Valid Direct Service Costs", "COST"],
+  ["directReturns", "2. DIRECT SERVICE COSTS", "Less: Valid Direct Cost Reversals / Returns", "COST"],
+  ["directTotal", "2. DIRECT SERVICE COSTS", "TOTAL DIRECT SERVICE COSTS", "SUBTOTAL"],
+  ["grossProfit", "3. GROSS PROFIT (GROSS MARGIN)", "GROSS PROFIT (GROSS MARGIN)", "SUBTOTAL"],
+  ["payroll", "4. OPERATING OVERHEADS & EXPENSES", "Staff Salaries / Payroll Recognized", "EXPENSE"],
+  ["commission", "4. OPERATING OVERHEADS & EXPENSES", "Doctor Commission Earned / Recognized", "EXPENSE"],
+  ["hospitalOpex", "4. OPERATING OVERHEADS & EXPENSES", "Hospital Operating Expenses", "EXPENSE"],
+  ["inventoryOpex", "4. OPERATING OVERHEADS & EXPENSES", "Inventory Operating Expenses", "EXPENSE"],
+  ["otherOpex", "4. OPERATING OVERHEADS & EXPENSES", "Other Valid Operating Overheads", "EXPENSE"],
+  ["expenseCredits", "4. OPERATING OVERHEADS & EXPENSES", "Less: Valid Expense Reversals / Credits", "EXPENSE"],
+  ["opexTotal", "4. OPERATING OVERHEADS & EXPENSES", "TOTAL OPERATING EXPENSES", "SUBTOTAL"],
+  ["operatingProfit", "5. NET OPERATING PROFIT / (LOSS)", "NET OPERATING PROFIT / (LOSS)", "NET RESULT"]
+];
+var revenueKeys = ["opd", "emergency", "observation", "admission", "otherRevenue", "discounts", "serviceCredits"];
+var directKeys = ["consumables", "procedure", "otherDirect", "directReturns"];
+var expenseKeys = ["payroll", "commission", "hospitalOpex", "inventoryOpex", "otherOpex", "expenseCredits"];
+function categoryKeys(category2) {
+  if (!category2) return void 0;
+  if (category2 === "netRevenue") return revenueKeys;
+  if (category2 === "directTotal") return directKeys;
+  if (category2 === "opexTotal") return expenseKeys;
+  if (category2 === "grossProfit" || category2 === "grossMargin") return [...revenueKeys, ...directKeys];
+  if (category2 === "operatingProfit" || category2 === "operatingMargin") return [...revenueKeys, ...directKeys, ...expenseKeys];
+  if (category2.startsWith("outsourced-billing-") || category2.startsWith("outsourced-payable-")) {
+    const deptId = category2.replace(/^outsourced-(billing|payable)-/, "");
+    return [`outsourced-${deptId}`, "outsourced"];
+  }
+  return [category2];
+}
+function previousEquivalent(range) {
+  const duration = range.end.getTime() - range.start.getTime() + 1;
+  return { start: new Date(range.start.getTime() - duration), end: new Date(range.start.getTime() - 1), label: "Previous Equivalent Period" };
+}
+var growth = (current, prior) => current === null || prior === null || prior === 0 ? null : (current - prior) / Math.abs(prior) * 100;
+var sum = (entries, keys, field) => entries.filter((e) => keys.includes(e.category)).reduce((s, e) => s + e[field], 0);
+function summarizeStatement(entries, incomplete) {
+  const amounts = {};
+  for (const [key] of hospitalStatementCategories) amounts[key] = sum(entries, [key], revenueKeys.includes(key) ? "revenue" : "cost");
+  const net = sum(entries, revenueKeys, "revenue"), direct = sum(entries, directKeys, "cost"), opex = sum(entries, expenseKeys, "cost");
+  const performance = operatingPerformance(net, direct, opex);
+  Object.assign(amounts, {
+    netRevenue: net,
+    directTotal: direct,
+    opexTotal: opex,
+    grossProfit: incomplete ? null : performance.grossProfit,
+    grossMargin: incomplete || !net ? null : performance.grossProfit / net * 100,
+    operatingProfit: incomplete ? null : performance.operatingProfit,
+    operatingMargin: incomplete || !net ? null : performance.operatingMargin
+  });
+  return amounts;
+}
+async function readPeriod(range, departmentId, readLedger) {
+  const [ledger, staff, lines, payables, pharmacyCharges] = await Promise.all([
+    readLedger({ preset: "custom", fromDate: hospitalClock(range.start).date, toDate: hospitalClock(range.end).date, departmentId, page: 1, limit: 500, exportAll: true }),
+    staffFinanceSummary(range.start, range.end, departmentId),
+    prisma.invoiceLineItem.findMany({
+      where: {
+        createdAt: { gte: range.start, lte: range.end },
+        isCompleted: true,
+        billingSource: { not: "PHARMACY" },
+        hospitalInvoice: { status: { not: "VOID" } }
+      },
+      include: {
+        serviceRate: { include: { department: { include: { outsourcedProvider: true } } } },
+        hospitalInvoice: {
+          include: {
+            department: { include: { outsourcedProvider: true } },
+            appointment: { include: { department: { include: { outsourcedProvider: true } } } },
+            admissionRecord: { include: { department: { include: { outsourcedProvider: true } } } },
+            createdByUser: { select: { displayName: true, username: true } },
+            selfPayEncounter: { select: { fullName: true } },
+            panelPatient: { select: { fullName: true } }
+          }
+        }
+      }
+    }),
+    setupService.getDepartmentPayablesSummary({
+      preset: "custom",
+      fromDate: hospitalClock(range.start).date,
+      toDate: hospitalClock(range.end).date
+    }),
+    prisma.hmsPharmacyCharge.findMany({
+      where: { createdAt: { gte: range.start, lte: range.end } },
+      select: { totalAmount: true }
+    })
+  ]);
+  const entries = [];
+  const outsourcedBillingByDept = /* @__PURE__ */ new Map();
+  let totalOutsourcedBilling = 0;
+  for (const line of lines) {
+    const inv = line.hospitalInvoice;
+    const department2 = hospitalServiceDepartment(line, inv);
+    if (departmentId && department2?.id !== departmentId) continue;
+    const base = {
+      date: line.createdAt.toISOString(),
+      reference: inv.invoiceNumber,
+      department: department2?.name || "Unassigned",
+      description: line.descriptionSnapshot || line.serviceRate?.name || "Hospital service",
+      actor: inv.createdByUser?.displayName || inv.createdByUser?.username || inv.createdById || "Unassigned",
+      status: inv.status,
+      details: {
+        invoiceId: inv.id,
+        lineId: line.id,
+        patient: inv.selfPayEncounter?.fullName || inv.panelPatient?.fullName,
+        quantity: Number(line.quantity),
+        historicalRate: Number(line.rateSnapshot),
+        billingSource: line.billingSource,
+        gross: Number(line.lineGross),
+        discount: Number(line.discountAmount),
+        net: Number(line.lineNet)
+      }
+    };
+    const isOutsourced = isOutsourcedService(line, inv);
+    if (isOutsourced) {
+      const net2 = Number(line.lineNet);
+      totalOutsourcedBilling += net2;
+      const deptId = department2?.id || "unassigned-outsourced";
+      outsourcedBillingByDept.set(deptId, (outsourcedBillingByDept.get(deptId) || 0) + net2);
+      entries.push({
+        ...base,
+        id: line.id,
+        category: `outsourced-${deptId}`,
+        revenue: net2,
+        cost: 0
+      });
+      continue;
+    }
+    if (!isInternalHospitalEarning(line, inv)) continue;
+    const type = inv.encounterType || inv.sourceType;
+    const category2 = inv.admissionRecordId ? "admission" : { OPD: "opd", EMERGENCY: "emergency", ER: "emergency", OBSERVATION: "observation", OBSV: "observation", ADMISSION: "admission" }[type] || "otherRevenue";
+    entries.push({ ...base, id: line.id, category: category2, revenue: Number(line.lineGross), cost: 0 });
+    if (Number(line.discountAmount)) {
+      entries.push({ ...base, id: `discount-${line.id}`, category: "discounts", revenue: -Number(line.discountAmount), cost: 0 });
+    }
+  }
+  for (const row of ledger.items) {
+    if (!["EXPENSE", "CONSUMABLE"].includes(row.transactionType) || row.recognizedExpense === 0) continue;
+    const category2 = row.recognizedExpense < 0 ? row.transactionType === "CONSUMABLE" ? "directReturns" : "expenseCredits" : row.transactionType === "CONSUMABLE" ? "consumables" : row.id.startsWith("iexp-") ? "inventoryOpex" : "hospitalOpex";
+    entries.push({
+      id: row.id,
+      date: row.date,
+      reference: row.reference,
+      category: category2,
+      department: row.department,
+      description: row.patientPayeeDescription,
+      actor: row.portalUser,
+      status: row.status,
+      revenue: 0,
+      cost: row.recognizedExpense,
+      details: row.details || { sourceId: row.id, paymentMethod: row.paymentMethod, recognizedExpense: row.recognizedExpense, paid: row.expensePaid }
+    });
+  }
+  for (const row of staff.sources) {
+    entries.push({
+      id: `${row.category}-${row.id}`,
+      date: row.date,
+      reference: row.reference,
+      category: row.amount < 0 ? "expenseCredits" : row.category,
+      department: departmentId || "See source allocation",
+      description: row.category === "payroll" ? "Approved payroll recognition" : "Eligible collection commission recognition",
+      actor: row.actor,
+      status: row.status,
+      revenue: 0,
+      cost: row.amount,
+      details: row.details
+    });
+  }
+  const outsourcedDeptsMap = /* @__PURE__ */ new Map();
+  for (const d of payables?.departments || []) {
+    if (d.fulfillmentOwnership !== "OUTSOURCED") continue;
+    if (departmentId && d.departmentId !== departmentId) continue;
+    const billed = outsourcedBillingByDept.get(d.departmentId) ?? Number(d.periodBilled ?? 0);
+    const payable = Number(d.remainingPayable ?? d.closingBalance ?? 0);
+    outsourcedDeptsMap.set(d.departmentId, {
+      departmentId: d.departmentId,
+      departmentName: d.departmentName,
+      departmentCode: d.departmentCode,
+      providerName: d.outsourcedProvider?.name ?? null,
+      billing: billed,
+      providerPayable: payable
+    });
+  }
+  for (const [deptId, billed] of outsourcedBillingByDept.entries()) {
+    if (!outsourcedDeptsMap.has(deptId)) {
+      const matchLine = lines.find((l) => {
+        const d2 = l.serviceRate?.department ?? l.hospitalInvoice.department ?? l.hospitalInvoice.appointment?.department ?? l.hospitalInvoice.admissionRecord?.department;
+        return d2?.id === deptId;
+      });
+      const d = matchLine?.serviceRate?.department ?? matchLine?.hospitalInvoice.department;
+      outsourcedDeptsMap.set(deptId, {
+        departmentId: deptId,
+        departmentName: d?.name || "Outsourced Department",
+        departmentCode: d?.code || "OUT",
+        providerName: d?.outsourcedProvider?.name ?? null,
+        billing: billed,
+        providerPayable: 0
+      });
+    }
+  }
+  const outsourcedDepts = Array.from(outsourcedDeptsMap.values()).sort((a, b) => a.departmentName.localeCompare(b.departmentName));
+  const totalOutsourcedPayable = outsourcedDepts.reduce((s, d) => s + d.providerPayable, 0);
+  const pharmacyBilling = pharmacyCharges && pharmacyCharges.length > 0 ? pharmacyCharges.reduce((s, c) => s + Number(c.totalAmount), 0) : null;
+  const warnings = [];
+  let incomplete = ledger.totals.hospitalCosts.hasIncompleteCost;
+  if (incomplete) warnings.push(`${ledger.totals.hospitalCosts.missingCostCount} consumption records have incomplete historical costs. Profit is unavailable.`);
+  const expectedCosts = ledger.totals.hospitalCosts;
+  const observedDirect = sum(entries, directKeys, "cost");
+  const observedOpex = sum(entries, expenseKeys, "cost");
+  const expectedOpex = expectedCosts.staffPayrollRecognized + expectedCosts.doctorCommissionEarned + expectedCosts.approvedHospitalExpenses + expectedCosts.inventoryOperatingExpenses;
+  if (Math.abs(observedDirect - expectedCosts.directConsumables) > 0.01 || Math.abs(observedOpex - expectedOpex) > 0.01) {
+    incomplete = true;
+    warnings.push("Source costs do not fully reconcile with the canonical financial summary. Profit is unavailable; no balancing records were invented.");
+  }
+  const net = sum(entries, revenueKeys, "revenue");
+  const expectedHospitalRevenue = ledger.totals.hospitalRevenue.netEarnedRevenue;
+  if (Math.abs(net - expectedHospitalRevenue) > 0.01) {
+    warnings.push("Hospital revenue includes completed internal hospital service lines only; outsourced services and pharmacy are excluded.");
+  }
+  return {
+    entries,
+    amounts: summarizeStatement(entries, incomplete),
+    incomplete,
+    warnings,
+    outsourcedDepts,
+    totalOutsourcedBilling,
+    totalOutsourcedPayable,
+    pharmacyBilling
+  };
+}
+async function buildOperatingStatement(query, range, readLedger) {
+  const priorRange = query.comparison === "previous" && query.preset !== "all_time" ? previousEquivalent(range) : null;
+  const [current, prior] = await Promise.all([
+    readPeriod(range, query.departmentId, readLedger),
+    priorRange ? readPeriod(priorRange, query.departmentId, readLedger) : Promise.resolve(null)
+  ]);
+  const rows = hospitalStatementCategories.map(([key, section, label, type]) => {
+    const amount = current.amounts[key] ?? null;
+    const previous = prior?.amounts[key] ?? null;
+    const margin = key.endsWith("Margin");
+    return {
+      key,
+      section,
+      label,
+      type,
+      unit: margin ? "percent" : "currency",
+      current: amount,
+      prior: previous,
+      percentOfRevenue: margin ? null : amount === null || !current.amounts.netRevenue ? null : amount / current.amounts.netRevenue * 100,
+      variance: growth(amount, previous),
+      sourceCount: current.entries.filter((e) => categoryKeys(key)?.includes(e.category)).length
+    };
+  });
+  const allDeptIds = Array.from(/* @__PURE__ */ new Set([
+    ...current.outsourcedDepts.map((d) => d.departmentId),
+    ...prior?.outsourcedDepts.map((d) => d.departmentId) || []
+  ]));
+  const outsourcedStreams = allDeptIds.map((deptId) => {
+    const cur = current.outsourcedDepts.find((d) => d.departmentId === deptId);
+    const prev = prior?.outsourcedDepts.find((d) => d.departmentId === deptId);
+    return {
+      departmentId: deptId,
+      departmentName: cur?.departmentName || prev?.departmentName || "Outsourced Department",
+      departmentCode: cur?.departmentCode || prev?.departmentCode || "OUT",
+      providerName: cur?.providerName || prev?.providerName || null,
+      currentBilling: cur ? cur.billing : 0,
+      currentPayable: cur ? cur.providerPayable : 0,
+      priorBilling: prev ? prev.billing : null,
+      priorPayable: prev ? prev.providerPayable : null,
+      billingVariance: growth(cur ? cur.billing : 0, prev ? prev.billing : null),
+      payableVariance: growth(cur ? cur.providerPayable : 0, prev ? prev.providerPayable : null)
+    };
+  }).sort((a, b) => a.departmentName.localeCompare(b.departmentName));
+  const pharmacyStream = {
+    currentBilling: current.pharmacyBilling,
+    priorBilling: prior?.pharmacyBilling ?? null,
+    available: current.pharmacyBilling !== null
+  };
+  const keys = categoryKeys(query.category);
+  const matching = current.entries.filter((e) => !keys || keys.includes(e.category)).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
+  const page = query.page || 1, limit = query.limit || 25;
+  const warnings = [...current.warnings, ...prior?.warnings.map((w) => `Prior period: ${w}`) || []];
+  if (query.preset === "all_time" && query.comparison === "previous") warnings.push("Comparison is disabled for All Time.");
+  return {
+    period: { start: range.start.toISOString(), end: range.end.toISOString(), label: range.label },
+    priorPeriod: priorRange ? { start: priorRange.start.toISOString(), end: priorRange.end.toISOString(), label: `${hospitalClock(priorRange.start).date} to ${hospitalClock(priorRange.end).date}` } : null,
+    rows,
+    warnings,
+    incomplete: current.incomplete,
+    ledger: {
+      items: query.exportAll ? matching : matching.slice((page - 1) * limit, page * limit),
+      page,
+      limit,
+      totalRecords: matching.length,
+      totalPages: Math.max(1, Math.ceil(matching.length / limit)),
+      recognizedRevenue: matching.reduce((s, e) => s + e.revenue, 0),
+      recognizedCost: matching.reduce((s, e) => s + e.cost, 0)
+    },
+    summary: {
+      revenue: current.amounts.netRevenue ?? 0,
+      grossBilling: current.amounts.netRevenue ?? 0,
+      discounts: current.amounts.discounts ?? 0,
+      directCost: current.amounts.directTotal ?? 0,
+      grossProfit: current.amounts.grossProfit ?? 0,
+      payroll: current.amounts.payroll ?? 0,
+      doctorCommission: current.amounts.commission ?? 0,
+      otherOperatingExpenses: current.amounts.opexTotal ?? 0,
+      totalCosts: (current.amounts.directTotal ?? 0) + (current.amounts.opexTotal ?? 0),
+      operatingProfit: current.amounts.operatingProfit ?? 0,
+      marginPercentage: current.amounts.operatingMargin ?? 0,
+      hasIncompleteCost: current.incomplete,
+      totalOutsourcedBilling: current.totalOutsourcedBilling,
+      totalOutsourcedPayable: current.totalOutsourcedPayable,
+      pharmacyBilling: current.pharmacyBilling
+    },
+    outsourcedStreams,
+    pharmacyStream
+  };
+}
+
+// src/modules/reports/m01InvoiceProjection.ts
+var import_library37 = require("@prisma/client/runtime/library");
+var name = (u) => u?.displayName || u?.username || "Unassigned";
+var portalFor = (role) => ({ FRONT_DESK_BILLING: "Billing", ADMIN: "Admin", SUPER_ADMIN: "Super Admin", INVENTORY_MANAGEMENT: "Inventory" })[role || ""] || "Unassigned";
+var normalizeMethod = (method) => method.toUpperCase().replace(/BANK[_ ]TRANSFER/, "BANK");
+function projectM01Invoice(source, start, end, filters = {}) {
+  const inv = {
+    ...source,
+    department: source.department ?? source.appointment?.department ?? source.admissionRecord?.department ?? null,
+    lines: source.lines.filter((l) => l.createdAt <= end),
+    paymentReceipts: source.paymentReceipts.filter((r) => r.collectedAt <= end && (!r.isReversed || Number(r.amount) < 0)),
+    panelRemittanceAllocations: source.panelRemittanceAllocations.filter((a) => a.panelRemittance.receivedAt <= end)
+  };
+  if (source.lines.length) {
+    inv.subtotal = inv.lines.reduce((s, l) => s.plus(l.lineGross), new import_library37.Decimal(0));
+    inv.discountTotal = inv.lines.reduce((s, l) => s.plus(l.discountAmount), new import_library37.Decimal(0));
+    inv.total = inv.lines.reduce((s, l) => s.plus(l.lineNet), new import_library37.Decimal(0));
+    inv.panelReceivable = inv.lines.reduce((s, l) => s.plus(l.panelReceivable), new import_library37.Decimal(0));
+  }
+  const scoped = (amount, basis) => allocateInvoiceAmount(amount, inv, basis).filter((d) => !filters.departmentId || d.departmentId === filters.departmentId).reduce((s, d) => s + Number(d.amount), 0);
+  const asOf = invoiceAsOf(inv);
+  const outstanding = scoped(asOf.balance.patientDue, "patientShare") + scoped(asOf.balance.panelDue, "panelReceivable");
+  const payments = [
+    ...inv.paymentReceipts.map((r) => ({ id: r.id, reference: r.receiptNumber, date: r.collectedAt.toISOString(), method: normalizeMethod(r.method), amount: scoped(r.amount, "patientShare"), collectedBy: name(r.collectedBy), actorId: r.collectedById, portal: portalFor(r.collectedBy.role), status: Number(r.amount) < 0 ? "Refund" : "Valid" })),
+    ...inv.panelRemittanceAllocations.map((a) => ({ id: a.panelRemittance.id, reference: a.panelRemittance.remittanceNumber, date: a.panelRemittance.receivedAt.toISOString(), method: normalizeMethod(a.panelRemittance.method), amount: scoped(a.allocatedAmount, "panelReceivable"), collectedBy: name(a.panelRemittance.receivedByUser), actorId: a.panelRemittance.receivedById, portal: portalFor(a.panelRemittance.receivedByUser.role), status: "Valid" }))
+  ].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  const periodPayments = payments.filter((p) => new Date(p.date) >= start && (!filters.method || filters.method === "ALL" || p.method === filters.method) && (!filters.portalUserId || p.actorId === filters.portalUserId || inv.createdById === filters.portalUserId));
+  const earnedLines = inv.lines.filter((l) => l.createdAt >= start);
+  const earned = earnedLines.length > 0 || !source.lines.length && inv.createdAt >= start;
+  const departments = allocateInvoiceAmount(inv.total, inv, "lineNet");
+  if (filters.departmentId && !departments.some((d) => d.departmentId === filters.departmentId) || !earned && !periodPayments.length) return { outstanding, row: null, collectionRows: [] };
+  const earnedAmount = (key, fallback) => source.lines.length ? earnedLines.filter((l) => !filters.departmentId || hospitalServiceDepartment(l, source)?.id === filters.departmentId).reduce((s, l) => s + Number(l[key]), 0) : earned ? scoped(fallback, "lineNet") : 0;
+  const hospitalLines = earnedLines.filter((l) => isInternalHospitalEarning(l, source) && (!filters.departmentId || hospitalServiceDepartment(l, source)?.id === filters.departmentId));
+  const hospitalAmount = (key) => hospitalLines.reduce((s, l) => s + Number(l[key]), 0);
+  const status = inv.status === "VOID" ? "VOID" : asOf.balance.due.lte(0) ? "PAID" : Number(asOf.balance.collected) > 0 ? "PARTIALLY_PAID" : "UNPAID";
+  const row = {
+    id: `inv-${inv.id}`,
+    date: earned ? (earnedLines[0]?.createdAt ?? inv.createdAt).toISOString() : periodPayments[periodPayments.length - 1].date,
+    reference: inv.invoiceNumber,
+    transactionType: earned ? "REVENUE" : "COLLECTION",
+    typeLabel: earned ? `${inv.encounterType || inv.sourceType} / Hospital Billing` : "Prior-Period Invoice Collection",
+    patientPayeeDescription: inv.selfPayEncounter?.fullName || inv.panelPatient?.fullName || inv.admissionRecord?.selfPayEncounter?.fullName || inv.admissionRecord?.panelPatient?.fullName || "Unassigned",
+    encounterInvoiceRef: inv.selfPayEncounter?.mrNumber || inv.admissionRecord?.admissionNumber || inv.invoiceNumber,
+    departmentId: filters.departmentId || (departments.length === 1 ? departments[0].departmentId ?? void 0 : void 0),
+    department: departments.length > 1 ? "Multiple Departments" : departments[0]?.name || "Unassigned",
+    portalUserId: inv.createdById ?? void 0,
+    portalUser: name(inv.createdByUser),
+    portal: portalFor(inv.createdByUser?.role),
+    status,
+    statusLabel: status === "PAID" ? "Paid" : status === "PARTIALLY_PAID" ? "Partially Paid" : status === "VOID" ? "Voided" : "Unpaid",
+    grossBilling: earnedAmount("lineGross", inv.subtotal),
+    discountCredit: earnedAmount("discountAmount", inv.discountTotal),
+    tax: 0,
+    netRevenue: hospitalAmount("lineNet"),
+    collectionsReceived: periodPayments.reduce((s, p) => s + p.amount, 0),
+    recognizedExpense: 0,
+    expensePaid: 0,
+    cashIn: periodPayments.filter((p) => p.method === "CASH").reduce((s, p) => s + p.amount, 0),
+    cashOut: 0,
+    outstandingPayable: outstanding,
+    paymentMethod: [...new Set(periodPayments.map((p) => p.method))].join(", ") || "N/A",
+    details: {
+      invoiceId: inv.id,
+      invoiceDate: inv.createdAt.toISOString(),
+      serviceType: inv.encounterType || inv.sourceType,
+      doctor: inv.doctor?.fullName || "Unassigned",
+      hospitalGrossBilling: hospitalAmount("lineGross"),
+      hospitalDiscounts: hospitalAmount("discountAmount"),
+      cutoff: end.toISOString(),
+      totalAppliedPayments: payments.reduce((s, p) => s + p.amount, 0),
+      netInvoiceAmount: scoped(inv.total, "lineNet"),
+      payments,
+      actorIds: periodPayments.map((p) => p.actorId),
+      actorPortals: periodPayments.map((p) => p.portal),
+      receiptReferences: payments.map((p) => p.reference).join(" "),
+      departments: departments.map((d) => ({ ...d, amount: Number(d.amount) })),
+      lines: inv.lines.map((l) => ({ name: l.descriptionSnapshot || l.serviceRate?.name || "Service", quantity: Number(l.quantity), rate: Number(l.rateSnapshot), gross: Number(l.lineGross), discount: Number(l.discountAmount), net: Number(l.lineNet), department: hospitalServiceDepartment(l, source)?.name || "Unassigned" }))
+    }
+  };
+  const firstPayment = payments.find((p) => p.amount > 0);
+  const invoiceDay = hospitalClock(inv.createdAt).date;
+  const collectionRows = periodPayments.filter((p) => p.amount !== 0 && (!earned || hospitalClock(new Date(p.date)).date > invoiceDay || firstPayment && p.id !== firstPayment.id)).map((p) => ({
+    ...row,
+    id: `invoice-collection-${inv.id}-${p.id}`,
+    date: p.date,
+    reference: p.reference,
+    encounterInvoiceRef: inv.invoiceNumber,
+    transactionType: "COLLECTION",
+    typeLabel: "Outstanding Invoice Collection",
+    portalUserId: p.actorId,
+    portalUser: p.collectedBy,
+    portal: p.portal,
+    grossBilling: 0,
+    discountCredit: 0,
+    tax: 0,
+    netRevenue: 0,
+    collectionsReceived: p.amount,
+    cashIn: p.method === "CASH" ? p.amount : 0,
+    paymentMethod: p.method,
+    details: {
+      ...row.details,
+      isCollectionEvent: true,
+      paymentId: p.id,
+      hospitalGrossBilling: 0,
+      hospitalDiscounts: 0,
+      actorIds: [p.actorId, ...inv.createdById ? [inv.createdById] : []],
+      actorPortals: [p.portal],
+      receiptReferences: p.reference
+    }
+  }));
+  return { outstanding, row, collectionRows };
+}
+
+// src/modules/reports/managementReports.service.ts
+var import_library38 = require("@prisma/client/runtime/library");
 
 // src/modules/expenses/expenses.service.ts
-var import_client48 = require("@prisma/client");
+var import_client51 = require("@prisma/client");
 var userSelect = { select: { id: true, displayName: true, username: true } };
 var expenseInclude = {
   department: { select: { id: true, name: true } },
@@ -57862,7 +58820,7 @@ function toData(body) {
   return {
     expenseDate: toDateOnly(body.expenseDate),
     category: body.category,
-    amount: new import_client48.Prisma.Decimal(body.amount),
+    amount: new import_client51.Prisma.Decimal(body.amount),
     paymentMethod: body.paymentMethod,
     paidTo: body.paidTo,
     reference: body.reference ?? null,
@@ -57951,6 +58909,7 @@ var expensesService = {
     const agg = await prisma.expense.aggregate({
       where: {
         status: "ACTIVE",
+        pharmacySettlementRelease: { is: null },
         expenseDate: {
           gte: toDateOnly(start.toLocaleDateString("en-CA")),
           lte: toDateOnly(end.toLocaleDateString("en-CA"))
@@ -57960,64 +58919,12 @@ var expensesService = {
       },
       _sum: { amount: true }
     });
-    return agg?._sum?.amount ?? new import_client48.Prisma.Decimal(0);
+    return agg?._sum?.amount ?? new import_client51.Prisma.Decimal(0);
   }
 };
 
-// src/modules/reports/staffFinanceSummary.ts
-var import_library35 = require("@prisma/client/runtime/library");
-var approvedStatuses = ["APPROVED", "PARTIALLY_PAID", "PAID"];
-var zero2 = () => new import_library35.Decimal(0);
-async function staffFinanceSummary(start, end, departmentId, portalUserId, method) {
-  const salaryDepartment = departmentId ? { OR: [
-    { payrollRun: { departmentId } },
-    { AND: [{ OR: [{ payrollRunId: null }, { payrollRun: { departmentId: null } }] }, { staff: { staffDepartments: { some: { departmentId } } } }] }
-  ] } : {};
-  const commissionDepartment = departmentId ? { invoiceLineItem: commissionDepartmentFilter(departmentId) } : {};
-  const approval = { OR: [
-    { approvedAt: { lte: end } },
-    { approvedAt: null, status: { in: [...approvedStatuses] }, createdAt: { lte: end } }
-  ] };
-  const [salary, commission, salaryPayments, commissionPayments] = await Promise.all([
-    prisma.salarySlip.findMany({
-      where: { AND: [approval, salaryDepartment], ...portalUserId ? { approvedById: portalUserId } : {} },
-      include: { payments: { where: { paidAt: { lte: end } } }, correctionEntries: { where: { createdAt: { lte: end } } } }
-    }),
-    prisma.doctorCommissionAccrual.findMany({
-      where: { AND: [{ OR: [
-        { collectionEventId: { not: null }, collectionEvent: { occurredAt: { lte: end } } },
-        { collectionEventId: null, ...approval }
-      ] }, commissionDepartment], ...portalUserId ? { approvedById: portalUserId } : {} },
-      include: { collectionEvent: true, payouts: { where: { paidAt: { lte: end } } }, reversals: { where: { reversedAt: { lte: end } } }, adjustments: { where: { createdAt: { lte: end } } } }
-    }),
-    prisma.salaryPayment.findMany({ where: { paidAt: { gte: start, lte: end }, ...method ? { method } : {}, ...portalUserId ? { OR: [{ reversalOfId: null, paidById: portalUserId }, { reversalOf: { paidById: portalUserId } }] } : {}, salarySlip: salaryDepartment }, select: { amount: true } }),
-    prisma.commissionPayout.findMany({ where: { paidAt: { gte: start, lte: end }, ...method ? { method } : {}, ...portalUserId ? { OR: [{ reversalOfId: null, paidById: portalUserId }, { reversalOf: { paidById: portalUserId } }] } : {}, doctorCommissionAccrual: commissionDepartment }, select: { amount: true } })
-  ]);
-  let salaryGenerated = zero2(), salaryOutstanding = zero2(), commissionGenerated = zero2(), commissionOutstanding = zero2();
-  for (const row of salary) {
-    const balance = salaryBalance(row);
-    const before = (row.approvedAt ?? row.createdAt) < start ? salaryBalance({ ...row, correctionEntries: row.correctionEntries.filter((a) => a.createdAt < start) }).payable : zero2();
-    salaryGenerated = salaryGenerated.plus(balance.payable.minus(before));
-    salaryOutstanding = salaryOutstanding.plus(balance.remaining);
-  }
-  for (const row of commission) {
-    const balance = commissionBalance(row);
-    const before = (row.collectionEvent?.occurredAt ?? row.approvedAt ?? row.createdAt) < start ? commissionBalance({ ...row, reversals: row.reversals.filter((r) => r.reversedAt < start), adjustments: row.adjustments.filter((a) => a.createdAt < start) }).payable : zero2();
-    commissionGenerated = commissionGenerated.plus(balance.payable.minus(before));
-    commissionOutstanding = commissionOutstanding.plus(balance.remaining);
-  }
-  return {
-    salaryGenerated,
-    salaryPaid: salaryPayments.reduce((s, p) => s.plus(p.amount), zero2()),
-    salaryOutstanding,
-    commissionGenerated,
-    commissionPaid: commissionPayments.reduce((s, p) => s.plus(p.amount), zero2()),
-    commissionOutstanding
-  };
-}
-
 // src/modules/reports/managementReports.service.ts
-var ZERO = () => new import_library36.Decimal(0);
+var ZERO = () => new import_library38.Decimal(0);
 var sumOf = (rows, pick) => rows.reduce((s, r) => s.plus(pick(r)), ZERO());
 var patientSelect = {
   panelPatient: { select: { fullName: true } },
@@ -58048,8 +58955,8 @@ var PORTAL_LABEL = {
 };
 var managementReportsService = {
   /** #1 Management Summary — hospital-wide totals (shown as table rows) + one row per department. */
-  async getSummary(query) {
-    const { start, end, label } = resolveDateRange(query);
+  async getSummary(query, reportingRange) {
+    const { start, end, label } = reportingRange ?? resolveDateRange(query);
     const dept = query.departmentId;
     const user = query.portalUserId;
     const method = query.method;
@@ -58074,7 +58981,9 @@ var managementReportsService = {
           ...dept ? {
             OR: [
               { departmentId: dept },
-              { lines: { some: { serviceRate: { departmentId: dept } } } }
+              { lines: { some: { serviceRate: { departmentId: dept } } } },
+              { appointment: { departmentId: dept } },
+              { admissionRecord: { departmentId: dept } }
             ]
           } : {},
           ...user ? { createdById: user } : {}
@@ -58082,6 +58991,7 @@ var managementReportsService = {
         select: {
           id: true,
           createdAt: true,
+          status: true,
           paymentReceipts: { where: { ...signedReceiptWhere, collectedAt: { lte: end } }, select: { amount: true } },
           subtotal: true,
           discountTotal: true,
@@ -58090,9 +59000,14 @@ var managementReportsService = {
           panelReceivable: true,
           panelRemittanceAllocations: { where: { panelRemittance: { receivedAt: { lte: end } } }, select: { allocatedAmount: true } },
           departmentId: true,
-          department: { select: { id: true, name: true } },
+          department: { select: financialDepartmentSelect },
+          appointment: { select: { department: { select: financialDepartmentSelect } } },
+          admissionRecord: { select: { department: { select: financialDepartmentSelect } } },
           lines: {
             select: {
+              createdAt: true,
+              isCompleted: true,
+              billingSource: true,
               lineGross: true,
               discountAmount: true,
               lineNet: true,
@@ -58101,7 +59016,8 @@ var managementReportsService = {
               serviceRate: {
                 select: {
                   departmentId: true,
-                  department: { select: { id: true, name: true } }
+                  providerType: true,
+                  department: { select: financialDepartmentSelect }
                 }
               }
             }
@@ -58168,11 +59084,11 @@ var managementReportsService = {
       })
     ]);
     const rows = /* @__PURE__ */ new Map();
-    const rowFor = (name) => {
-      let r = rows.get(name);
+    const rowFor = (name2) => {
+      let r = rows.get(name2);
       if (!r) {
         r = {
-          department: name,
+          department: name2,
           invoices: 0,
           gross: ZERO(),
           discount: ZERO(),
@@ -58181,18 +59097,24 @@ var managementReportsService = {
           outstanding: ZERO(),
           activeAdmissions: 0
         };
-        rows.set(name, r);
+        rows.set(name2, r);
       }
       return r;
     };
     const countedInvoicesPerDept = /* @__PURE__ */ new Map();
+    let netEarnedRevenue = ZERO();
     for (const i of invoices) {
+      for (const line of i.lines) {
+        if (line.createdAt >= start && line.createdAt <= end && isInternalHospitalEarning(line, i) && (!dept || hospitalServiceDepartment(line, i)?.id === dept)) {
+          netEarnedRevenue = netEarnedRevenue.plus(line.lineNet);
+        }
+      }
       if (i.createdAt >= start) {
         if (i.lines && i.lines.length > 0) {
           for (const l of i.lines) {
-            const lineDept = l.serviceRate?.department;
-            const targetDeptId = lineDept?.id ?? i.departmentId ?? null;
-            const targetDeptName = lineDept?.name ?? i.department?.name ?? "General Hospital Services";
+            const lineDept = hospitalServiceDepartment(l, i);
+            const targetDeptId = lineDept?.id ?? null;
+            const targetDeptName = lineDept?.name ?? "General Hospital Services";
             if (dept && targetDeptId !== dept) {
               continue;
             }
@@ -58280,7 +59202,7 @@ var managementReportsService = {
     }
     const grossBilling = sumOf(table, (r) => r.gross);
     const discounts = sumOf(table, (r) => r.discount);
-    const netEarnedRevenue = sumOf(table, (r) => r.net);
+    const totalBilling = sumOf(table, (r) => r.net);
     const grossProfit = netEarnedRevenue.minus(directServiceCosts);
     const otherOperatingExpenses = hospitalExpenses.plus(expenses._sum.amount ?? ZERO());
     const totalOperatingCosts = directServiceCosts.plus(staffFinance.salaryGenerated).plus(staffFinance.commissionGenerated).plus(otherOperatingExpenses);
@@ -58293,7 +59215,7 @@ var managementReportsService = {
         ...staffFinance,
         grossBilling,
         discounts,
-        totalBilling: netEarnedRevenue,
+        totalBilling,
         netEarnedRevenue,
         directServiceCosts,
         grossProfit,
@@ -58345,7 +59267,7 @@ var managementReportsService = {
       const receipts = i.paymentReceipts.filter((p) => p.collectedAt >= start && (!query.method || p.method === query.method) && (!query.collectedById || p.collectedById === query.collectedById));
       const panels = i.panelRemittanceAllocations.filter((a) => a.panelRemittance.receivedAt >= start && (!query.method || (query.method === "BANK" ? ["BANK", "BANK_TRANSFER", "BANK TRANSFER"] : [query.method]).includes(a.panelRemittance.method.toUpperCase())) && (!query.collectedById || a.panelRemittance.receivedById === query.collectedById));
       if (!receipts.length && !panels.length && (i.createdAt < start || query.method || query.collectedById)) return [];
-      const scoped = (amount, basis) => !query.departmentId ? amount : allocateInvoiceAmount(amount, i, basis).filter((a) => a.departmentId === query.departmentId).reduce((sum, a) => sum.plus(a.amount), ZERO());
+      const scoped = (amount, basis) => !query.departmentId ? amount : allocateInvoiceAmount(amount, i, basis).filter((a) => a.departmentId === query.departmentId).reduce((sum2, a) => sum2.plus(a.amount), ZERO());
       return [{
         id: i.id,
         invoiceNumber: i.invoiceNumber,
@@ -58403,7 +59325,7 @@ var managementReportsService = {
       rows: invoices.map(invoiceAsOf).map((i) => {
         const paidAtCutoff = sumOf(i.paymentReceipts, (r) => r.amount);
         const balance = invoiceBalance({ ...i, paidTotal: paidAtCutoff });
-        const scoped = (amount, basis) => !query.departmentId ? amount : allocateInvoiceAmount(amount, i, basis).filter((r) => r.departmentId === query.departmentId).reduce((sum, r) => sum.plus(r.amount), ZERO());
+        const scoped = (amount, basis) => !query.departmentId ? amount : allocateInvoiceAmount(amount, i, basis).filter((r) => r.departmentId === query.departmentId).reduce((sum2, r) => sum2.plus(r.amount), ZERO());
         const patientDue = scoped(balance.patientDue, "patientShare");
         const panelDue = scoped(balance.panelDue, "panelReceivable");
         const due = patientDue.plus(panelDue);
@@ -58481,6 +59403,7 @@ var managementReportsService = {
           cashCollections: ZERO(),
           settlementIn: ZERO(),
           settlementOut: ZERO(),
+          pharmacySettlementOut: ZERO(),
           expenses: ZERO(),
           refunds: ZERO(),
           nonCash: ZERO(),
@@ -58514,7 +59437,10 @@ var managementReportsService = {
         else if (e.category === "RECOVERY") r.settlementIn = r.settlementIn.plus(e.amount);
         else r.cashCollections = r.cashCollections.plus(e.amount);
       } else {
-        if (e.category === "RECOVERY") {
+        if (e.category === "PHARMACY_SETTLEMENT") {
+          r.pharmacySettlementOut = r.pharmacySettlementOut.plus(e.amount);
+          r.physicalOut = r.physicalOut.plus(e.amount);
+        } else if (e.category === "RECOVERY") {
           r.settlementOut = r.settlementOut.plus(e.amount);
         } else if (e.category === "REFUND") {
           r.physicalOut = r.physicalOut.plus(e.amount);
@@ -58543,9 +59469,9 @@ var managementReportsService = {
       r.variance = r.variance.plus(s.variance);
     }
     const result = Array.from(rows.values()).filter((r) => !query.settlementStatus || r.settlementStatus === query.settlementStatus).map(({ physicalOut, ...r }) => {
-      const acceptedOut = import_library36.Decimal.max(r.settlementOut, r.accepted);
+      const acceptedOut = import_library38.Decimal.max(r.settlementOut, r.accepted);
       const netCashCollections = r.cashCollections.minus(r.refunds);
-      const expectedCash = r.opening.plus(r.pettyCash).plus(netCashCollections).plus(r.settlementIn).minus(r.expenses);
+      const expectedCash = r.opening.plus(r.pettyCash).plus(netCashCollections).plus(r.settlementIn).minus(r.expenses).minus(r.pharmacySettlementOut);
       const remaining = expectedCash.minus(acceptedOut);
       return {
         ...r,
@@ -58934,6 +59860,11 @@ var managementReportsService = {
       }))
     };
   },
+  /** M04 Operating Profit Statement & Detailed Ledger — Complete Professional Financial Statement */
+  async getOperatingProfitStatement(query) {
+    const range = resolveExtendedDateRange(query);
+    return buildOperatingStatement(query, range, (q) => this.getIncomeExpenseLedger(q));
+  },
   /** M03 Detailed Expense — Itemized hospital expenses, consumables, payroll, and commissions. */
   async getDetailedExpenses(query) {
     const { start, end, label } = resolveDateRange(query);
@@ -58948,6 +59879,7 @@ var managementReportsService = {
       prisma.expense.findMany({
         where: {
           status: "ACTIVE",
+          pharmacySettlementRelease: { is: null },
           expenseDate: {
             gte: new Date(start.toLocaleDateString("en-CA")),
             lte: new Date(end.toLocaleDateString("en-CA"))
@@ -59208,7 +60140,7 @@ var managementReportsService = {
     const portal = query.portal;
     const search = query.search?.trim().toLowerCase();
     const page = Math.max(1, Number(query.page) || 1);
-    const limit = Math.max(1, Math.min(500, Number(query.limit) || 50));
+    const limit = Math.max(1, Math.min(500, Number(query.limit) || 25));
     const [
       invoices,
       receipts,
@@ -59218,23 +60150,21 @@ var managementReportsService = {
       commissionAccruals,
       requisitions,
       settlements,
-      summaryData
+      summaryData,
+      pharmacyReleases
     ] = await Promise.all([
       // 1. Hospital Invoices (Earned Revenue)
       prisma.hospitalInvoice.findMany({
         where: {
-          createdAt: { gte: start, lte: end },
-          status: { not: "VOID" },
-          ...dept ? {
-            OR: [
-              { departmentId: dept },
-              { lines: { some: { serviceRate: { departmentId: dept } } } }
-            ]
-          } : {},
-          ...user ? { createdById: user } : {}
+          createdAt: { lte: end },
+          status: { not: "VOID" }
         },
         include: {
-          department: { select: { id: true, name: true } },
+          doctor: { select: { fullName: true } },
+          appointment: { select: { department: { select: financialDepartmentSelect } } },
+          paymentReceipts: { where: { ...signedReceiptWhere, collectedAt: { lte: end } }, include: { collectedBy: userSelect2 } },
+          panelRemittanceAllocations: { where: { panelRemittance: { receivedAt: { lte: end } } }, include: { panelRemittance: { include: { receivedByUser: userSelect2 } } } },
+          department: { select: financialDepartmentSelect },
           createdByUser: { select: { id: true, displayName: true, username: true, role: true } },
           selfPayEncounter: { select: { id: true, mrNumber: true, fullName: true } },
           panelPatient: { select: { id: true, fullName: true, corporatePanel: { select: { organizationName: true } } } },
@@ -59244,12 +60174,12 @@ var managementReportsService = {
               admissionNumber: true,
               selfPayEncounter: { select: { fullName: true } },
               panelPatient: { select: { fullName: true } },
-              department: { select: { id: true, name: true } }
+              department: { select: financialDepartmentSelect }
             }
           },
           lines: {
             include: {
-              serviceRate: { select: { id: true, name: true, department: { select: { id: true, name: true } } } }
+              serviceRate: { select: { id: true, name: true, providerType: true, department: { select: financialDepartmentSelect } } }
             }
           }
         },
@@ -59258,9 +60188,9 @@ var managementReportsService = {
       // 2. Patient / Panel Collections & Refunds
       prisma.paymentReceipt.findMany({
         where: {
+          hospitalInvoiceId: null,
+          AND: [signedReceiptWhere],
           collectedAt: { gte: start, lte: end },
-          ...method && method !== "ALL" ? { method } : {},
-          ...user ? { collectedById: user } : {},
           ...dept ? {
             OR: [
               { hospitalInvoice: { departmentId: dept } },
@@ -59271,6 +60201,7 @@ var managementReportsService = {
           } : {}
         },
         include: {
+          appointment: { select: { department: { select: { id: true, name: true } } } },
           collectedBy: { select: { id: true, displayName: true, username: true, role: true } },
           hospitalInvoice: {
             select: {
@@ -59292,6 +60223,7 @@ var managementReportsService = {
             select: {
               id: true,
               admissionNumber: true,
+              department: { select: { id: true, name: true } },
               selfPayEncounter: { select: { fullName: true } },
               panelPatient: { select: { fullName: true } }
             }
@@ -59303,13 +60235,12 @@ var managementReportsService = {
       prisma.expense.findMany({
         where: {
           status: "ACTIVE",
+          pharmacySettlementRelease: { is: null },
           expenseDate: {
-            gte: new Date(start.toLocaleDateString("en-CA")),
-            lte: new Date(end.toLocaleDateString("en-CA"))
+            gte: new Date(hospitalClock(start).date),
+            lte: new Date(hospitalClock(end).date)
           },
-          ...dept ? { departmentId: dept } : {},
-          ...user ? { createdById: user } : {},
-          ...method && method !== "ALL" ? { paymentMethod: method } : {}
+          ...dept ? { departmentId: dept } : {}
         },
         include: {
           department: { select: { id: true, name: true } },
@@ -59321,12 +60252,10 @@ var managementReportsService = {
       prisma.inventoryExpense.findMany({
         where: {
           expenseDate: {
-            gte: new Date(start.toLocaleDateString("en-CA")),
-            lte: new Date(end.toLocaleDateString("en-CA"))
+            gte: new Date(hospitalClock(start).date),
+            lte: new Date(hospitalClock(end).date)
           },
-          ...dept ? { id: { in: [] } } : {},
-          ...user ? { createdById: user } : {},
-          ...method && method !== "ALL" ? { paymentMethod: method } : {}
+          ...dept ? { id: { in: [] } } : {}
         },
         include: {
           createdByUser: { select: { id: true, displayName: true, username: true, role: true } }
@@ -59336,7 +60265,7 @@ var managementReportsService = {
       // 5. Staff Payroll Slips
       prisma.salarySlip.findMany({
         where: {
-          approvedAt: { gte: start, lte: end },
+          OR: [{ approvedAt: { gte: start, lte: end } }, { payments: { some: { paidAt: { gte: start, lte: end } } } }],
           status: { in: ["APPROVED", "PARTIALLY_PAID", "PAID"] },
           ...dept ? {
             OR: [
@@ -59355,6 +60284,8 @@ var managementReportsService = {
             }
           },
           payrollRun: true,
+          approvedByUser: userSelect2,
+          correctionEntries: { where: { createdAt: { lte: end } } },
           payments: { where: { paidAt: { lte: end } } }
         },
         orderBy: { approvedAt: "desc" }
@@ -59363,6 +60294,7 @@ var managementReportsService = {
       prisma.doctorCommissionAccrual.findMany({
         where: {
           OR: [
+            { payouts: { some: { paidAt: { gte: start, lte: end } } } },
             { collectionEventId: { not: null }, collectionEvent: { occurredAt: { gte: start, lte: end } } },
             { collectionEventId: null, approvedAt: { gte: start, lte: end }, status: { in: ["APPROVED", "PARTIALLY_PAID", "PAID"] } }
           ],
@@ -59378,6 +60310,8 @@ var managementReportsService = {
             }
           },
           collectionEvent: true,
+          reversals: { where: { reversedAt: { lte: end } } },
+          adjustments: { where: { createdAt: { lte: end } } },
           payouts: { where: { paidAt: { lte: end } } },
           approvedByUser: { select: { id: true, displayName: true, username: true, role: true } },
           invoiceLineItem: {
@@ -59424,62 +60358,35 @@ var managementReportsService = {
         orderBy: { submittedAt: "desc" }
       }),
       // 9. Accrual Executive Summary
-      this.getSummary(query)
+      this.getSummary({ ...query, portalUserId: void 0, method: void 0 }, { start, end, label }),
+      prisma.hmsPharmacySettlementRelease.findMany({
+        where: {
+          releasedAt: { gte: start, lte: end },
+          ...dept ? { settlement: { pharmacyCharge: { admissionRecord: { departmentId: dept } } } } : {}
+        },
+        include: {
+          releasedByUser: { select: { id: true, displayName: true, username: true, role: true } },
+          settlement: { select: {
+            settlementNumber: true,
+            pharmacyInvoiceNumber: true,
+            pharmacyCharge: { select: { admissionRecord: { select: { department: { select: { id: true, name: true } } } } } }
+          } }
+        }
+      })
     ]);
     const allItems = [];
-    for (const inv of invoices) {
-      const pName = inv.selfPayEncounter?.fullName || inv.panelPatient?.fullName || inv.admissionRecord?.selfPayEncounter?.fullName || inv.admissionRecord?.panelPatient?.fullName || "Walk-in Patient";
-      const dName = inv.department?.name || inv.lines[0]?.serviceRate?.department?.name || "General Hospital Services";
-      const gross = Number(inv.subtotal);
-      const discount = Number(inv.discountTotal);
-      const net = Number(inv.total);
-      const paid = Number(inv.paidTotal);
-      const tax = Number(inv.taxAmount || 0);
-      const outstanding = Math.max(0, net - paid);
-      const isPaid = inv.status === "PAID";
-      const isPartial = inv.status === "PARTIALLY_PAID";
-      allItems.push({
-        id: `inv-${inv.id}`,
-        date: inv.createdAt.toISOString(),
-        reference: inv.invoiceNumber,
-        transactionType: "REVENUE",
-        typeLabel: "Hospital Revenue",
-        patientPayeeDescription: pName,
-        encounterInvoiceRef: inv.selfPayEncounter?.mrNumber || inv.admissionRecord?.admissionNumber || inv.invoiceNumber,
-        departmentId: inv.departmentId ?? void 0,
-        department: dName,
-        portalUserId: inv.createdById ?? void 0,
-        portalUser: userName2(inv.createdByUser) || "Front Desk Billing",
-        portal: "Front Desk / Billing",
-        status: inv.status,
-        statusLabel: isPaid ? "Paid" : isPartial ? "Partially Paid" : inv.status === "VOID" ? "Voided" : "Unpaid",
-        grossBilling: gross,
-        discountCredit: discount,
-        tax,
-        netRevenue: net,
-        collectionsReceived: 0,
-        recognizedExpense: 0,
-        expensePaid: 0,
-        cashIn: 0,
-        cashOut: 0,
-        outstandingPayable: outstanding,
-        paymentMethod: "N/A",
-        details: {
-          lines: inv.lines.map((l) => ({
-            name: l.serviceRate?.name || "Service",
-            gross: Number(l.lineGross),
-            discount: Number(l.discountAmount),
-            net: Number(l.lineNet),
-            department: l.serviceRate?.department?.name
-          }))
-        }
-      });
+    const financialInvoices = invoices.map((inv) => projectM01Invoice(inv, start, end, { departmentId: dept }));
+    const invoiceProjections = invoices.map((inv) => projectM01Invoice(inv, start, end, query));
+    for (const projection of invoiceProjections) {
+      if (projection.row && (projection.row.transactionType === "REVENUE" || !projection.collectionRows.length)) allItems.push(projection.row);
+      allItems.push(...projection.collectionRows);
     }
     for (const rec of receipts) {
-      const isRefund = rec.amount.lessThan(0) || rec.isReversed;
+      const isRefund = rec.amount.lessThan(0);
       const absAmount = Math.abs(Number(rec.amount));
       const pName = rec.hospitalInvoice?.selfPayEncounter?.fullName || rec.hospitalInvoice?.panelPatient?.fullName || rec.hospitalInvoice?.admissionRecord?.selfPayEncounter?.fullName || rec.hospitalInvoice?.admissionRecord?.panelPatient?.fullName || rec.admissionRecord?.selfPayEncounter?.fullName || rec.admissionRecord?.panelPatient?.fullName || "Patient Receipt";
-      const dName = rec.hospitalInvoice?.department?.name || "Front Desk Billing";
+      const receiptDepartment = rec.hospitalInvoice?.department ?? rec.admissionRecord?.department ?? rec.appointment?.department;
+      const dName = receiptDepartment?.name || "Unassigned";
       const isCash = rec.method === "CASH";
       if (isRefund) {
         allItems.push({
@@ -59490,7 +60397,7 @@ var managementReportsService = {
           typeLabel: "Refund / Reversal",
           patientPayeeDescription: `${pName} (Refund / Credit)`,
           encounterInvoiceRef: rec.hospitalInvoice?.invoiceNumber || rec.admissionRecord?.admissionNumber || "\u2014",
-          departmentId: rec.hospitalInvoice?.department?.id,
+          departmentId: receiptDepartment?.id,
           department: dName,
           portalUserId: rec.collectedById,
           portalUser: userName2(rec.collectedBy) || "Cashier",
@@ -59515,10 +60422,10 @@ var managementReportsService = {
           date: rec.collectedAt.toISOString(),
           reference: rec.receiptNumber,
           transactionType: "COLLECTION",
-          typeLabel: "Collection / Receipt",
+          typeLabel: "Unapplied Advance Receipt",
           patientPayeeDescription: pName,
           encounterInvoiceRef: rec.hospitalInvoice?.invoiceNumber || rec.admissionRecord?.admissionNumber || "\u2014",
-          departmentId: rec.hospitalInvoice?.department?.id,
+          departmentId: receiptDepartment?.id,
           department: dName,
           portalUserId: rec.collectedById,
           portalUser: userName2(rec.collectedBy) || "Cashier",
@@ -59551,7 +60458,7 @@ var managementReportsService = {
         patientPayeeDescription: [exp.paidTo, exp.description, exp.category].filter(Boolean).join(" \u2014 ") || "Hospital Expense",
         encounterInvoiceRef: exp.reference || exp.expenseNumber,
         departmentId: exp.departmentId ?? void 0,
-        department: exp.department?.name || "Hospital Administration",
+        department: exp.department?.name || "Unassigned",
         portalUserId: exp.createdById ?? void 0,
         portalUser: userName2(exp.createdByUser) || "Administrator",
         portal: "Admin",
@@ -59581,7 +60488,7 @@ var managementReportsService = {
         typeLabel: "Store Expense",
         patientPayeeDescription: [ie.payee, ie.description, ie.category].filter(Boolean).join(" \u2014 ") || "Store Expense",
         encounterInvoiceRef: ie.reference || "\u2014",
-        department: "Inventory / Store",
+        department: "Unassigned",
         portalUserId: ie.createdById,
         portalUser: userName2(ie.createdByUser) || "Inventory Manager",
         portal: "Inventory Management",
@@ -59601,10 +60508,12 @@ var managementReportsService = {
       });
     }
     for (const sal of salarySlips) {
-      const payable = Number(sal.generatedAmount);
-      const paid = sal.payments?.reduce((s, p) => s + Number(p.amount), 0) || 0;
-      const remaining = Math.max(0, payable - paid);
-      const cashPayments = sal.payments?.filter((p) => p.method === "CASH").reduce((s, p) => s + Number(p.amount), 0) || 0;
+      const payable = Number(salaryBalance(sal).payable);
+      const allPaid = sal.payments?.reduce((s, p) => s + Number(p.amount), 0) || 0;
+      const periodPayments = sal.payments.filter((p) => p.paidAt >= start);
+      const paid = periodPayments.reduce((s, p) => s + Number(p.amount), 0);
+      const remaining = Math.max(0, payable - allPaid);
+      const cashPayments = periodPayments.filter((p) => p.method === "CASH").reduce((s, p) => s + Number(p.amount), 0) || 0;
       const methodLabel = sal.payments?.[0]?.method || "Bank / Online";
       allItems.push({
         id: `sal-${sal.id}`,
@@ -59614,8 +60523,9 @@ var managementReportsService = {
         typeLabel: "Staff Payroll",
         patientPayeeDescription: `${sal.staff.fullName} (${sal.staff.employeeId})`,
         encounterInvoiceRef: sal.payrollRunId || "\u2014",
-        department: sal.staff.department?.name || "Administration",
-        portalUser: "HR / Payroll Officer",
+        department: sal.staff.department?.name || "Unassigned",
+        portalUserId: sal.approvedById ?? void 0,
+        portalUser: userName2(sal.approvedByUser) || "Unassigned",
         portal: "Admin",
         status: sal.status,
         statusLabel: sal.status.replace(/_/g, " "),
@@ -59624,20 +60534,33 @@ var managementReportsService = {
         tax: 0,
         netRevenue: 0,
         collectionsReceived: 0,
-        recognizedExpense: payable,
+        recognizedExpense: sal.approvedAt && sal.approvedAt >= start ? payable : 0,
         expensePaid: paid,
         cashIn: 0,
         cashOut: cashPayments,
         outstandingPayable: remaining,
-        paymentMethod: methodLabel
+        paymentMethod: methodLabel,
+        details: {
+          actorIds: sal.payments.map((p) => p.paidById),
+          approvedAt: sal.approvedAt?.toISOString(),
+          approvedBy: userName2(sal.approvedByUser),
+          history: sal.payments.map((p) => ({ reference: p.reference || p.id, date: p.paidAt.toISOString(), method: p.method, amount: Number(p.amount), actor: p.paidById })),
+          adjustments: sal.correctionEntries
+        }
       });
     }
     for (const com of commissionAccruals) {
-      const amt = Number(com.commissionAmount);
-      const paid = com.payouts?.reduce((s, p) => s + Number(p.amount), 0) || 0;
-      const outstanding = Math.max(0, amt - paid);
+      const balance = commissionBalance({ ...com, reversals: com.reversals ?? [] });
+      const amt = Number(balance.payable);
+      const periodPayouts = com.payouts?.filter((p) => p.paidAt >= start && p.paidAt <= end) || [];
+      const paid = periodPayouts.reduce((s, p) => s + Number(p.amount), 0);
+      const cashPayouts = periodPayouts.filter((p) => p.method === "CASH").reduce((s, p) => s + Number(p.amount), 0);
+      const totalPaidEver = com.payouts?.reduce((s, p) => s + Number(p.amount), 0) || 0;
+      const outstanding = Math.max(0, amt - totalPaidEver);
       const invRef = com.invoiceLineItem?.hospitalInvoice?.invoiceNumber || "\u2014";
-      const dName = com.invoiceLineItem?.serviceRate?.department?.name || com.doctor.staffDepartments?.[0]?.department?.name || "Clinical Services";
+      const dName = com.invoiceLineItem?.serviceRate?.department?.name || com.doctor.staffDepartments?.[0]?.department?.name || "Unassigned";
+      const payoutMethods = unique(periodPayouts.map((p) => p.method));
+      const methodLabel = payoutMethods.length > 0 ? payoutMethods.join(", ") : "Accrued (N/A)";
       allItems.push({
         id: `com-${com.id}`,
         date: (com.collectionEvent?.occurredAt || com.approvedAt || com.createdAt).toISOString(),
@@ -59657,12 +60580,20 @@ var managementReportsService = {
         tax: 0,
         netRevenue: 0,
         collectionsReceived: 0,
-        recognizedExpense: amt,
+        recognizedExpense: (com.collectionEvent?.occurredAt || com.approvedAt || com.createdAt) >= start ? amt : 0,
         expensePaid: paid,
         cashIn: 0,
-        cashOut: 0,
+        cashOut: cashPayouts,
         outstandingPayable: outstanding,
-        paymentMethod: "Bank / Online"
+        paymentMethod: methodLabel,
+        details: {
+          actorIds: com.payouts.map((p) => p.paidById),
+          approvedAt: com.approvedAt?.toISOString(),
+          approvedBy: userName2(com.approvedByUser),
+          history: com.payouts.map((p) => ({ reference: p.reference || p.id, date: p.paidAt.toISOString(), method: p.method, amount: Number(p.amount), actor: p.paidById })),
+          adjustments: com.adjustments,
+          reversals: com.reversals
+        }
       });
     }
     for (const req of requisitions) {
@@ -59709,6 +60640,15 @@ var managementReportsService = {
       const isAccepted = st.status === "ACCEPTED";
       const senderName = userName2(st.submittedByUser) || "Cashier";
       const receiverName = userName2(st.receiverUser) || "Administrator";
+      let stCashIn = 0;
+      let stCashOut = 0;
+      if (isAccepted && user) {
+        if (st.portalUserId === user) {
+          stCashOut = acceptedAmt;
+        } else if (st.receiverUserId === user) {
+          stCashIn = acceptedAmt;
+        }
+      }
       allItems.push({
         id: `set-${st.id}`,
         date: (st.submittedAt || st.createdAt).toISOString(),
@@ -59717,7 +60657,7 @@ var managementReportsService = {
         typeLabel: "Internal Custody Transfer",
         patientPayeeDescription: `Cash Settlement Handover: ${senderName} \u2192 ${receiverName}`,
         encounterInvoiceRef: "\u2014",
-        department: "Cash Custody",
+        department: "Unassigned",
         portalUserId: st.portalUserId,
         portalUser: senderName,
         portal: "Front Desk / Billing",
@@ -59730,27 +60670,71 @@ var managementReportsService = {
         collectionsReceived: 0,
         recognizedExpense: 0,
         expensePaid: 0,
-        cashIn: isAccepted ? acceptedAmt : 0,
-        cashOut: isAccepted ? acceptedAmt : 0,
+        cashIn: stCashIn,
+        cashOut: stCashOut,
         outstandingPayable: 0,
-        paymentMethod: "Cash"
+        paymentMethod: "Cash",
+        details: {
+          handoverAmount: acceptedAmt,
+          sender: senderName,
+          receiver: receiverName,
+          senderUserId: st.portalUserId,
+          receiverUserId: st.receiverUserId
+        }
       });
     }
-    allItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    for (const release of pharmacyReleases) {
+      const department2 = release.settlement.pharmacyCharge.admissionRecord.department;
+      allItems.push({
+        id: "pharmacy-release-" + release.id,
+        date: release.releasedAt.toISOString(),
+        reference: release.id,
+        transactionType: "SETTLEMENT",
+        typeLabel: "Pharmacy Settlement",
+        patientPayeeDescription: "Pharmacy settlement " + release.settlement.settlementNumber + " / PKR " + release.amount.toFixed(2),
+        encounterInvoiceRef: release.settlement.pharmacyInvoiceNumber,
+        departmentId: department2.id,
+        department: department2.name,
+        portalUserId: release.releasedById,
+        portalUser: userName2(release.releasedByUser) || "Admin",
+        portal: release.releasedByUser.role === "SUPER_ADMIN" ? "Super Admin" : "Admin",
+        status: "SETTLED",
+        statusLabel: "Paid",
+        grossBilling: 0,
+        discountCredit: 0,
+        tax: 0,
+        netRevenue: 0,
+        collectionsReceived: 0,
+        recognizedExpense: 0,
+        expensePaid: 0,
+        cashIn: 0,
+        cashOut: release.paymentMethod === "CASH" ? Number(release.amount) : 0,
+        outstandingPayable: 0,
+        paymentMethod: release.paymentMethod,
+        details: {
+          pharmacySettlementOutflow: Number(release.amount),
+          paymentReference: release.paymentReference,
+          cashEntryId: release.cashEntryId,
+          bridgeStatus: release.bridgeStatus,
+          legacyExpenseId: release.legacyExpenseId
+        }
+      });
+    }
+    allItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || Number(Boolean(b.details?.isCollectionEvent)) - Number(Boolean(a.details?.isCollectionEvent)) || a.id.localeCompare(b.id));
     const filteredItems = allItems.filter((it) => {
-      if (transactionType && transactionType !== "ALL" && it.transactionType !== transactionType) {
+      if (transactionType && transactionType !== "ALL" && it.transactionType !== transactionType && !(transactionType === "COLLECTION" && it.transactionType === "REVENUE" && it.collectionsReceived !== 0)) {
         return false;
       }
       if (dept && it.departmentId && it.departmentId !== dept) {
         return false;
       }
-      if (user && it.portalUserId && it.portalUserId !== user) {
+      if (user && it.portalUserId !== user && !it.details?.actorIds?.includes(user)) {
         return false;
       }
-      if (portal && portal !== "ALL" && !it.portal.toLowerCase().includes(portal.toLowerCase())) {
+      if (portal && portal !== "ALL" && !it.portal.toLowerCase().includes(portal.toLowerCase()) && !it.details?.actorPortals?.includes(portal)) {
         return false;
       }
-      if (method && method !== "ALL" && it.paymentMethod !== "N/A" && it.paymentMethod.toUpperCase() !== method.toUpperCase()) {
+      if (method && method !== "ALL" && !it.paymentMethod.toUpperCase().split(", ").includes(method.toUpperCase())) {
         return false;
       }
       if (status && status !== "ALL" && it.status.toUpperCase() !== status.toUpperCase()) {
@@ -59758,6 +60742,7 @@ var managementReportsService = {
       }
       if (search) {
         const text2 = [
+          it.details?.receiptReferences || "",
           it.reference,
           it.patientPayeeDescription,
           it.encounterInvoiceRef,
@@ -59770,71 +60755,95 @@ var managementReportsService = {
       }
       return true;
     });
+    const displayedInvoices = new Set(filteredItems.filter((it) => it.details?.invoiceId && !it.details?.isCollectionEvent).map((it) => it.details.invoiceId));
+    const totalItems = filteredItems.filter((it) => !it.details?.isCollectionEvent || !displayedInvoices.has(it.details.invoiceId));
+    const outstandingInvoices = /* @__PURE__ */ new Set();
+    const columnOutstanding = totalItems.reduce((sum3, it) => {
+      const invoiceId = it.details?.invoiceId;
+      if (invoiceId && outstandingInvoices.has(invoiceId)) return sum3;
+      if (invoiceId) outstandingInvoices.add(invoiceId);
+      return sum3 + it.outstandingPayable;
+    }, 0);
     const columnTotals = {
-      grossBilling: filteredItems.reduce((s, it) => s + it.grossBilling, 0),
-      discountCredit: filteredItems.reduce((s, it) => s + it.discountCredit, 0),
-      tax: filteredItems.reduce((s, it) => s + it.tax, 0),
-      netRevenue: filteredItems.reduce((s, it) => s + it.netRevenue, 0),
-      collectionsReceived: filteredItems.reduce((s, it) => s + it.collectionsReceived, 0),
-      recognizedExpense: filteredItems.reduce((s, it) => s + it.recognizedExpense, 0),
-      expensePaid: filteredItems.reduce((s, it) => s + it.expensePaid, 0),
-      cashIn: filteredItems.reduce((s, it) => s + it.cashIn, 0),
-      cashOut: filteredItems.reduce((s, it) => s + it.cashOut, 0),
-      outstandingPayable: filteredItems.reduce((s, it) => s + it.outstandingPayable, 0)
+      grossBilling: totalItems.reduce((s, it) => s + it.grossBilling, 0),
+      discountCredit: totalItems.reduce((s, it) => s + it.discountCredit, 0),
+      tax: totalItems.reduce((s, it) => s + it.tax, 0),
+      netRevenue: totalItems.reduce((s, it) => s + it.netRevenue, 0),
+      collectionsReceived: totalItems.reduce((s, it) => s + it.collectionsReceived, 0),
+      recognizedExpense: totalItems.reduce((s, it) => s + it.recognizedExpense, 0),
+      expensePaid: totalItems.reduce((s, it) => s + it.expensePaid, 0),
+      cashIn: totalItems.reduce((s, it) => s + it.cashIn, 0),
+      cashOut: totalItems.reduce((s, it) => s + it.cashOut, 0),
+      outstandingPayable: columnOutstanding
     };
-    const sum = summaryData.summary;
-    const actualCashIn = filteredItems.filter((it) => it.transactionType === "COLLECTION").reduce((s, it) => s + it.cashIn, 0);
-    const actualCashOut = filteredItems.filter((it) => it.transactionType !== "SETTLEMENT").reduce((s, it) => s + it.cashOut, 0);
-    const nonOperatingOutflows = filteredItems.filter((it) => it.transactionType === "SETTLEMENT").reduce((s, it) => s + it.cashOut, 0);
+    const sum2 = summaryData.summary;
+    const actualCashCollections = financialInvoices.reduce((s, p) => s + (p.row?.cashIn ?? 0), 0) + allItems.filter((it) => it.id.startsWith("rec-")).reduce((s, it) => s + it.cashIn, 0);
+    const totalRefunds = allItems.filter((it) => it.transactionType === "REFUND").reduce((s, it) => s + Math.abs(it.collectionsReceived), 0);
+    const totalPaidOperatingExpenses = Number(sum2.hospitalExpenses) + Number(sum2.expenses) + Number(sum2.salaryPaid) + Number(sum2.commissionPaid);
+    const cashPaidExpenses = allItems.filter((it) => ["EXPENSE", "PAYROLL", "COMMISSION"].includes(it.transactionType)).reduce((s, it) => s + it.cashOut, 0);
+    const nonCashPaidOperatingExpenses = Math.max(0, totalPaidOperatingExpenses - cashPaidExpenses);
+    const nonOperatingOutflows = allItems.filter((it) => it.transactionType === "REFUND" || it.details?.pharmacySettlementOutflow !== void 0).reduce((s, it) => s + it.cashOut, 0);
+    const netPhysicalCashMovement = actualCashCollections - cashPaidExpenses - nonOperatingOutflows;
+    const earnedRevenue = financialInvoices.reduce((s, p) => s + (p.row?.netRevenue ?? 0), 0);
+    const collections = financialInvoices.reduce((s, p) => s + (p.row?.collectionsReceived ?? 0), 0) + allItems.filter((it) => it.id.startsWith("rec-") || it.id.startsWith("ref-")).reduce((s, it) => s + it.collectionsReceived, 0);
+    const performance = operatingPerformance(earnedRevenue, Number(sum2.directServiceCosts), Number(sum2.totalOperatingCosts) - Number(sum2.directServiceCosts));
+    const operatingProfit = performance.operatingProfit;
     const totals = {
       hospitalRevenue: {
-        grossEarnedBilling: Number(sum.grossBilling),
-        discounts: Number(sum.discounts),
-        netEarnedRevenue: Number(sum.netEarnedRevenue),
+        grossEarnedBilling: financialInvoices.reduce((s, p) => s + (p.row?.details.hospitalGrossBilling ?? 0), 0),
+        discounts: financialInvoices.reduce((s, p) => s + (p.row?.details.hospitalDiscounts ?? 0), 0),
+        netEarnedRevenue: earnedRevenue,
         taxAmount: filteredItems.reduce((s, it) => s + it.tax, 0)
       },
       collectionsReceivables: {
-        totalCollections: Number(sum.collections),
-        cashCollections: actualCashIn,
-        cardBankOnlineCollections: Math.max(0, Number(sum.collections) - actualCashIn),
-        refunds: filteredItems.filter((it) => it.transactionType === "REFUND").reduce((s, it) => s + Math.abs(it.collectionsReceived), 0),
-        netCollections: Number(sum.collections),
-        closingOutstanding: Number(sum.outstanding)
+        totalCollections: collections,
+        cashCollections: actualCashCollections,
+        cardBankOnlineCollections: Math.max(0, collections - actualCashCollections),
+        refunds: totalRefunds,
+        netCollections: collections,
+        closingOutstanding: financialInvoices.reduce((s, p) => s + p.outstanding, 0)
       },
       hospitalCosts: {
-        directConsumables: Number(sum.directServiceCosts),
-        staffPayrollRecognized: Number(sum.payrollCost),
-        doctorCommissionEarned: Number(sum.doctorCommissionCost),
-        approvedHospitalExpenses: Number(sum.hospitalExpenses),
-        inventoryOperatingExpenses: Number(sum.expenses),
-        totalOperatingCosts: Number(sum.totalOperatingCosts),
-        hasIncompleteCost: sum.hasIncompleteCost,
-        missingCostCount: sum.missingCostCount
+        directConsumables: Number(sum2.directServiceCosts),
+        staffPayrollRecognized: Number(sum2.payrollCost),
+        doctorCommissionEarned: Number(sum2.doctorCommissionCost),
+        approvedHospitalExpenses: Number(sum2.hospitalExpenses),
+        inventoryOperatingExpenses: Number(sum2.expenses),
+        totalOperatingCosts: Number(sum2.totalOperatingCosts) - Number(sum2.directServiceCosts),
+        hasIncompleteCost: sum2.hasIncompleteCost,
+        missingCostCount: sum2.missingCostCount
       },
       profit: {
-        grossProfit: Number(sum.grossProfit),
-        operatingProfit: Number(sum.operatingProfit),
-        operatingMargin: Number(sum.operatingMargin)
+        grossProfit: performance.grossProfit,
+        operatingProfit,
+        operatingMargin: performance.operatingMargin
       },
       cashMovement: {
-        totalCustomerCollections: Number(sum.collections),
-        actualPaidOperatingExpenses: Number(sum.hospitalExpenses) + Number(sum.salaryPaid) + Number(sum.commissionPaid),
+        totalCustomerCollections: collections,
+        cashCollections: actualCashCollections,
+        cardBankOnlineCollections: Math.max(0, collections - actualCashCollections),
+        actualPaidOperatingExpenses: totalPaidOperatingExpenses,
+        cashPaidOperatingExpenses: cashPaidExpenses,
+        nonCashPaidOperatingExpenses,
         nonOperatingCashOutflows: nonOperatingOutflows,
-        netCashMovement: actualCashIn - actualCashOut,
-        currentRemainingCustomerDues: Number(sum.outstanding)
+        netPhysicalCashMovement,
+        netCashMovement: netPhysicalCashMovement,
+        pharmacySettlementOutflows: pharmacyReleases.reduce((sum3, r) => sum3 + Number(r.amount), 0),
+        netTotalFundsMovement: collections - totalPaidOperatingExpenses - pharmacyReleases.reduce((sum3, r) => sum3 + Number(r.amount), 0),
+        currentRemainingCustomerDues: financialInvoices.reduce((s, p) => s + p.outstanding, 0)
       },
       payables: {
-        payrollPaid: Number(sum.salaryPaid),
-        payrollOutstanding: Number(sum.salaryOutstanding),
-        commissionPaid: Number(sum.commissionPaid),
-        commissionOutstanding: Number(sum.commissionOutstanding),
-        expensePaid: Number(sum.hospitalExpenses),
+        payrollPaid: Number(sum2.salaryPaid),
+        payrollOutstanding: Number(sum2.salaryOutstanding),
+        commissionPaid: Number(sum2.commissionPaid),
+        commissionOutstanding: Number(sum2.commissionOutstanding),
+        expensePaid: Number(sum2.hospitalExpenses),
         expenseOutstanding: 0
       }
     };
     const totalRecords = filteredItems.length;
     const totalPages = Math.ceil(totalRecords / limit) || 1;
-    const paginatedItems = filteredItems.slice((page - 1) * limit, page * limit);
+    const paginatedItems = query.exportAll ? filteredItems : filteredItems.slice((page - 1) * limit, page * limit);
     return {
       period: periodOf(start, end, label),
       totalRecords,
@@ -59956,7 +60965,7 @@ var managementReportsController = {
   },
   operatingProfit: async (req, res) => {
     res.json({
-      data: await managementReportsService.getOperatingProfit(req.query)
+      data: await managementReportsService.getOperatingProfitStatement(req.query)
     });
   },
   detailedExpenses: async (req, res) => {
@@ -60033,11 +61042,24 @@ var incomeExpenseLedgerQuerySchema = external_exports.object({
   status: external_exports.string().optional(),
   search: external_exports.string().optional(),
   page: external_exports.coerce.number().int().positive().default(1),
-  limit: external_exports.coerce.number().int().positive().max(500).default(50)
+  limit: external_exports.coerce.number().int().positive().max(500).default(25),
+  exportAll: external_exports.enum(["true", "false"]).optional().transform((v) => v === "true")
 });
+var operatingProfitQuerySchema = external_exports.object({
+  preset: external_exports.enum(["today", "yesterday", "this_week", "this_month", "last_month", "custom", "all_time"]).default("today"),
+  fromDate: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  toDate: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  departmentId: uuid,
+  comparison: external_exports.enum(["previous", "none"]).default("previous"),
+  view: external_exports.enum(["statement", "ledger"]).default("statement"),
+  category: external_exports.string().optional(),
+  page: external_exports.coerce.number().int().positive().default(1),
+  limit: external_exports.coerce.number().int().min(1).max(500).default(25),
+  exportAll: external_exports.enum(["true", "false"]).optional().transform((v) => v === "true")
+}).refine((q) => q.preset !== "custom" || !!q.fromDate && !!q.toDate && q.fromDate <= q.toDate, { message: "A valid From/To range is required" });
 
 // src/modules/reports/inventoryReports.service.ts
-var import_library37 = require("@prisma/client/runtime/library");
+var import_library39 = require("@prisma/client/runtime/library");
 var userSummarySelect5 = { id: true, displayName: true, username: true };
 function resolveRangeOrAll(query) {
   if (query.preset === "all") return null;
@@ -60068,18 +61090,18 @@ var inventoryReportsService = {
       prisma.supplierLedger.findMany({ select: { entryType: true, amount: true } }).catch(() => []),
       getPositiveBatchBalances(nearExpiryThreshold)
     ]);
-    let totalStockValue = new import_library37.Decimal(0);
+    let totalStockValue = new import_library39.Decimal(0);
     let lowStockCount = 0;
     let outOfStockCount = 0;
     for (const item of items) {
-      const currentStock = item.stockLedgerEntries.reduce((sum, e) => sum.plus(e.quantityDelta), new import_library37.Decimal(0));
-      const defaultRate = item.purchaseOrderLines.length > 0 && item.purchaseOrderLines[0] ? new import_library37.Decimal(item.purchaseOrderLines[0].rate) : new import_library37.Decimal(0);
+      const currentStock = item.stockLedgerEntries.reduce((sum2, e) => sum2.plus(e.quantityDelta), new import_library39.Decimal(0));
+      const defaultRate = item.purchaseOrderLines.length > 0 && item.purchaseOrderLines[0] ? new import_library39.Decimal(item.purchaseOrderLines[0].rate) : new import_library39.Decimal(0);
       const batchMap = /* @__PURE__ */ new Map();
       for (const entry of item.stockLedgerEntries) {
         const bNo = entry.batchNo?.trim() || null;
         const key = bNo ?? "__UNBATCHED__";
         const existing = batchMap.get(key);
-        const delta = new import_library37.Decimal(entry.quantityDelta);
+        const delta = new import_library39.Decimal(entry.quantityDelta);
         if (!existing) {
           batchMap.set(key, { batchNo: bNo, available: delta });
         } else {
@@ -60094,7 +61116,7 @@ var inventoryReportsService = {
               (pol) => pol.batchNo?.trim().toLowerCase() === b.batchNo.trim().toLowerCase()
             );
             if (matched) {
-              batchRate = new import_library37.Decimal(matched.rate);
+              batchRate = new import_library39.Decimal(matched.rate);
             }
           }
           totalStockValue = totalStockValue.plus(b.available.mul(batchRate));
@@ -60114,7 +61136,7 @@ var inventoryReportsService = {
         if (e.entryType === "ADJUSTMENT") return acc.plus(e.amount);
         return acc.minus(e.amount);
       },
-      new import_library37.Decimal(0)
+      new import_library39.Decimal(0)
     );
     return {
       period: range ? { label: range.label, start: range.start.toISOString(), end: range.end.toISOString() } : ALL_TIME_PERIOD,
@@ -60125,7 +61147,7 @@ var inventoryReportsService = {
       outOfStockCount,
       nearExpiryCount: nearExpiryBatches.length,
       purchasesInRangeCount: purchasesInRange.length,
-      purchasesInRangeAmount: purchasesInRange.reduce((s, p) => s.plus(p.totalAmount), new import_library37.Decimal(0)),
+      purchasesInRangeAmount: purchasesInRange.reduce((s, p) => s.plus(p.totalAmount), new import_library39.Decimal(0)),
       stockInCountInRange: stockInCount,
       issuesInRangeCount: issuesInRange,
       returnsInRangeCount: returnsInRange,
@@ -60193,7 +61215,7 @@ var inventoryReportsService = {
     const ledgerByPo = /* @__PURE__ */ new Map();
     for (const e of poLedgerEntries) {
       if (!e.referenceId) continue;
-      const cur = ledgerByPo.get(e.referenceId) ?? { returns: new import_library37.Decimal(0), payments: new import_library37.Decimal(0) };
+      const cur = ledgerByPo.get(e.referenceId) ?? { returns: new import_library39.Decimal(0), payments: new import_library39.Decimal(0) };
       if (e.entryType === "RETURN" || e.entryType === "CREDIT_NOTE") {
         cur.returns = cur.returns.plus(e.amount);
       } else if (e.entryType === "PAYMENT") {
@@ -60201,23 +61223,23 @@ var inventoryReportsService = {
       }
       ledgerByPo.set(e.referenceId, cur);
     }
-    let totalAmount = new import_library37.Decimal(0);
-    let totalPaid = new import_library37.Decimal(0);
-    let totalDue = new import_library37.Decimal(0);
-    let totalReturned = new import_library37.Decimal(0);
+    let totalAmount = new import_library39.Decimal(0);
+    let totalPaid = new import_library39.Decimal(0);
+    let totalDue = new import_library39.Decimal(0);
+    let totalReturned = new import_library39.Decimal(0);
     const enrichedRows = rows.map((r) => {
-      const linked = ledgerByPo.get(r.id) ?? { returns: new import_library37.Decimal(0), payments: new import_library37.Decimal(0) };
+      const linked = ledgerByPo.get(r.id) ?? { returns: new import_library39.Decimal(0), payments: new import_library39.Decimal(0) };
       totalAmount = totalAmount.plus(r.totalAmount);
       const returnedAmount = linked.returns;
-      const netPayable = import_library37.Decimal.max(new import_library37.Decimal(0), r.totalAmount.minus(returnedAmount));
-      let paidAmount = new import_library37.Decimal(0);
-      let dueAmount = new import_library37.Decimal(0);
+      const netPayable = import_library39.Decimal.max(new import_library39.Decimal(0), r.totalAmount.minus(returnedAmount));
+      let paidAmount = new import_library39.Decimal(0);
+      let dueAmount = new import_library39.Decimal(0);
       if (r.paymentMethod !== "CREDIT") {
         paidAmount = netPayable;
-        dueAmount = new import_library37.Decimal(0);
+        dueAmount = new import_library39.Decimal(0);
       } else {
-        paidAmount = import_library37.Decimal.min(netPayable, linked.payments);
-        dueAmount = import_library37.Decimal.max(new import_library37.Decimal(0), netPayable.minus(paidAmount));
+        paidAmount = import_library39.Decimal.min(netPayable, linked.payments);
+        dueAmount = import_library39.Decimal.max(new import_library39.Decimal(0), netPayable.minus(paidAmount));
       }
       totalPaid = totalPaid.plus(paidAmount);
       totalDue = totalDue.plus(dueAmount);
@@ -60288,7 +61310,7 @@ var inventoryReportsService = {
     const range = resolveRangeOrAll(query);
     const supplierFilter = query.supplierId ? { supplierId: query.supplierId } : {};
     const typeFilter = query.transactionType ? { entryType: query.transactionType } : {};
-    let openingBalance = new import_library37.Decimal(0);
+    let openingBalance = new import_library39.Decimal(0);
     if (range) {
       const priorEntries = await prisma.supplierLedger.findMany({
         where: {
@@ -60298,11 +61320,11 @@ var inventoryReportsService = {
         select: { entryType: true, amount: true }
       });
       openingBalance = priorEntries.reduce((acc, e) => {
-        const amt = new import_library37.Decimal(e.amount);
+        const amt = new import_library39.Decimal(e.amount);
         if (e.entryType === "PURCHASE_CREDIT") return acc.plus(amt);
         if (e.entryType === "ADJUSTMENT") return acc.plus(amt);
         return acc.minus(amt);
-      }, new import_library37.Decimal(0));
+      }, new import_library39.Decimal(0));
     }
     const where = {
       ...range ? { createdAt: { gte: range.start, lte: range.end } } : {},
@@ -60318,14 +61340,14 @@ var inventoryReportsService = {
       orderBy: { createdAt: "asc" },
       take: 1e3
     });
-    let running = new import_library37.Decimal(openingBalance);
-    let totalPurchases = new import_library37.Decimal(0);
-    let totalPayments = new import_library37.Decimal(0);
-    let totalReturns = new import_library37.Decimal(0);
+    let running = new import_library39.Decimal(openingBalance);
+    let totalPurchases = new import_library39.Decimal(0);
+    let totalPayments = new import_library39.Decimal(0);
+    let totalReturns = new import_library39.Decimal(0);
     const rowsWithBalance = inRangeEntries.map((e) => {
-      const amt = new import_library37.Decimal(e.amount);
-      let debit = new import_library37.Decimal(0);
-      let credit = new import_library37.Decimal(0);
+      const amt = new import_library39.Decimal(e.amount);
+      let debit = new import_library39.Decimal(0);
+      let credit = new import_library39.Decimal(0);
       if (e.entryType === "PURCHASE_CREDIT") {
         credit = amt;
         totalPurchases = totalPurchases.plus(amt);
@@ -60389,7 +61411,7 @@ var inventoryReportsService = {
     return {
       period: range ? { label: range.label, start: range.start.toISOString(), end: range.end.toISOString() } : ALL_TIME_PERIOD,
       totalExpenses: rows.length,
-      totalAmount: rows.reduce((s, r) => s.plus(r.amount), new import_library37.Decimal(0)),
+      totalAmount: rows.reduce((s, r) => s.plus(r.amount), new import_library39.Decimal(0)),
       rows
     };
   },
@@ -60413,7 +61435,7 @@ var inventoryReportsService = {
       batchesByItem.set(b.stockItemId, list);
     }
     const rows = items.map((item) => {
-      const currentStock = item.stockLedgerEntries.reduce((sum, e) => sum.plus(e.quantityDelta), new import_library37.Decimal(0));
+      const currentStock = item.stockLedgerEntries.reduce((sum2, e) => sum2.plus(e.quantityDelta), new import_library39.Decimal(0));
       const status = currentStock.lessThanOrEqualTo(0) ? "OUT" : currentStock.lessThanOrEqualTo(item.reorderLevel) ? "LOW" : "NORMAL";
       return {
         id: item.id,
@@ -60608,7 +61630,7 @@ router21.get("/admission/high-value-approvals", view16, validate({ query: highVa
 router21.get("/admission/pharmacy-clearance-status", view16, validate({ query: pharmacyClearanceStatusQuerySchema }), asyncHandler(admissionPharmacyReportsController.clearanceStatus));
 router21.get("/management/summary", viewManagement, validate({ query: managementSummaryQuerySchema }), asyncHandler(managementReportsController.summary));
 router21.get("/management/income-expense-ledger", viewManagement, validate({ query: incomeExpenseLedgerQuerySchema }), asyncHandler(managementReportsController.incomeExpenseLedger));
-router21.get("/management/operating-profit", viewManagement, validate({ query: managementSummaryQuerySchema }), asyncHandler(managementReportsController.operatingProfit));
+router21.get("/management/operating-profit", viewManagement, validate({ query: operatingProfitQuerySchema }), asyncHandler(managementReportsController.operatingProfit));
 router21.get("/management/detailed-expenses", viewManagement, validate({ query: managementSummaryQuerySchema }), asyncHandler(managementReportsController.detailedExpenses));
 router21.get("/management/billing-collection", viewManagement, validate({ query: billingCollectionQuerySchema }), asyncHandler(managementReportsController.billingCollection));
 router21.get("/management/outstanding-panel", viewManagement, validate({ query: outstandingPanelQuerySchema }), asyncHandler(managementReportsController.outstandingPanel));
@@ -60738,45 +61760,102 @@ var expenses_routes_default = router22;
 var import_express24 = __toESM(require_express2());
 
 // src/modules/notifications/notifications.controller.ts
+function getActor(req) {
+  if (!req.user || !req.user.sub) {
+    throw new AuthenticationError("Authentication required");
+  }
+  return { userId: req.user.sub, role: req.user.role };
+}
+function getAllowedPortalsForRole(role) {
+  switch (role) {
+    case "SUPER_ADMIN":
+      return ["super-admin", "admin", "front-desk", "admission", "inventory", "pharmacy", "all"];
+    case "ADMIN":
+      return ["admin", "front-desk", "admission", "inventory", "all"];
+    case "FRONT_DESK_BILLING":
+      return ["front-desk", "all"];
+    case "ADMISSION":
+      return ["admission", "all"];
+    case "INVENTORY_MANAGEMENT":
+      return ["inventory", "all"];
+    case "PHARMACY_SUPER_ADMIN":
+    case "PHARMACY_MANAGER":
+    case "PHARMACY_SALES_DISPENSING":
+      return ["pharmacy", "all"];
+    default:
+      return ["all"];
+  }
+}
+function getDefaultPortalForRole(role) {
+  switch (role) {
+    case "SUPER_ADMIN":
+      return "super-admin";
+    case "ADMIN":
+      return "admin";
+    case "FRONT_DESK_BILLING":
+      return "front-desk";
+    case "ADMISSION":
+      return "admission";
+    case "INVENTORY_MANAGEMENT":
+      return "inventory";
+    case "PHARMACY_SUPER_ADMIN":
+    case "PHARMACY_MANAGER":
+    case "PHARMACY_SALES_DISPENSING":
+      return "pharmacy";
+    default:
+      return "all";
+  }
+}
+function resolveAuthorizedPortal(role, requestedPortal) {
+  const allowed = getAllowedPortalsForRole(role);
+  if (requestedPortal && requestedPortal !== "all") {
+    if (!allowed.includes(requestedPortal)) {
+      throw new AuthorizationError(`Access denied: You do not have permission to access portal notifications for '${requestedPortal}'`);
+    }
+    return requestedPortal;
+  }
+  return getDefaultPortalForRole(role);
+}
 var notificationsController = {
   async listNotifications(req, res) {
-    const portal = req.query.portal;
+    const { userId, role } = getActor(req);
+    const portal = resolveAuthorizedPortal(role, req.query.portal);
     const limit = req.query.limit ? parseInt(req.query.limit, 10) : 30;
-    const items = await notificationsService.listNotifications(portal, limit);
+    const items = await notificationsService.listNotifications(userId, portal, limit);
     res.json({
-      data: items.map((item) => ({
-        id: item.id,
-        title: item.title,
-        message: item.message,
-        type: item.type,
-        module: item.module,
-        targetPortal: item.targetPortal,
-        actionUrl: item.actionUrl,
-        referenceId: item.referenceId,
-        read: item.isRead,
-        createdAt: item.createdAt.toISOString()
-      }))
+      data: items
     });
   },
+  async getUnreadCount(req, res) {
+    const { userId, role } = getActor(req);
+    const portal = resolveAuthorizedPortal(role, req.query.portal);
+    const count = await notificationsService.getUnreadCount(userId, portal);
+    res.json({ data: { unreadCount: count } });
+  },
   async markAsRead(req, res) {
+    const { userId } = getActor(req);
     const id = req.params.id;
     if (!id) {
       res.status(400).json({ error: "Notification id required" });
       return;
     }
-    await notificationsService.markAsRead(id);
+    await notificationsService.markAsRead(id, userId);
     res.json({ success: true });
   },
   async markAllAsRead(req, res) {
-    const portal = req.body?.portal;
-    await notificationsService.markAllAsRead(portal);
+    const { userId, role } = getActor(req);
+    const requestedPortal = req.body?.portal;
+    const portal = resolveAuthorizedPortal(role, requestedPortal);
+    await notificationsService.markAllAsRead(userId, portal);
     res.json({ success: true });
   }
 };
 
 // src/modules/notifications/notifications.routes.ts
 var router23 = (0, import_express24.Router)();
+router23.use(authenticate);
 router23.get("/", asyncHandler(notificationsController.listNotifications));
+router23.get("/unread-count", asyncHandler(notificationsController.getUnreadCount));
 router23.patch("/:id/read", asyncHandler(notificationsController.markAsRead));
 router23.post("/mark-all-read", asyncHandler(notificationsController.markAllAsRead));
 var notifications_routes_default = router23;

@@ -229,9 +229,7 @@ export const AdmissionDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4 pb-8 text-slate-800">
-      {/* =========================================================================
-          1. HERO / GREETING BANNER (Matches FrontDesk & Admin Design)
-      ========================================================================= */}
+      {/* Hero greeting banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0c5944] via-[#0e7d5a] to-[#0a664c] text-white p-6 sm:p-8 shadow-lg shadow-emerald-950/10">
         {/* Large watermark hospital cross & pulse emblem */}
         <div className="absolute -right-4 sm:right-2 lg:right-6 top-1/2 -translate-y-1/2 w-64 h-64 sm:w-80 sm:h-80 lg:w-96 lg:h-96 opacity-20 sm:opacity-25 pointer-events-none select-none flex items-center justify-center">
@@ -343,9 +341,7 @@ export const AdmissionDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* =========================================================================
-          2. CANONICAL KPI HEADER (design.md §4.2)
-      ========================================================================= */}
+      {/* KPI header */}
       <div>
         <div className="flex items-center justify-between mb-2 px-0.5">
           <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -358,9 +354,7 @@ export const AdmissionDashboard: React.FC = () => {
         <HospitalKpiHeader items={kpiItems} columns="grid-cols-2 lg:grid-cols-4" />
       </div>
 
-      {/* =========================================================================
-          3. WARDS OVERVIEW & BED OCCUPANCY CARDS
-      ========================================================================= */}
+      {/* Wards overview & bed occupancy */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-0.5">
           <div className="flex items-center gap-2">
@@ -530,9 +524,7 @@ export const AdmissionDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* =========================================================================
-          4. TWO-COLUMN QUEUES: PLANNED ARRIVALS & ACTIVE INPATIENTS (design.md §4.5)
-      ========================================================================= */}
+      {/* Planned arrivals & active inpatients queues */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Planned / Incoming Admissions Section */}
         <div className="bg-white rounded-2xl border border-slate-300/80 shadow-[0_1px_4px_rgba(0,0,0,0.04)] overflow-hidden flex flex-col">

@@ -33791,6 +33791,8 @@ var envSchema = external_exports.object({
   AUTH_RATE_LIMIT_WINDOW_MS: external_exports.coerce.number().int().positive().default(9e5),
   AUTH_RATE_LIMIT_MAX: external_exports.coerce.number().int().positive().default(5),
   HMS_BACKEND_URL: external_exports.string().default("http://localhost:4000/api/v1"),
+  HMS_SYNC_INTERVAL_MS: external_exports.coerce.number().int().min(2e4).max(3e5).default(6e4),
+  HMS_SYNC_TIMEOUT_MS: external_exports.coerce.number().int().min(1e3).max(3e4).default(1e4),
   INTERNAL_BRIDGE_SECRET: external_exports.string().default("chss_bridge_shared_secret_2026_secure")
 });
 function loadEnv() {
@@ -36501,7 +36503,7 @@ var pharmacyService = {
     };
     return transaction ? execute(transaction) : prisma.$transaction(execute);
   },
-  async listInvoiceTransactionsSql(query, client) {
+  async listInvoiceTransactionsSql(query, client, sellerId) {
     const channelFilter = query.channel && query.channel !== "ALL" ? query.channel : void 0;
     const statusFilter = query.status && query.status !== "ALL" ? query.status : void 0;
     const searchTerm = query.search?.trim();
@@ -36532,6 +36534,12 @@ var pharmacyService = {
     }
     if (endUtc) {
       conditions.push(import_client7.Prisma.sql`transaction_at <= ${endUtc}`);
+    }
+    if (sellerId) {
+      conditions.push(import_client7.Prisma.sql`(
+        (transaction_type = 'Original Sale' AND (dispensed_by_id = ${sellerId} OR collected_by_id = ${sellerId}))
+        OR (transaction_type != 'Original Sale' AND collected_by_id = ${sellerId})
+      )`);
     }
     if (searchTerm) {
       const q = `%${searchTerm}%`;
@@ -36628,7 +36636,8 @@ var pharmacyService = {
           NULLIF(TRIM(CONCAT_WS(', ', ipa.initial_methods, fhe.method)), '') as payment_method,
           NULLIF(TRIM(ipa.initial_accounts), '') as payment_account_name,
           COALESCE(NULLIF(TRIM(CONCAT_WS(', ', ipa.initial_collectors, CASE WHEN fhe.id IS NOT NULL THEN COALESCE(fhe.actor_id, 'HMS Front Desk') END)), ''), u.full_name, 'Staff') as collected_by_name,
-          u.id as dispensed_by_id, u.full_name as dispensed_by_full_name, u.username as dispensed_by_username
+          u.id as dispensed_by_id, u.full_name as dispensed_by_full_name, u.username as dispensed_by_username,
+          u.id as collected_by_id
         FROM pharmacy_invoices i
         JOIN portal_users u ON u.id = i.dispensed_by
         LEFT JOIN initial_payments_agg ipa ON ipa.invoice_id = i.id
@@ -36649,7 +36658,8 @@ var pharmacyService = {
           0::numeric as billing_amount, cp.amount::numeric as collected_amount,
           'PAY-' || UPPER(SUBSTRING(cp.id, 1, 8)) as receipt_number, cp.method::text as payment_method,
           COALESCE(pa.name, '') as payment_account_name, COALESCE(pu.full_name, 'Staff') as collected_by_name,
-          u.id as dispensed_by_id, u.full_name as dispensed_by_full_name, u.username as dispensed_by_username
+          u.id as dispensed_by_id, u.full_name as dispensed_by_full_name, u.username as dispensed_by_username,
+          cp.collected_by as collected_by_id
         FROM classified_payments cp
         JOIN pharmacy_invoices i ON i.id = cp.invoice_id
         JOIN portal_users u ON u.id = i.dispensed_by
@@ -36671,7 +36681,8 @@ var pharmacyService = {
           COALESCE(cle.reference_no, e.reference, 'EVT-' || UPPER(SUBSTRING(e.id, 1, 8))) as receipt_number,
           COALESCE(e.method, '') as payment_method, COALESCE(pa.name, '') as payment_account_name,
           COALESCE(cle_u.full_name, e.actor_id, 'HMS Front Desk') as collected_by_name,
-          u.id as dispensed_by_id, u.full_name as dispensed_by_full_name, u.username as dispensed_by_username
+          u.id as dispensed_by_id, u.full_name as dispensed_by_full_name, u.username as dispensed_by_username,
+          COALESCE(cle.portal_user_id, e.actor_id) as collected_by_id
         FROM pharmacy_financial_events e
         JOIN pharmacy_invoices i ON i.id = e.invoice_id
         JOIN portal_users u ON u.id = i.dispensed_by
@@ -36694,7 +36705,8 @@ var pharmacyService = {
           COALESCE(r.reference_no, 'REF-' || UPPER(SUBSTRING(r.id, 1, 8))) as receipt_number,
           COALESCE(r.payment_method::text, CASE WHEN r.is_physical_cash THEN 'CASH' ELSE 'UNKNOWN' END) as payment_method,
           COALESCE(pa.name, '') as payment_account_name, COALESCE(pu.full_name, 'Staff') as collected_by_name,
-          u.id as dispensed_by_id, u.full_name as dispensed_by_full_name, u.username as dispensed_by_username
+          u.id as dispensed_by_id, u.full_name as dispensed_by_full_name, u.username as dispensed_by_username,
+          r.portal_user_id as collected_by_id
         FROM cash_ledger_entries r
         JOIN pharmacy_invoices i ON i.id = r.reference_id
         JOIN portal_users u ON u.id = i.dispensed_by
@@ -36791,11 +36803,11 @@ var pharmacyService = {
       }
     };
   },
-  async listInvoices(query, tx) {
+  async listInvoices(query, tx, sellerId) {
     const client = tx || prisma;
     const isPaginated = query.page != null || query.limit != null;
     if (isPaginated && query.transactions === "true") {
-      return pharmacyService.listInvoiceTransactionsSql(query, client);
+      return pharmacyService.listInvoiceTransactionsSql(query, client, sellerId);
     }
     const channelFilter = query.channel && query.channel !== "ALL" ? query.channel : void 0;
     const statusFilter = query.status && query.status !== "ALL" ? query.status : void 0;
@@ -36843,12 +36855,21 @@ var pharmacyService = {
         { financialEvents: { some: { occurredAt: { lte: endUtc } } } }
       );
     }
-    const where = {
-      channel: channelFilter,
-      status: statusFilter,
-      ...searchWhere || {},
-      ...dateConditions.length > 0 ? { OR: dateConditions } : {}
-    };
+    const andClauses = [];
+    if (channelFilter) andClauses.push({ channel: channelFilter });
+    if (statusFilter) andClauses.push({ status: statusFilter });
+    if (searchWhere) andClauses.push(searchWhere);
+    if (dateConditions.length > 0) andClauses.push({ OR: dateConditions });
+    if (sellerId) {
+      andClauses.push({
+        OR: [
+          { dispensedById: sellerId },
+          { payments: { some: { collectedById: sellerId } } },
+          { financialEvents: { some: { actorId: sellerId } } }
+        ]
+      });
+    }
+    const where = andClauses.length > 0 ? { AND: andClauses } : {};
     const invoices = await client.pharmacyInvoice.findMany({
       where,
       include: {
@@ -37074,7 +37095,7 @@ var pharmacyService = {
     };
     return transaction ? execute(transaction) : prisma.$transaction(execute);
   },
-  async getInvoiceById(id, tx) {
+  async getInvoiceById(id, tx, user) {
     const client = tx || prisma;
     const invoice = await client.pharmacyInvoice.findUnique({
       where: { id },
@@ -37092,6 +37113,12 @@ var pharmacyService = {
       }
     });
     if (!invoice) throw new NotFoundError("Invoice not found");
+    if (user && user.role === "SALES_DISPENSING") {
+      const isAuthorized = invoice.dispensedById === user.sub || invoice.payments.some((p) => p.collectedById === user.sub) || invoice.financialEvents.some((e) => e.actorId === user.sub) || invoice.status !== "PAID" && Number(invoice.outstanding) > 0;
+      if (!isAuthorized) {
+        throw new AuthorizationError("Access denied: You are not authorized to view this invoice");
+      }
+    }
     return invoice;
   },
   async bulkImportMedicines(body, actorId) {
@@ -37407,7 +37434,8 @@ var pharmacyController = {
     res.json({ data });
   },
   async listInvoices(req, res) {
-    const data = await pharmacyService.listInvoices(req.query);
+    const sellerId = req.user?.role === "SALES_DISPENSING" ? req.user.sub : void 0;
+    const data = await pharmacyService.listInvoices(req.query, prisma, sellerId);
     res.json({ data });
   },
   async salesReturn(req, res) {
@@ -37416,7 +37444,7 @@ var pharmacyController = {
     res.status(201).json({ data });
   },
   async getInvoiceById(req, res) {
-    const data = await pharmacyService.getInvoiceById(req.params.id);
+    const data = await pharmacyService.getInvoiceById(req.params.id, void 0, req.user);
     res.json({ data });
   },
   async getPosCatalog(req, res) {
@@ -37622,36 +37650,48 @@ var import_express5 = __toESM(require_express2());
 
 // src/shared/hmsEvents.ts
 var sseClients = /* @__PURE__ */ new Set();
+var heartbeat;
+function removeClient(res) {
+  sseClients.delete(res);
+  if (sseClients.size === 0 && heartbeat) {
+    clearInterval(heartbeat);
+    heartbeat = void 0;
+  }
+}
+function writeToClient(res, data) {
+  try {
+    if (!res.destroyed && !res.writableEnded && res.write(data)) return;
+  } catch {
+  }
+  removeClient(res);
+  res.destroy();
+}
 function registerSseClient(res) {
+  if (sseClients.has(res)) return;
   sseClients.add(res);
-  res.write(`data: ${JSON.stringify({ type: "CONNECTED", timestamp: (/* @__PURE__ */ new Date()).toISOString() })}
+  const cleanup = () => {
+    removeClient(res);
+    res.off("close", cleanup);
+    res.off("error", cleanup);
+  };
+  res.once("close", cleanup);
+  res.once("error", cleanup);
+  writeToClient(res, `data: ${JSON.stringify({ type: "CONNECTED", timestamp: (/* @__PURE__ */ new Date()).toISOString() })}
 
 `);
-  res.on("close", () => {
-    sseClients.delete(res);
-  });
+  if (sseClients.size > 0 && !heartbeat) {
+    heartbeat = setInterval(() => {
+      for (const client of sseClients) writeToClient(client, ":heartbeat\n\n");
+    }, 25e3);
+    heartbeat.unref();
+  }
 }
 function broadcastHmsNotification(payload) {
   const data = `data: ${JSON.stringify(payload)}
 
 `;
-  for (const client of sseClients) {
-    try {
-      client.write(data);
-    } catch {
-      sseClients.delete(client);
-    }
-  }
+  for (const client of sseClients) writeToClient(client, data);
 }
-setInterval(() => {
-  for (const client of sseClients) {
-    try {
-      client.write(":heartbeat\n\n");
-    } catch {
-      sseClients.delete(client);
-    }
-  }
-}, 25e3).unref();
 
 // src/modules/hms-requests/hms-requests.service.ts
 var import_node_crypto4 = require("node:crypto");
@@ -37730,36 +37770,63 @@ var hmsBridgeClient = {
   },
   async getPendingRequests() {
     const urlsToTry = getHmsBaseUrls();
+    const signal = AbortSignal.timeout(env.HMS_SYNC_TIMEOUT_MS);
     for (const baseUrl of urlsToTry) {
+      if (signal.aborted) break;
       try {
         const url = `${baseUrl}/pharmacy-bridge/pending-requests`;
         const res = await fetch(url, {
           method: "GET",
+          signal,
           headers: {
             "Content-Type": "application/json",
             "x-bridge-token": env.INTERNAL_BRIDGE_SECRET
           }
         });
         if (!res.ok) {
+          await res.body?.cancel();
           continue;
         }
         const data = await res.json();
         if (data && Array.isArray(data.data)) {
           return data.data;
         }
-      } catch (err) {
-        console.warn(`[hmsBridgeClient] getPendingRequests failed on ${baseUrl}: ${err.message}`);
+      } catch {
       }
     }
-    return [];
+    throw new Error("HMS pending-request endpoint unavailable or returned an invalid response");
   }
 };
+
+// src/shared/singleFlight.ts
+function singleFlight(run) {
+  let active;
+  return () => {
+    if (!active) {
+      active = Promise.resolve().then(run).finally(() => {
+        active = void 0;
+      });
+    }
+    return active;
+  };
+}
 
 // src/modules/hms-requests/hms-requests.service.ts
 async function getOrCreateSettings() {
   const existing = await prisma.pharmacySettings.findFirst();
   if (existing) return existing;
   return prisma.pharmacySettings.create({ data: {} });
+}
+var lastSyncWarning = -Infinity;
+var suppressedSyncWarnings = 0;
+function logSyncFailure() {
+  if (Date.now() - lastSyncWarning < 6e4) {
+    suppressedSyncWarnings++;
+    return;
+  }
+  logger.warn("HMS outbox sync failed; pending work will retry", { suppressed: suppressedSyncWarnings });
+  lastSyncWarning = Date.now();
+  suppressedSyncWarnings = 0;
 }
 var requestInclude = {
   lines: { include: { medicine: true, batch: true } },
@@ -37901,19 +37968,27 @@ var hmsRequestsService = {
     return created;
   },
   // ── Sync queued requests from HMS Outbox (when Pharmacy was offline) ──────
-  async syncFromHmsOutbox() {
+  syncFromHmsOutbox: singleFlight(async () => {
     try {
       const pending = await hmsBridgeClient.getPendingRequests();
       if (!Array.isArray(pending) || pending.length === 0) {
         return { synced: 0 };
       }
+      const refs = [...new Set(pending.map((req) => req.externalRequestRef).filter(Boolean))];
+      const ingested = /* @__PURE__ */ new Set();
+      for (let offset = 0; offset < refs.length; offset += 200) {
+        const existing = await prisma.medicineRequest.findMany({
+          where: { externalRequestRef: { in: refs.slice(offset, offset + 200) } },
+          select: { externalRequestRef: true }
+        });
+        for (const request of existing) {
+          if (request.externalRequestRef) ingested.add(request.externalRequestRef);
+        }
+      }
       let syncedCount = 0;
       for (const req of pending) {
         if (!req.externalRequestRef) continue;
-        const existing = await prisma.medicineRequest.findFirst({
-          where: { externalRequestRef: req.externalRequestRef }
-        });
-        if (existing) continue;
+        if (ingested.has(req.externalRequestRef)) continue;
         const validLines = [];
         for (const l of req.lines || []) {
           let med = await prisma.medicineMaster.findUnique({ where: { id: l.medicineId } });
@@ -37931,7 +38006,7 @@ var hmsRequestsService = {
           }
         }
         if (validLines.length === 0) continue;
-        await this.createRequest(
+        await hmsRequestsService.createRequest(
           {
             externalAdmissionRef: req.externalAdmissionRef,
             externalRequestRef: req.externalRequestRef,
@@ -37942,16 +38017,17 @@ var hmsRequestsService = {
           },
           "bridge-system"
         );
+        ingested.add(req.externalRequestRef);
         syncedCount++;
       }
       return { synced: syncedCount };
     } catch (err) {
-      console.warn("[hmsRequestsService.syncFromHmsOutbox] sync warning:", err?.message || err);
-      return { synced: 0, error: err?.message };
+      logSyncFailure();
+      return { synced: 0, error: "HMS synchronization failed; pending work will retry" };
     }
-  },
+  }),
   async list(query) {
-    await this.syncFromHmsOutbox().catch(() => null);
+    await this.syncFromHmsOutbox();
     return prisma.medicineRequest.findMany({ where: { status: query.status }, include: requestInclude, orderBy: { requestedAt: "desc" } });
   },
   async getById(id) {
@@ -38627,7 +38703,7 @@ var import_express6 = __toESM(require_express2());
 var import_node_crypto5 = require("node:crypto");
 
 // src/modules/vendors/vendorPayments.ts
-var import_client10 = require("@prisma/client");
+var import_client11 = require("@prisma/client");
 async function validatePaymentAccount(tx, method, accountId) {
   if (!method) throw new ValidationError2("A payment method is required for a paid purchase");
   if (method === "CASH") {
@@ -38654,13 +38730,13 @@ async function postVendorPayment(tx, vendorId, body, actorId) {
     if (!source || source.vendorId !== vendorId || !source.amount.isNegative() || !["PAYMENT", "RETURN_CREDIT"].includes(source.entryType)) throw new ValidationError2("Select the supplier payment or return credit being refunded");
     const balance = await tx.vendorLedgerEntry.aggregate({ where: { vendorId }, _sum: { amount: true } });
     const refunded = await tx.vendorLedgerEntry.aggregate({ where: { referenceTable: "vendor_refunds", referenceId: body.refundOf }, _sum: { amount: true } });
-    if (new import_client10.Prisma.Decimal(body.amount).greaterThan((balance._sum.amount ?? new import_client10.Prisma.Decimal(0)).negated()) || new import_client10.Prisma.Decimal(body.amount).plus(refunded._sum.amount ?? 0).greaterThan(source.amount.negated())) throw new ValidationError2("Refund exceeds available supplier advance / credit");
+    if (new import_client11.Prisma.Decimal(body.amount).greaterThan((balance._sum.amount ?? new import_client11.Prisma.Decimal(0)).negated()) || new import_client11.Prisma.Decimal(body.amount).plus(refunded._sum.amount ?? 0).greaterThan(source.amount.negated())) throw new ValidationError2("Refund exceeds available supplier advance / credit");
   }
   const referenceNo = await nextCode(tx, SEQUENCE.VENDOR_PAYMENT);
   const entry = await tx.vendorLedgerEntry.create({ data: {
     vendorId,
     entryType: "PAYMENT",
-    amount: new import_client10.Prisma.Decimal(signedAmount),
+    amount: new import_client11.Prisma.Decimal(signedAmount),
     referenceNo,
     requestKey: body.requestKey,
     description: `Vendor ${body.refundOf ? "refund" : "payment"} (${body.method})${body.reference ? ": " + body.reference : ""}`,
@@ -39484,7 +39560,13 @@ var cashService = {
     const activity = entries.filter((e) => e.category !== "SETTLEMENT_HANDOVER");
     const settlements = range ? await db.accountSettlement.findMany({
       where: { portalUserId: userId, status: "ACCEPTED", reviewedAt: { gte: range.gte, lte: range.lte } }
-    }) : [];
+    }) : await db.accountSettlement.findMany({
+      where: {
+        portalUserId: userId,
+        status: "ACCEPTED",
+        ...lastSettlement ? { submittedAt: { gte: lastSettlement.submittedAt } } : {}
+      }
+    });
     const pendingSettlement = await db.accountSettlement.findFirst({ where: { portalUserId: userId, status: "SUBMITTED" }, select: { id: true } });
     const referenceIds = (table) => activity.filter((e) => e.referenceTable === table && e.referenceId).map((e) => e.referenceId);
     const [invoices, purchases, expenses, vendorPayments] = await Promise.all([
@@ -39526,6 +39608,7 @@ var cashService = {
         ...summary,
         openingCash,
         closingCash,
+        remainingCash: closingCash,
         settlementCount: settlements.length,
         settledAmount: settlements.reduce((s, e) => s.plus(e.settlementAmount ?? 0), new import_library6.Decimal(0)),
         physicalCashCounted: settlements.reduce((s, e) => s.plus(e.physicalCash), new import_library6.Decimal(0)),
@@ -39564,13 +39647,64 @@ var cashService = {
       const settlement = await tx.accountSettlement.findUnique({ where: { id } });
       if (!settlement) throw new NotFoundError("Settlement not found");
       if (settlement.status !== "SUBMITTED") throw new ConflictError("This settlement has already been reviewed");
+      if (settlement.portalUserId === reviewerId) {
+        throw new ValidationError2("Unauthorized self-approval: Cannot review or accept your own settlement");
+      }
       if (body.decision === "ACCEPTED") {
+        const handoverAmount = settlement.physicalCash;
+        const expectedBefore = settlement.expectedCash;
+        const remaining = expectedBefore.minus(handoverAmount);
         await tx.cashLedgerEntry.updateMany({
-          where: { portalUserId: settlement.portalUserId, isPhysicalCash: true, isSettled: false, occurredAt: { lte: settlement.submittedAt } },
+          where: {
+            portalUserId: settlement.portalUserId,
+            isPhysicalCash: true,
+            isSettled: false,
+            occurredAt: { lte: settlement.submittedAt }
+          },
           data: { isSettled: true }
         });
         await tx.cashLedgerEntry.create({
-          data: { portalUserId: settlement.portalUserId, direction: "OUT", amount: settlement.physicalCash, category: "SETTLEMENT_HANDOVER", isPhysicalCash: true, isSettled: true, note: body.note }
+          data: {
+            portalUserId: settlement.portalUserId,
+            direction: "OUT",
+            amount: handoverAmount,
+            category: "SETTLEMENT_HANDOVER",
+            isPhysicalCash: true,
+            isSettled: true,
+            referenceTable: "account_settlements",
+            referenceId: settlement.id,
+            note: body.note ? `Handover: ${body.note}` : "Settlement cash handover to manager"
+          }
+        });
+        if (remaining.gt(0)) {
+          await tx.cashLedgerEntry.create({
+            data: {
+              portalUserId: settlement.portalUserId,
+              direction: "IN",
+              amount: remaining,
+              category: "ADJUSTMENT",
+              isPhysicalCash: true,
+              isSettled: false,
+              referenceTable: "account_settlements",
+              referenceId: settlement.id,
+              note: "Retained drawer cash carry-forward",
+              occurredAt: new Date(settlement.submittedAt.getTime() + 1e3)
+            }
+          });
+        }
+        await tx.cashLedgerEntry.create({
+          data: {
+            portalUserId: reviewerId,
+            direction: "IN",
+            amount: handoverAmount,
+            category: "SETTLEMENT_HANDOVER",
+            isPhysicalCash: true,
+            isSettled: false,
+            issuedById: settlement.portalUserId,
+            referenceTable: "account_settlements",
+            referenceId: settlement.id,
+            note: body.note ? `Received handover: ${body.note}` : "Settlement received from cashier"
+          }
         });
       }
       return tx.accountSettlement.update({
@@ -39580,8 +39714,9 @@ var cashService = {
     };
     return transaction ? runInTx(transaction) : prisma.$transaction(runInTx);
   },
-  async listSettlements(query) {
-    return prisma.accountSettlement.findMany({
+  async listSettlements(query, tx) {
+    const client = tx || prisma;
+    return client.accountSettlement.findMany({
       where: { portalUserId: query.userId, status: query.status },
       include: { submittedByUser: { select: { id: true, fullName: true, username: true } }, reviewedByUser: { select: { id: true, fullName: true } } },
       orderBy: { submittedAt: "desc" },
@@ -39614,7 +39749,12 @@ var cashController = {
     res.json({ data });
   },
   async listSettlements(req, res) {
-    const data = await cashService.listSettlements(req.query);
+    const query = { ...req.query };
+    if (req.user?.role === "SALES_DISPENSING") {
+      query.userId = req.user.sub;
+      if (req.query) req.query.userId = req.user.sub;
+    }
+    const data = await cashService.listSettlements(query);
     res.json({ data });
   }
 };
@@ -39870,40 +40010,35 @@ function projectInvoice(invoice, range = {}, filters = {}, legacyRefunds = []) {
   events.sort(
     (a, b) => a.at.getTime() - b.at.getTime() || (a.kind === "SALE" ? -1 : b.kind === "SALE" ? 1 : a.id.localeCompare(b.id))
   );
-  let sale = zero(), tax = zero(), paid = zero(), cost = zero(), recognized = zero(), recognizedCost = zero();
+  let sale = zero(), tax = zero(), paid = zero(), cost = zero();
   let grossSales = zero(), netBilling = zero(), taxBilled = zero(), collections = zero(), revenue = zero(), cogs = zero(), refunded = zero();
   let recognizedAt = null;
   const collectors = /* @__PURE__ */ new Set();
   const methods = {};
+  const isDispenser = !filters.cashierId || filters.cashierId === invoice.dispensedById;
   for (const e of events) {
     if (range.lte && e.at > range.lte) continue;
     sale = sale.plus(e.sale);
     tax = tax.plus(e.tax);
     paid = paid.plus(e.collection);
     cost = cost.plus(e.cost);
-    const fullyPaid = sale.gt(0) && paid.gte(sale);
-    let target = recognized, targetCost = recognizedCost;
-    if (fullyPaid) {
-      target = import_library8.Decimal.max(0, sale.minus(tax));
-      targetCost = cost;
-    } else if (e.kind === "RETURN") {
-      target = import_library8.Decimal.min(recognized, import_library8.Decimal.max(0, sale.minus(tax)));
-      targetCost = recognizedCost.gt(0) ? import_library8.Decimal.max(0, recognizedCost.plus(e.cost)) : zero();
-    } else if (e.collection.lt(0)) {
-      target = zero();
-      targetCost = zero();
-    }
-    const delta = target.minus(recognized), costChange = targetCost.minus(recognizedCost);
-    recognized = target;
-    recognizedCost = targetCost;
-    if (delta.gt(0)) recognizedAt = e.at;
     if (!inRange(e.at, range)) continue;
-    if (e.kind === "SALE") grossSales = grossSales.plus(e.gross);
-    netBilling = netBilling.plus(e.sale.minus(e.tax));
-    taxBilled = taxBilled.plus(e.tax);
-    if (!issues.length) {
-      revenue = revenue.plus(delta);
-      cogs = cogs.plus(costChange);
+    if (e.kind === "SALE" && isDispenser) {
+      grossSales = grossSales.plus(e.gross);
+      netBilling = netBilling.plus(e.sale.minus(e.tax));
+      taxBilled = taxBilled.plus(e.tax);
+      if (recognizedAt === null) recognizedAt = e.at;
+      if (!issues.length && !missingCost) {
+        revenue = revenue.plus(e.sale.minus(e.tax));
+        cogs = cogs.plus(e.cost);
+      }
+    } else if (e.kind === "RETURN" && isDispenser) {
+      netBilling = netBilling.plus(e.sale.minus(e.tax));
+      taxBilled = taxBilled.plus(e.tax);
+      if (!issues.length && !missingCost) {
+        revenue = revenue.plus(e.sale.minus(e.tax));
+        cogs = cogs.plus(e.cost);
+      }
     }
     if ((!filters.method || filters.method === e.method) && (!filters.cashierId || filters.cashierId === e.actor)) {
       collections = collections.plus(e.collection);
@@ -39926,7 +40061,7 @@ function projectInvoice(invoice, range = {}, filters = {}, legacyRefunds = []) {
     total: netBilling.plus(taxBilled),
     paidTotal: collections,
     collections,
-    outstanding: import_library8.Decimal.max(0, sale.minus(paid)),
+    outstanding: isDispenser ? import_library8.Decimal.max(0, sale.minus(paid)) : zero(),
     recognizedRevenue: revenue,
     recognizedCogs: cogs,
     grossProfit: missingCost || issues.length ? null : revenue.minus(cogs),
@@ -39953,10 +40088,14 @@ async function loadFinancialData(db = prisma, range) {
       { payments: { some: { paidAt: { gte: range.gte, ...range.lte ? { lte: range.lte } : {} } } } },
       { financialEvents: { some: { occurredAt: { gte: range.gte, ...range.lte ? { lte: range.lte } : {} } } } },
       { lines: { some: { dispensedAt: { gte: range.gte, ...range.lte ? { lte: range.lte } : {} } } } },
-      { status: { not: "PAID" } }
+      { status: { not: "PAID" } },
+      ...range.lte ? [
+        { payments: { some: { paidAt: { gt: range.lte } } } },
+        { financialEvents: { some: { occurredAt: { gt: range.lte } } } }
+      ] : []
     ];
   }
-  const [invoices, refunds, expenses] = await Promise.all([
+  const [invoices, refunds, expenses, rawStockLosses] = await Promise.all([
     db.pharmacyInvoice.findMany({
       where: Object.keys(invoiceWhere).length > 0 ? invoiceWhere : void 0,
       include,
@@ -39998,12 +40137,42 @@ async function loadFinancialData(db = prisma, range) {
         createdAt: true
       },
       orderBy: { date: "desc" }
-    })
+    }),
+    db.stockLedgerEntry ? db.stockLedgerEntry.findMany({
+      where: {
+        movementType: "NEGATIVE_ADJUSTMENT",
+        ...range ? {
+          createdAt: {
+            ...range.gte ? { gte: range.gte } : {},
+            ...range.lte ? { lte: range.lte } : {}
+          }
+        } : {}
+      },
+      select: {
+        id: true,
+        quantityDelta: true,
+        batch: { select: { costRate: true } },
+        medicine: { select: { purchaseRate: true } },
+        createdAt: true
+      }
+    }) : Promise.resolve([])
   ]);
-  return { invoices, refunds, expenses };
+  const stockLosses = (rawStockLosses || []).map((entry) => {
+    const rate = entry.batch?.costRate ?? entry.medicine?.purchaseRate ?? zero();
+    const qty = entry.quantityDelta ? import_library8.Decimal.abs(entry.quantityDelta) : zero();
+    return {
+      id: entry.id,
+      amount: qty.mul(rate),
+      at: entry.createdAt
+    };
+  });
+  return { invoices, refunds, expenses, stockLosses };
 }
 function financialReport(data, range = {}, filters = {}) {
-  const rows = data.invoices.filter((i) => !range.lte || i.createdAt <= range.lte).map(
+  const candidateInvoices = filters.cashierId ? data.invoices.filter(
+    (i) => i.dispensedById === filters.cashierId || i.payments.some((p) => p.collectedById === filters.cashierId) || i.financialEvents.some((e) => e.actorId === filters.cashierId) || data.refunds.some((r) => r.referenceId === i.id && r.portalUserId === filters.cashierId)
+  ) : data.invoices;
+  const rows = candidateInvoices.filter((i) => !range.lte || i.createdAt <= range.lte).map(
     (i) => projectInvoice(
       i,
       range,
@@ -40011,12 +40180,18 @@ function financialReport(data, range = {}, filters = {}) {
       data.refunds.filter((r) => r.referenceId === i.id)
     )
   );
-  const expenses = add(
+  const expenses = filters.cashierId ? zero() : add(
     data.expenses.filter((e) => inRange(e.date, range)),
     (e) => e.amount
   );
+  const inventoryLosses = filters.cashierId ? zero() : add(
+    (data.stockLosses ?? []).filter((s) => inRange(s.at, range)),
+    (s) => s.amount
+  );
   const recognizedRevenue = add(rows, (r) => r.recognizedRevenue), recognizedCogs = add(rows, (r) => r.recognizedCogs);
   const incomplete = rows.filter((r) => !r.recognitionComplete).length;
+  const grossProfit = incomplete ? null : recognizedRevenue.minus(recognizedCogs);
+  const operatingProfit = incomplete ? null : recognizedRevenue.minus(recognizedCogs).minus(expenses).minus(inventoryLosses);
   const totals = {
     grossSales: add(rows, (r) => r.grossSales),
     netBilling: add(rows, (r) => r.netBilling),
@@ -40029,8 +40204,10 @@ function financialReport(data, range = {}, filters = {}) {
     outstanding: add(rows, (r) => r.outstanding),
     recognizedRevenue,
     recognizedCogs,
+    grossProfit,
     operatingExpenses: expenses,
-    operatingProfit: incomplete ? null : recognizedRevenue.minus(recognizedCogs).minus(expenses),
+    inventoryLosses,
+    operatingProfit,
     incompleteInvoices: incomplete
   };
   return { rows, totals };
@@ -40047,6 +40224,7 @@ function summarizeFinancialTimeline(data, intervals) {
       recognizedRevenue: zero(),
       recognizedCogs: zero(),
       operatingExpenses: zero(),
+      inventoryLosses: zero(),
       outstanding: zero(),
       incompleteCount: 0
     });
@@ -40148,46 +40326,28 @@ function summarizeFinancialTimeline(data, intervals) {
     );
     if (missingCost) issues.push("Historical sale cost snapshot unavailable");
     const isIncomplete = missingCost || issues.length > 0;
-    let sale = zero();
-    let tax = zero();
-    let paid = zero();
-    let cost = zero();
-    let recognized = zero();
-    let recognizedCost = zero();
     for (const e of events) {
-      sale = sale.plus(e.sale);
-      tax = tax.plus(e.tax);
-      paid = paid.plus(e.collection);
-      cost = cost.plus(e.cost);
-      const fullyPaid = sale.gt(0) && paid.gte(sale);
-      let target = recognized;
-      let targetCost = recognizedCost;
-      if (fullyPaid) {
-        target = import_library8.Decimal.max(0, sale.minus(tax));
-        targetCost = cost;
-      } else if (e.kind === "RETURN") {
-        target = import_library8.Decimal.min(recognized, import_library8.Decimal.max(0, sale.minus(tax)));
-        targetCost = recognizedCost.gt(0) ? import_library8.Decimal.max(0, recognizedCost.plus(e.cost)) : zero();
-      } else if (e.collection.lt(0)) {
-        target = zero();
-        targetCost = zero();
-      }
-      const delta = target.minus(recognized);
-      const costChange = targetCost.minus(recognizedCost);
-      recognized = target;
-      recognizedCost = targetCost;
       for (const inv of intervals) {
         if ((!inv.gte || e.at >= inv.gte) && (!inv.lte || e.at <= inv.lte)) {
           const acc = intervalMap.get(inv.id);
-          if (e.kind === "SALE") acc.grossSales = acc.grossSales.plus(e.gross);
-          acc.netBilling = acc.netBilling.plus(e.sale.minus(e.tax));
-          acc.taxBilled = acc.taxBilled.plus(e.tax);
+          if (e.kind === "SALE") {
+            acc.grossSales = acc.grossSales.plus(e.gross);
+            acc.netBilling = acc.netBilling.plus(e.sale.minus(e.tax));
+            acc.taxBilled = acc.taxBilled.plus(e.tax);
+            if (!isIncomplete) {
+              acc.recognizedRevenue = acc.recognizedRevenue.plus(e.sale.minus(e.tax));
+              acc.recognizedCogs = acc.recognizedCogs.plus(e.cost);
+            }
+          } else if (e.kind === "RETURN") {
+            acc.netBilling = acc.netBilling.plus(e.sale.minus(e.tax));
+            acc.taxBilled = acc.taxBilled.plus(e.tax);
+            if (!isIncomplete) {
+              acc.recognizedRevenue = acc.recognizedRevenue.plus(e.sale.minus(e.tax));
+              acc.recognizedCogs = acc.recognizedCogs.plus(e.cost);
+            }
+          }
           acc.collections = acc.collections.plus(e.collection);
           if (e.collection.lt(0)) acc.totalRefunded = acc.totalRefunded.minus(e.collection);
-          if (!isIncomplete) {
-            acc.recognizedRevenue = acc.recognizedRevenue.plus(delta);
-            acc.recognizedCogs = acc.recognizedCogs.plus(costChange);
-          }
         }
       }
     }
@@ -40215,10 +40375,19 @@ function summarizeFinancialTimeline(data, intervals) {
       }
     }
   }
+  for (const loss of data.stockLosses ?? []) {
+    for (const inv of intervals) {
+      if ((!inv.gte || loss.at >= inv.gte) && (!inv.lte || loss.at <= inv.lte)) {
+        const acc = intervalMap.get(inv.id);
+        acc.inventoryLosses = acc.inventoryLosses.plus(loss.amount);
+      }
+    }
+  }
   const resultMap = /* @__PURE__ */ new Map();
   for (const inv of intervals) {
     const acc = intervalMap.get(inv.id);
-    const opProfit = acc.incompleteCount > 0 ? null : acc.recognizedRevenue.minus(acc.recognizedCogs).minus(acc.operatingExpenses);
+    const gp = acc.incompleteCount > 0 ? null : acc.recognizedRevenue.minus(acc.recognizedCogs);
+    const opProfit = acc.incompleteCount > 0 ? null : acc.recognizedRevenue.minus(acc.recognizedCogs).minus(acc.operatingExpenses).minus(acc.inventoryLosses);
     resultMap.set(inv.id, {
       grossSales: acc.grossSales,
       netBilling: acc.netBilling,
@@ -40231,7 +40400,9 @@ function summarizeFinancialTimeline(data, intervals) {
       outstanding: acc.outstanding,
       recognizedRevenue: acc.recognizedRevenue,
       recognizedCogs: acc.recognizedCogs,
+      grossProfit: gp,
       operatingExpenses: acc.operatingExpenses,
+      inventoryLosses: acc.inventoryLosses,
       operatingProfit: opProfit,
       incompleteInvoices: acc.incompleteCount
     });
@@ -40668,6 +40839,9 @@ var dashboardService = {
 var dashboardController = {
   async management(req, res) {
     if (!req.user) throw new AuthenticationError();
+    if (req.user.role === "SALES_DISPENSING") {
+      throw new AuthorizationError("Access denied: Management dashboard is restricted to administrators");
+    }
     const data = await dashboardService.getManagementSummary(req.user.sub);
     res.json({ data });
   },
@@ -40689,23 +40863,23 @@ var dashboard_routes_default = router10;
 var import_express11 = __toESM(require_express2());
 
 // src/modules/reports/incomeExpense.ts
-var import_client18 = require("@prisma/client");
+var import_client19 = require("@prisma/client");
 async function incomeExpenseReport(db, range = {}) {
   const [data, ledger] = await Promise.all([
     loadFinancialData(db, range),
     db.vendorLedgerEntry.findMany({ where: { createdAt: { lte: range.lte } } })
   ]);
   const { totals } = financialReport(data, range);
-  let vendorPayments = new import_client18.Prisma.Decimal(0), vendorRefunds = new import_client18.Prisma.Decimal(0);
+  let vendorPayments = new import_client19.Prisma.Decimal(0), vendorRefunds = new import_client19.Prisma.Decimal(0);
   const balances = /* @__PURE__ */ new Map();
   for (const entry of ledger) {
-    balances.set(entry.vendorId, (balances.get(entry.vendorId) ?? new import_client18.Prisma.Decimal(0)).plus(entry.amount));
+    balances.set(entry.vendorId, (balances.get(entry.vendorId) ?? new import_client19.Prisma.Decimal(0)).plus(entry.amount));
     if (entry.entryType === "PAYMENT" && (!range.gte || entry.createdAt >= range.gte)) {
       if (entry.amount.isNegative()) vendorPayments = vendorPayments.minus(entry.amount);
       else vendorRefunds = vendorRefunds.plus(entry.amount);
     }
   }
-  let vendorOutstanding = new import_client18.Prisma.Decimal(0), supplierAdvances = new import_client18.Prisma.Decimal(0);
+  let vendorOutstanding = new import_client19.Prisma.Decimal(0), supplierAdvances = new import_client19.Prisma.Decimal(0);
   for (const balance of balances.values()) {
     if (balance.isPositive()) vendorOutstanding = vendorOutstanding.plus(balance);
     else supplierAdvances = supplierAdvances.minus(balance);
@@ -40719,6 +40893,7 @@ async function incomeExpenseReport(db, range = {}) {
     ["Income", "Recognized Revenue", totals.recognizedRevenue],
     ["Expenses", "Medicine COGS (matched to recognized sales)", totals.recognizedCogs],
     ["Expenses", "Operating Expenses", totals.operatingExpenses],
+    ["Expenses", "Inventory / Stock Losses", totals.inventoryLosses],
     ["Vendor Payments", "Total Vendor Payments", vendorPayments],
     ["Vendor Payments", "Supplier Refunds Received", vendorRefunds],
     ["Vendor Payments", "Vendor Outstanding", vendorOutstanding],
@@ -40732,7 +40907,7 @@ async function incomeExpenseReport(db, range = {}) {
 }
 
 // src/modules/reports/operatingProfit.ts
-var import_client19 = require("@prisma/client");
+var import_client20 = require("@prisma/client");
 async function operatingProfitReport(db, range = {}) {
   const [data, ledger] = await Promise.all([
     loadFinancialData(db, range),
@@ -40743,13 +40918,13 @@ async function operatingProfitReport(db, range = {}) {
     })
   ]);
   const { rows, totals } = financialReport(data, range);
-  let totalVendorPayments = new import_client19.Prisma.Decimal(0);
-  let supplierRefundsReceived = new import_client19.Prisma.Decimal(0);
+  let totalVendorPayments = new import_client20.Prisma.Decimal(0);
+  let supplierRefundsReceived = new import_client20.Prisma.Decimal(0);
   const balances = /* @__PURE__ */ new Map();
   for (const entry of ledger) {
     balances.set(
       entry.vendorId,
-      (balances.get(entry.vendorId) ?? new import_client19.Prisma.Decimal(0)).plus(entry.amount)
+      (balances.get(entry.vendorId) ?? new import_client20.Prisma.Decimal(0)).plus(entry.amount)
     );
     if (entry.entryType === "PAYMENT" && (!range.gte || entry.createdAt >= range.gte)) {
       if (entry.amount.isNegative()) {
@@ -40759,8 +40934,8 @@ async function operatingProfitReport(db, range = {}) {
       }
     }
   }
-  let vendorOutstanding = new import_client19.Prisma.Decimal(0);
-  let supplierAdvances = new import_client19.Prisma.Decimal(0);
+  let vendorOutstanding = new import_client20.Prisma.Decimal(0);
+  let supplierAdvances = new import_client20.Prisma.Decimal(0);
   for (const balance of balances.values()) {
     if (balance.isPositive()) {
       vendorOutstanding = vendorOutstanding.plus(balance);
@@ -40778,40 +40953,68 @@ async function operatingProfitReport(db, range = {}) {
   const outstanding = totals.outstanding;
   const recognizedRevenue = totals.recognizedRevenue;
   const medicineCogs = totals.recognizedCogs;
-  const grossProfit = recognizedRevenue.minus(medicineCogs);
+  const grossProfit = totals.grossProfit;
   const operatingExpenses = totals.operatingExpenses;
-  const operatingProfit = grossProfit.minus(operatingExpenses);
-  const grossMarginPercent = recognizedRevenue.gt(0) ? Number(grossProfit.div(recognizedRevenue).mul(100).toFixed(2)) : 0;
-  const operatingMarginPercent = recognizedRevenue.gt(0) ? Number(operatingProfit.div(recognizedRevenue).mul(100).toFixed(2)) : 0;
+  const operatingProfit = totals.operatingProfit;
+  const grossMarginPercent = grossProfit && recognizedRevenue.gt(0) ? Number(grossProfit.div(recognizedRevenue).mul(100).toFixed(2)) : 0;
+  const operatingMarginPercent = operatingProfit && recognizedRevenue.gt(0) ? Number(operatingProfit.div(recognizedRevenue).mul(100).toFixed(2)) : 0;
   const collectionsRatioPercent = totalInvoiced.gt(0) ? Number(actualCollections.div(totalInvoiced).mul(100).toFixed(2)) : 0;
+  const rawInvoiceMap = /* @__PURE__ */ new Map();
+  for (const inv of data.invoices) {
+    rawInvoiceMap.set(inv.invoiceNumber, inv);
+  }
   const invoicesList = rows.filter((r) => {
     if (r.grossSales.gt(0) || r.collections.gt(0) || r.recognizedRevenue.gt(0) || r.outstanding.gt(0)) return true;
     if (range.gte && r.createdAt < range.gte) return false;
     if (range.lte && r.createdAt > range.lte) return false;
     return true;
-  }).map((r) => ({
-    invoiceNumber: r.invoiceNumber,
-    channel: r.channel,
-    customerName: r.customerName || "Walk-In Customer",
-    createdAt: r.createdAt,
-    status: r.status,
-    clearanceStatus: r.clearanceStatus,
-    grossSales: r.grossSales,
-    discount: r.grossSales.minus(r.netBilling),
-    netBilling: r.netBilling,
-    taxBilled: r.taxBilled,
-    total: r.total,
-    collections: r.collections,
-    outstanding: r.outstanding,
-    recognizedRevenue: r.recognizedRevenue,
-    recognizedCogs: r.recognizedCogs,
-    grossProfit: r.grossProfit ?? r.recognizedRevenue.minus(r.recognizedCogs),
-    recognizedAt: r.recognizedAt,
-    soldBy: r.soldBy,
-    collectedBy: r.collectedBy,
-    recognitionComplete: r.recognitionComplete,
-    recognitionIssues: r.recognitionIssues
-  }));
+  }).map((r) => {
+    const rawInv = rawInvoiceMap.get(r.invoiceNumber);
+    return {
+      id: rawInv?.id,
+      invoiceNumber: r.invoiceNumber,
+      channel: r.channel,
+      customerName: r.customerName || "Walk-In Customer",
+      createdAt: r.createdAt,
+      status: r.status,
+      clearanceStatus: r.clearanceStatus,
+      grossSales: r.grossSales,
+      discount: r.grossSales.minus(r.netBilling),
+      netBilling: r.netBilling,
+      taxBilled: r.taxBilled,
+      total: r.total,
+      collections: r.collections,
+      outstanding: r.outstanding,
+      recognizedRevenue: r.recognizedRevenue,
+      recognizedCogs: r.recognizedCogs,
+      grossProfit: r.grossProfit,
+      recognizedAt: r.recognizedAt,
+      soldBy: r.soldBy,
+      collectedBy: r.collectedBy,
+      recognitionComplete: r.recognitionComplete,
+      recognitionIssues: r.recognitionIssues,
+      payments: (rawInv?.payments || []).map((p) => ({
+        id: p.id,
+        amount: Number(p.amount),
+        method: p.method,
+        paidAt: p.paidAt,
+        isInitial: p.isInitial,
+        collectedByName: p.collectedByUser?.fullName || "Staff",
+        collectedById: p.collectedById
+      })),
+      financialEvents: (rawInv?.financialEvents || []).map((e) => ({
+        id: e.id,
+        eventKey: e.eventKey,
+        kind: e.kind,
+        occurredAt: e.occurredAt,
+        saleDelta: Number(e.saleDelta),
+        collectionDelta: Number(e.collectionDelta),
+        reference: e.reference,
+        method: e.method,
+        actorId: e.actorId
+      }))
+    };
+  });
   const inRange2 = (at) => (!range.gte || at >= range.gte) && (!range.lte || at <= range.lte);
   const expensesList = data.expenses.filter((e) => inRange2(e.date)).map((e) => ({
     id: e.id,
@@ -40835,13 +41038,13 @@ async function operatingProfitReport(db, range = {}) {
       entry = {
         date: key,
         label,
-        grossSales: new import_client19.Prisma.Decimal(0),
-        recognizedRevenue: new import_client19.Prisma.Decimal(0),
-        medicineCogs: new import_client19.Prisma.Decimal(0),
-        grossProfit: new import_client19.Prisma.Decimal(0),
-        operatingExpenses: new import_client19.Prisma.Decimal(0),
-        operatingProfit: new import_client19.Prisma.Decimal(0),
-        collections: new import_client19.Prisma.Decimal(0),
+        grossSales: new import_client20.Prisma.Decimal(0),
+        recognizedRevenue: new import_client20.Prisma.Decimal(0),
+        medicineCogs: new import_client20.Prisma.Decimal(0),
+        grossProfit: new import_client20.Prisma.Decimal(0),
+        operatingExpenses: new import_client20.Prisma.Decimal(0),
+        operatingProfit: new import_client20.Prisma.Decimal(0),
+        collections: new import_client20.Prisma.Decimal(0),
         invoiceCount: 0
       };
       dailyMap.set(key, entry);
@@ -40882,10 +41085,11 @@ async function operatingProfitReport(db, range = {}) {
     ["1. Revenue & Sales", "Actual Collections Received", actualCollections],
     ["1. Revenue & Sales", "Sales Returns & Cash Refunds", totalRefunded],
     ["1. Revenue & Sales", "Outstanding Receivables (as of report end)", outstanding],
-    ["2. Revenue Recognition", "Recognized Revenue (Fully Paid Sales, excl. tax)", recognizedRevenue],
+    ["2. Revenue Recognition", "Recognized Revenue (Earned Sales, excl. tax)", recognizedRevenue],
     ["3. Cost of Goods Sold", "Medicine COGS (Historical Batch Cost)", medicineCogs],
     ["4. Gross Margin", "Gross Profit (Recognized Revenue \u2212 COGS)", grossProfit],
     ["5. Operating Overheads", "Operating Expenses (Overhead & Operations)", operatingExpenses],
+    ["5. Operating Overheads", "Inventory / Stock Losses (Damaged / Expired)", totals.inventoryLosses],
     ["6. Operating Result", "Net Operating Profit / Loss", operatingProfit],
     ["7. Vendor Settlements (Informational)", "Total Vendor Payments (Capital movement \u2014 not an expense)", totalVendorPayments],
     ["7. Vendor Settlements (Informational)", "Supplier Refunds Received", supplierRefundsReceived],
@@ -40899,8 +41103,6 @@ async function operatingProfitReport(db, range = {}) {
   }));
   const totalsObj = {
     ...totals,
-    grossProfit,
-    operatingProfit,
     vendorPayments: totalVendorPayments,
     vendorRefunds: supplierRefundsReceived,
     vendorOutstanding,
@@ -41021,99 +41223,254 @@ async function hmsDispense(range, limit = DEFAULT_ROW_LIMIT) {
   return { rows, totals: null, totalCount, limit };
 }
 async function purchase(range, limit = DEFAULT_ROW_LIMIT) {
-  const [purchases, aggregates] = await Promise.all([
+  const purchaseWhere = {
+    status: "POSTED",
+    ...range?.gte || range?.lte ? { purchaseDate: range } : {}
+  };
+  const returnWhere = {
+    entryType: "RETURN_CREDIT",
+    ...range?.gte || range?.lte ? { createdAt: range } : {}
+  };
+  const [purchases, aggregates, vendorReturns] = await Promise.all([
     prisma.purchase.findMany({
-      where: { purchaseDate: range },
-      include: { vendor: { select: { name: true, code: true } }, createdByUser: { select: { fullName: true } } },
+      where: purchaseWhere,
+      include: {
+        vendor: { select: { name: true, code: true } },
+        createdByUser: { select: { fullName: true } }
+      },
       orderBy: { purchaseDate: "desc" },
       take: limit
     }),
     prisma.purchase.aggregate({
-      where: { purchaseDate: range },
-      _sum: { total: true, paidNow: true, vendorDue: true },
+      where: purchaseWhere,
+      _sum: {
+        subtotal: true,
+        discountTotal: true,
+        taxTotal: true,
+        freightTotal: true,
+        total: true,
+        paidNow: true,
+        vendorDue: true
+      },
+      _count: true
+    }),
+    prisma.vendorLedgerEntry.aggregate({
+      where: returnWhere,
+      _sum: { amount: true },
       _count: true
     })
   ]);
+  const grossPurchases = aggregates._sum.subtotal ? Number(aggregates._sum.subtotal) : 0;
+  const discountTotal = aggregates._sum.discountTotal ? Number(aggregates._sum.discountTotal) : 0;
+  const postedAcquisitionCost = aggregates._sum.total ? Number(aggregates._sum.total) : 0;
+  const returnCost = vendorReturns._sum.amount ? Math.abs(Number(vendorReturns._sum.amount)) : 0;
+  const netPurchases = Math.max(0, postedAcquisitionCost - returnCost);
+  const paidNow = aggregates._sum.paidNow ? Number(aggregates._sum.paidNow) : 0;
+  const vendorDue = aggregates._sum.vendorDue ? Number(aggregates._sum.vendorDue) : 0;
   const rows = purchases.map((p) => ({
     purchaseNumber: p.purchaseNumber,
     vendor: p.vendor.name,
     purchaseDate: p.purchaseDate,
     vendorInvoiceNo: p.vendorInvoiceNo,
     paymentType: p.paymentType,
+    subtotal: p.subtotal,
+    discountTotal: p.discountTotal,
     total: p.total,
     paidNow: p.paidNow,
     vendorDue: p.vendorDue,
     status: p.status,
-    receivedBy: p.createdByUser.fullName
+    receivedBy: p.createdByUser.fullName,
+    enteredBy: p.createdByUser.fullName,
+    createdAt: p.createdAt
   }));
   const totals = {
-    total: aggregates._sum.total ? Number(aggregates._sum.total) : 0,
-    paidNow: aggregates._sum.paidNow ? Number(aggregates._sum.paidNow) : 0,
-    vendorDue: aggregates._sum.vendorDue ? Number(aggregates._sum.vendorDue) : 0
+    grossPurchases,
+    discountTotal,
+    postedPurchases: postedAcquisitionCost,
+    purchaseReturns: returnCost,
+    netPurchases,
+    total: netPurchases,
+    paidNow,
+    vendorDue
   };
   return { rows, totals, totalCount: aggregates._count, limit };
 }
 async function stockMovement(range, limit = DEFAULT_ROW_LIMIT) {
+  const movementWhere = {
+    ...range?.gte || range?.lte ? { createdAt: range } : {}
+  };
   const [entries, totalCount] = await Promise.all([
     prisma.stockLedgerEntry.findMany({
-      where: { createdAt: range },
-      include: { medicine: { select: { name: true, code: true } }, batch: { select: { batchNumber: true } }, actor: { select: { fullName: true, role: true } } },
+      where: movementWhere,
+      include: {
+        medicine: { select: { name: true, code: true, purchaseRate: true } },
+        batch: { select: { batchNumber: true, costRate: true, expiryDate: true } },
+        actor: { select: { fullName: true, role: true } }
+      },
       orderBy: { createdAt: "desc" },
       take: limit
     }),
-    prisma.stockLedgerEntry.count({ where: { createdAt: range } })
+    prisma.stockLedgerEntry.count({ where: movementWhere })
   ]);
-  const rows = entries.map((e) => ({
-    itemCode: e.medicine.code,
-    medicine: e.medicine.name,
-    batch: e.batch?.batchNumber ?? null,
-    movementType: e.movementType,
-    quantityDelta: e.quantityDelta,
-    note: e.note,
-    performedBy: e.actor.fullName,
-    createdAt: e.createdAt
-  }));
-  return { rows, totals: null, totalCount, limit };
+  let totalInQuantity = 0;
+  let totalOutQuantity = 0;
+  let netQuantityDelta = 0;
+  let totalInValuation = 0;
+  let totalOutValuation = 0;
+  let netValuation = 0;
+  const rows = entries.map((e) => {
+    const qty = Number(e.quantityDelta);
+    const cost = e.batch?.costRate != null ? Number(e.batch.costRate) : e.medicine?.purchaseRate != null ? Number(e.medicine.purchaseRate) : null;
+    const valuation = cost != null ? Math.abs(qty) * cost : null;
+    if (qty >= 0) {
+      totalInQuantity += qty;
+      if (valuation != null) totalInValuation += valuation;
+    } else {
+      totalOutQuantity += Math.abs(qty);
+      if (valuation != null) totalOutValuation += valuation;
+    }
+    netQuantityDelta += qty;
+    if (valuation != null) {
+      netValuation += qty >= 0 ? valuation : -valuation;
+    }
+    const ref = e.referenceTable && e.referenceId ? `${e.referenceTable}: ${e.referenceId}` : e.referenceId ?? e.note ?? "\u2014";
+    return {
+      itemCode: e.medicine.code,
+      medicine: e.medicine.name,
+      batch: e.batch?.batchNumber ?? "\u2014",
+      batchNumber: e.batch?.batchNumber ?? "\u2014",
+      expiryDate: e.batch?.expiryDate ?? null,
+      movementType: e.movementType,
+      quantityDelta: e.quantityDelta,
+      unitCost: cost,
+      lineValuation: valuation,
+      reference: ref,
+      referenceId: e.referenceId,
+      note: e.note,
+      actor: e.actor.fullName,
+      performedBy: e.actor.fullName,
+      createdAt: e.createdAt
+    };
+  });
+  const totals = {
+    quantityDelta: netQuantityDelta,
+    lineValuation: netValuation,
+    totalInQuantity,
+    totalOutQuantity,
+    netQuantityDelta,
+    totalInValuation,
+    totalOutValuation,
+    netValuation
+  };
+  return { rows, totals, totalCount, limit };
 }
 async function vendorLedger(range, limit = DEFAULT_ROW_LIMIT) {
-  const [entries, aggregates] = await Promise.all([
+  const ledgerWhere = {
+    ...range?.gte || range?.lte ? { createdAt: range } : {}
+  };
+  const [entries, aggregates, openingAgg] = await Promise.all([
     prisma.vendorLedgerEntry.findMany({
-      where: { createdAt: range },
-      include: { vendor: { select: { name: true, code: true } }, actor: { select: { fullName: true } } },
+      where: ledgerWhere,
+      include: {
+        vendor: { select: { id: true, name: true, code: true } },
+        actor: { select: { fullName: true } }
+      },
       orderBy: { createdAt: "desc" },
       take: limit
     }),
     prisma.vendorLedgerEntry.aggregate({
-      where: { createdAt: range },
+      where: ledgerWhere,
       _sum: { amount: true },
       _count: true
-    })
+    }),
+    range?.gte ? prisma.vendorLedgerEntry.aggregate({
+      where: { createdAt: { lt: range.gte } },
+      _sum: { amount: true }
+    }) : Promise.resolve(null)
   ]);
+  const vendorIds = [...new Set(entries.map((e) => e.vendorId))];
+  const vendorOpenings = range?.gte && vendorIds.length > 0 ? await prisma.vendorLedgerEntry.groupBy({
+    by: ["vendorId"],
+    where: { vendorId: { in: vendorIds }, createdAt: { lt: range.gte } },
+    _sum: { amount: true }
+  }) : [];
+  const vendorOpeningMap = /* @__PURE__ */ new Map();
+  for (const vo of vendorOpenings) {
+    vendorOpeningMap.set(vo.vendorId, vo._sum.amount ? Number(vo._sum.amount) : 0);
+  }
+  const chronological = [...entries].sort(
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id)
+  );
+  const vendorRunning = new Map(vendorOpeningMap);
+  const rowRunningMap = /* @__PURE__ */ new Map();
+  let creditPurchases = 0;
+  let supplierPayments = 0;
+  let purchaseReturnCredits = 0;
+  let adjustments = 0;
+  for (const e of chronological) {
+    const amt = Number(e.amount);
+    const prev = vendorRunning.get(e.vendorId) ?? 0;
+    const curr = prev + amt;
+    vendorRunning.set(e.vendorId, curr);
+    rowRunningMap.set(e.id, curr);
+    if (e.entryType === "PURCHASE_CREDIT") creditPurchases += amt;
+    else if (e.entryType === "PAYMENT") supplierPayments += Math.abs(amt);
+    else if (e.entryType === "RETURN_CREDIT") purchaseReturnCredits += Math.abs(amt);
+    else if (e.entryType === "ADJUSTMENT") adjustments += amt;
+  }
+  const openingBalance = openingAgg?._sum.amount ? Number(openingAgg._sum.amount) : 0;
+  const netMovement = aggregates._sum.amount ? Number(aggregates._sum.amount) : 0;
+  const closingBalance = openingBalance + netMovement;
   const rows = entries.map((e) => ({
     vendor: e.vendor.name,
+    vendorCode: e.vendor.code,
     entryType: e.entryType,
     amount: e.amount,
+    runningBalance: rowRunningMap.get(e.id) ?? Number(e.amount),
+    referenceId: e.referenceNo ?? e.referenceId ?? "\u2014",
+    referenceNo: e.referenceNo ?? "\u2014",
     description: e.description,
+    enteredBy: e.actor.fullName,
     actor: e.actor.fullName,
+    occurredAt: e.createdAt,
     createdAt: e.createdAt
   }));
-  const totals = { amount: aggregates._sum.amount ? Number(aggregates._sum.amount) : 0 };
+  const totals = {
+    openingBalance,
+    creditPurchases,
+    supplierPayments,
+    purchaseReturnCredits,
+    adjustments,
+    netMovement,
+    closingBalance,
+    vendorPayables: Math.max(0, closingBalance),
+    supplierAdvances: Math.max(0, -closingBalance),
+    amount: netMovement
+  };
   return { rows, totals, totalCount: aggregates._count, limit };
 }
 async function expense(range, limit = DEFAULT_ROW_LIMIT) {
+  const expenseWhere = {
+    ...range?.gte || range?.lte ? { date: range } : {}
+  };
   const [expenses, aggregates] = await Promise.all([
     prisma.expense.findMany({
-      where: { date: range },
+      where: expenseWhere,
       include: { enteredByUser: { select: { fullName: true } }, approvedByUser: { select: { fullName: true } } },
       orderBy: { date: "desc" },
       take: limit
     }),
     prisma.expense.aggregate({
-      where: { date: range },
+      where: expenseWhere,
       _sum: { amount: true },
       _count: true
     })
   ]);
+  const categoryTotals = {};
+  for (const e of expenses) {
+    const cat = e.category || "Uncategorized";
+    categoryTotals[cat] = (categoryTotals[cat] ?? 0) + Number(e.amount);
+  }
   const rows = expenses.map((e) => ({
     category: e.category,
     date: e.date,
@@ -41124,30 +41481,44 @@ async function expense(range, limit = DEFAULT_ROW_LIMIT) {
     enteredBy: e.enteredByUser.fullName,
     approvedBy: e.approvedByUser?.fullName ?? null
   }));
-  const totals = { amount: aggregates._sum.amount ? Number(aggregates._sum.amount) : 0 };
+  const totalAmount = aggregates._sum.amount ? Number(aggregates._sum.amount) : 0;
+  const totals = {
+    amount: totalAmount,
+    operatingExpenses: totalAmount,
+    totalExpense: totalAmount,
+    categoryTotals
+  };
   return { rows, totals, totalCount: aggregates._count, limit };
 }
 async function returnRefund(range, limit = DEFAULT_ROW_LIMIT) {
+  const refundWhere = {
+    category: "REFUND",
+    ...range?.gte || range?.lte ? { occurredAt: range } : {}
+  };
+  const vendorReturnWhere = {
+    entryType: "RETURN_CREDIT",
+    ...range?.gte || range?.lte ? { createdAt: range } : {}
+  };
   const [refunds, refundAggregates, vendorReturns, vendorAggregates] = await Promise.all([
     prisma.cashLedgerEntry.findMany({
-      where: { category: "REFUND", occurredAt: range },
+      where: refundWhere,
       include: { portalUser: { select: { fullName: true } } },
       orderBy: { occurredAt: "desc" },
       take: limit
     }),
     prisma.cashLedgerEntry.aggregate({
-      where: { category: "REFUND", occurredAt: range },
+      where: refundWhere,
       _sum: { amount: true },
       _count: true
     }),
     prisma.vendorLedgerEntry.findMany({
-      where: { entryType: "RETURN_CREDIT", createdAt: range },
+      where: vendorReturnWhere,
       include: { vendor: { select: { name: true } }, actor: { select: { fullName: true } } },
       orderBy: { createdAt: "desc" },
       take: limit
     }),
     prisma.vendorLedgerEntry.aggregate({
-      where: { entryType: "RETURN_CREDIT", createdAt: range },
+      where: vendorReturnWhere,
       _sum: { amount: true },
       _count: true
     })
@@ -41186,8 +41557,9 @@ async function returnRefund(range, limit = DEFAULT_ROW_LIMIT) {
     invoiceNumber: "\u2014",
     party: vr.vendor?.name ?? "Vendor",
     customerName: vr.vendor?.name ?? "Vendor",
-    refundAmount: vr.amount,
-    amount: vr.amount,
+    refundAmount: vr.amount.abs(),
+    // Positive return value!
+    amount: vr.amount.abs(),
     isPhysicalCash: false,
     paymentMethod: "VENDOR_CREDIT",
     reason: vr.description ?? "Purchase Return Credit",
@@ -41198,43 +41570,98 @@ async function returnRefund(range, limit = DEFAULT_ROW_LIMIT) {
   const allRows = [...salesReturnRows, ...purchaseReturnRows].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
-  const totalCount = refundAggregates._count + vendorAggregates._count;
-  const totalAmount = (refundAggregates._sum.amount ? Number(refundAggregates._sum.amount) : 0) + (vendorAggregates._sum.amount ? Number(vendorAggregates._sum.amount) : 0);
+  const customerRefunds = refundAggregates._sum.amount ? Number(refundAggregates._sum.amount) : 0;
+  const vendorCredits = vendorAggregates._sum.amount ? Math.abs(Number(vendorAggregates._sum.amount)) : 0;
+  const combinedTotal = customerRefunds + vendorCredits;
   const totals = {
-    refundAmount: totalAmount,
-    amount: totalAmount
+    customerRefunds,
+    vendorCredits,
+    customerRefundCount: refundAggregates._count,
+    vendorCreditCount: vendorAggregates._count,
+    totalReturns: combinedTotal,
+    refundAmount: combinedTotal,
+    amount: combinedTotal
   };
+  const totalCount = refundAggregates._count + vendorAggregates._count;
   return { rows: allRows.slice(0, limit), totals, totalCount, limit };
 }
 async function balanceSettlement(range, limit = DEFAULT_ROW_LIMIT) {
-  const [settlements, totalCount] = await Promise.all([
+  const settlementWhere = {
+    ...range?.gte || range?.lte ? { submittedAt: range } : {}
+  };
+  const [settlements, aggregates] = await Promise.all([
     prisma.accountSettlement.findMany({
-      where: { submittedAt: range },
-      include: { submittedByUser: { select: { fullName: true } }, reviewedByUser: { select: { fullName: true } } },
+      where: settlementWhere,
+      include: {
+        submittedByUser: { select: { id: true, fullName: true, username: true } },
+        reviewedByUser: { select: { id: true, fullName: true } }
+      },
       orderBy: { submittedAt: "desc" },
       take: limit
     }),
-    prisma.accountSettlement.count({ where: { submittedAt: range } })
+    prisma.accountSettlement.aggregate({
+      where: settlementWhere,
+      _sum: { expectedCash: true, physicalCash: true, variance: true, settlementAmount: true },
+      _count: true
+    })
   ]);
+  let acceptedCount = 0;
+  let submittedCount = 0;
+  let rejectedCount = 0;
+  let totalAcceptedSettled = 0;
+  for (const s of settlements) {
+    if (s.status === "ACCEPTED") {
+      acceptedCount++;
+      totalAcceptedSettled += Number(s.settlementAmount || s.physicalCash);
+    } else if (s.status === "SUBMITTED") {
+      submittedCount++;
+    } else if (s.status === "REJECTED") {
+      rejectedCount++;
+    }
+  }
   const rows = settlements.map((s) => ({
     submittedBy: s.submittedByUser.fullName,
+    cashier: s.submittedByUser.fullName,
     periodFrom: s.periodFrom,
     periodTo: s.periodTo,
     expectedCash: s.expectedCash,
     physicalCash: s.physicalCash,
     variance: s.variance,
+    varianceReason: s.varianceReason ?? (s.variance.isZero() ? "Exact match" : "\u2014"),
     settlementAmount: s.settlementAmount,
     status: s.status,
-    reviewedBy: s.reviewedByUser?.fullName ?? null,
-    submittedAt: s.submittedAt
+    reviewedBy: s.reviewedByUser?.fullName ?? "Pending Review",
+    submittedAt: s.submittedAt,
+    reviewedAt: s.reviewedAt
   }));
-  return { rows, totals: null, totalCount, limit };
+  const expectedCashTotal = aggregates._sum.expectedCash ? Number(aggregates._sum.expectedCash) : 0;
+  const physicalCashTotal = aggregates._sum.physicalCash ? Number(aggregates._sum.physicalCash) : 0;
+  const varianceTotal = aggregates._sum.variance ? Number(aggregates._sum.variance) : 0;
+  const totals = {
+    expectedCash: expectedCashTotal,
+    physicalCash: physicalCashTotal,
+    variance: varianceTotal,
+    settlementAmount: totalAcceptedSettled,
+    acceptedCount,
+    submittedCount,
+    rejectedCount,
+    totalCount: aggregates._count
+  };
+  return { rows, totals, totalCount: aggregates._count, limit };
 }
 
 // src/modules/reports/reports.controller.ts
 var reportsController = {
   async run(req, res) {
-    const data = await reportsService.run(req.query);
+    const query = { ...req.query };
+    if (req.user?.role === "SALES_DISPENSING") {
+      if (query.type !== "SALES_COLLECTION") {
+        throw new AuthorizationError("Access denied: Company-wide reports are restricted to administrators");
+      }
+      query.cashierId = req.user.sub;
+      if (req.query) req.query.cashierId = req.user.sub;
+    }
+    const data = await reportsService.run(query);
     res.json({ data });
   }
 };
@@ -41258,7 +41685,7 @@ var reportQuerySchema = external_exports.object({
   cashierId: external_exports.string().max(150).optional(),
   from: external_exports.coerce.date().optional(),
   to: external_exports.coerce.date().optional(),
-  limit: external_exports.coerce.number().int().min(1).max(5e4).optional()
+  limit: external_exports.coerce.number().int().min(1).max(1e6).optional()
 });
 
 // src/modules/reports/reports.routes.ts

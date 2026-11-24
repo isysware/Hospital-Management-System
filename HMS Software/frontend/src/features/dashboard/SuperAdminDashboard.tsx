@@ -455,9 +455,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
   return (
     <div className="space-y-4 pb-8 text-slate-800">
-      {/* =========================================================================
-          1. HERO / GREETING BANNER (Matches FrontDesk & Admin Design)
-      ========================================================================= */}
+      {/* Hero greeting banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0c5944] via-[#0e7d5a] to-[#0a664c] text-white p-6 sm:p-8 shadow-lg shadow-emerald-950/10">
         {/* Large watermark hospital cross & pulse emblem */}
         <div className="absolute -right-4 sm:right-2 lg:right-6 top-1/2 -translate-y-1/2 w-64 h-64 sm:w-80 sm:h-80 lg:w-96 lg:h-96 opacity-20 sm:opacity-25 pointer-events-none select-none flex items-center justify-center">
@@ -548,9 +546,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         </div>
       </div>
 
-      {/* =========================================================================
-          2. FILTER & DATE RANGE TOOLBAR (design.md §4.4)
-      ========================================================================= */}
+      {/* Filter & date range toolbar */}
       <div className="bg-white rounded-xl border border-[#e2eae5] p-3 shadow-2xs">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Segmented Tab Presets */}
@@ -654,9 +650,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         )}
       </div>
 
-      {/* =========================================================================
-          3. EXECUTIVE 8-KPI METRICS GRID (design.md §4.2)
-      ========================================================================= */}
+      {/* Executive metrics grid */}
       <div>
         <div className="flex items-center justify-between mb-2 px-0.5">
           <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -671,9 +665,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         <HospitalKpiHeader items={primaryKpiItems} columns="grid-cols-2 lg:grid-cols-4" />
       </div>
 
-      {/* =========================================================================
-          4. PRIMARY ANALYTICS & LIVE GRAPHS (FRONTDESK RECHARTS STYLE)
-      ========================================================================= */}
+      {/* Primary analytics & live charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* GRAPH 1: INSTITUTIONAL REVENUE & COLLECTIONS REALIZATION AREA CHART */}
         <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs space-y-3 flex flex-col justify-between">
@@ -948,9 +940,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         </div>
       </div>
 
-      {/* =========================================================================
-          5. HOSPITAL CAPACITY & OPERATIONS OVERVIEW (2-COLUMN BALANCED)
-      ========================================================================= */}
+      {/* Hospital capacity & operations overview */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* BED CAPACITY & WARD OCCUPANCY */}
         <div className="bg-white rounded-xl border border-[#e2eae5] p-5 shadow-2xs space-y-4">
@@ -1111,9 +1101,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         </div>
       </div>
 
-      {/* =========================================================================
-          5.5 ACTIVE CLINICIANS & DUTY ROSTER (DOCTORS & RMOS)
-      ========================================================================= */}
+      {/* Active clinicians & duty roster */}
       <div className="bg-white rounded-xl border border-[#e2eae5] shadow-2xs overflow-hidden flex flex-col">
         {/* Dark Emerald Header Strip */}
         <div className="bg-[#0e5944] text-white px-4 py-2.5 flex items-center justify-between gap-3">
@@ -1218,9 +1206,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         </div>
       </div>
 
-      {/* =========================================================================
-          6. RECENT INVOICES & CASHIER TRANSACTIONS TABLE (design.md §4.5)
-      ========================================================================= */}
+      {/* Recent invoices & cashier transactions table */}
       <div className="bg-white rounded-xl border border-[#e2eae5] shadow-2xs overflow-hidden flex flex-col">
         {/* Dark Emerald Header Strip */}
         <div className="bg-[#0e5944] text-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">

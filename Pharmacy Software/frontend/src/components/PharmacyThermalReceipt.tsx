@@ -165,34 +165,39 @@ export function buildPharmacyThermalReceiptData(
     'CH SHARIF AND SAEED HOSPITAL';
 
   const deptTitle =
-    settings?.pharmacySubtitle ||
-    'CENTRAL PHARMACY & DISPENSARY';
+    typeof settings?.pharmacySubtitle === 'string'
+      ? settings.pharmacySubtitle.trim()
+      : '';
 
   const hospAddress =
-    settings?.address ||
-    hospitalProfile?.address ||
-    'Main Boulevard, Near Jail Road · 24/7 Service';
+    typeof settings?.address === 'string'
+      ? settings.address.trim()
+      : (hospitalProfile?.address?.trim() || '');
 
   const hospPhone =
-    settings?.phone ||
-    (hospitalProfile?.primaryPhone ? `Phone: ${hospitalProfile.primaryPhone}` : 'UAN: +92 42 111-467-748');
+    typeof settings?.phone === 'string'
+      ? settings.phone.trim()
+      : (hospitalProfile?.primaryPhone ? `Phone: ${hospitalProfile.primaryPhone}` : '');
 
   const hospEmail =
-    settings?.email ||
-    (hospitalProfile?.contactEmail ? `Email: ${hospitalProfile.contactEmail}` : '');
+    typeof settings?.email === 'string'
+      ? settings.email.trim()
+      : (hospitalProfile?.contactEmail ? `Email: ${hospitalProfile.contactEmail}` : '');
 
   const footerText =
-    settings?.footerTerms ||
-    settings?.receiptFooterText ||
-    'Medicines once sold can only be returned within 3 days with this original receipt. Fridge and cold-chain items are strictly non-returnable.';
+    typeof settings?.footerTerms === 'string'
+      ? settings.footerTerms.trim()
+      : (typeof settings?.receiptFooterText === 'string' ? settings.receiptFooterText.trim() : '');
 
   const footerMsg =
-    settings?.footerMessage ||
-    'Thank You · Get Well Soon';
+    typeof settings?.footerMessage === 'string'
+      ? settings.footerMessage.trim()
+      : '';
 
   const footerPoweredBy =
-    settings?.footerPoweredBy ||
-    'Powered by Isysware Software Solutions';
+    typeof settings?.footerPoweredBy === 'string'
+      ? settings.footerPoweredBy.trim()
+      : '';
 
   return {
     invoiceNumber: invoice.invoiceNumber || 'INV-PENDING',
@@ -273,7 +278,7 @@ export function generatePharmacyThermalReceiptHtml(data: PharmacyThermalReceiptD
       color: #000 !important;
     }
     body {
-      font-family: 'Share Tech Mono', 'Space Mono', 'Consolas', 'Courier New', monospace;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       width: 74mm;
       max-width: 76mm;
       margin: 0 auto;
@@ -282,7 +287,7 @@ export function generatePharmacyThermalReceiptHtml(data: PharmacyThermalReceiptD
       background: #fff;
       font-size: 11px;
       line-height: 1.25;
-      letter-spacing: 0.1px;
+      letter-spacing: -0.011em;
       -webkit-font-smoothing: antialiased;
       height: auto;
       overflow: visible;
@@ -298,9 +303,9 @@ export function generatePharmacyThermalReceiptHtml(data: PharmacyThermalReceiptD
       margin-bottom: 3px;
     }
     .hospital-title {
-      font-size: 12.5px;
+      font-size: 13px;
       font-weight: 700;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.2px;
       text-transform: uppercase;
       line-height: 1.2;
       color: #000;
@@ -309,7 +314,7 @@ export function generatePharmacyThermalReceiptHtml(data: PharmacyThermalReceiptD
     .dept-title {
       font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
       color: #000;
       text-transform: uppercase;
       margin-bottom: 2px;
@@ -323,7 +328,7 @@ export function generatePharmacyThermalReceiptHtml(data: PharmacyThermalReceiptD
     .doc-type {
       font-size: 10.5px;
       font-weight: 700;
-      letter-spacing: 0.8px;
+      letter-spacing: 0.5px;
       color: #000;
       margin-top: 3px;
       text-transform: uppercase;
@@ -469,18 +474,12 @@ export function generatePharmacyThermalReceiptHtml(data: PharmacyThermalReceiptD
       margin-top: 2px;
       letter-spacing: 0.2px;
     }
-    .barcode {
-      font-family: monospace;
-      font-size: 9px;
-      letter-spacing: 2px;
-      margin-top: 3px;
-    }
   </style>
 </head>
 <body>
   <div class="header">
     <div class="hospital-title">${escapeHtml(data.hospitalName || data.headerText || 'CH SHARIF AND SAEED HOSPITAL')}</div>
-    <div class="dept-title">${escapeHtml(data.departmentTitle || 'CENTRAL PHARMACY &amp; DISPENSARY')}</div>
+    ${data.departmentTitle ? `<div class="dept-title">${escapeHtml(data.departmentTitle)}</div>` : ''}
     ${data.hospitalAddress ? `<div class="meta-contact">${escapeHtml(data.hospitalAddress)}</div>` : ''}
     ${data.hospitalPhone ? `<div class="meta-contact">${escapeHtml(data.hospitalPhone)}</div>` : ''}
     ${data.hospitalEmail ? `<div class="meta-contact">${escapeHtml(data.hospitalEmail)}</div>` : ''}
@@ -630,12 +629,12 @@ export function generatePharmacyThermalReceiptHtml(data: PharmacyThermalReceiptD
   <div class="divider"></div>
 
   <!-- SECTION 5: FOOTER & POLICY -->
+  ${(data.footerText || data.footerMsg || data.footerPoweredBy) ? `
   <div class="footer">
     ${data.footerText ? `<div class="footer-policy">${escapeHtml(data.footerText)}</div>` : ''}
-    <div class="footer-msg">${escapeHtml(data.footerMsg || 'Thank You · Get Well Soon')}</div>
-    <div class="footer-powered">${escapeHtml(data.footerPoweredBy || 'Powered by Isysware Software Solutions')}</div>
-    <div class="barcode">||| | ||||| || |||||| | ||||| |||</div>
-  </div>
+    ${data.footerMsg ? `<div class="footer-msg">${escapeHtml(data.footerMsg)}</div>` : ''}
+    ${data.footerPoweredBy ? `<div class="footer-powered">${escapeHtml(data.footerPoweredBy)}</div>` : ''}
+  </div>` : ''}
 
   <script>
     if (window.name !== 'pharmacy-thermal-print-iframe') {
@@ -748,34 +747,42 @@ export const PharmacyThermalReceipt: React.FC<PharmacyThermalReceiptProps> = ({
         id="pharmacy-thermal-receipt-container"
         className="bg-white text-black border border-slate-300 shadow-[0_4px_16px_rgba(0,0,0,0.12)] rounded-xs p-4 w-[285px] max-w-[295px] select-none relative"
         style={{
-          fontFamily: "'Share Tech Mono', 'Space Mono', 'Consolas', 'Courier New', monospace",
+          fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          letterSpacing: '-0.011em',
           color: '#000000',
         }}
       >
         {/* Header */}
         <div className="text-center pb-1">
-          <div className="font-bold text-[12.5px] tracking-wide text-black uppercase leading-tight">
+          <div className="font-bold text-[13px] tracking-wide text-black uppercase leading-tight">
             {receipt.headerText || receipt.hospitalName || 'CH SHARIF AND SAEED HOSPITAL'}
           </div>
-          <div className="font-bold text-[10px] text-black uppercase tracking-wider mt-0.5">
-            CENTRAL PHARMACY &amp; DISPENSARY
-          </div>
-          {receipt.hospitalAddress && (
+          {receipt.departmentTitle ? (
+            <div className="font-bold text-[10px] text-black uppercase tracking-wider mt-0.5">
+              {receipt.departmentTitle}
+            </div>
+          ) : null}
+          {receipt.hospitalAddress ? (
             <div className="text-[8.5px] text-black font-medium leading-tight mt-0.5">
               {receipt.hospitalAddress}
             </div>
-          )}
-          {receipt.hospitalPhone && (
+          ) : null}
+          {receipt.hospitalPhone ? (
             <div className="text-[8.5px] text-black font-medium leading-tight">
               {receipt.hospitalPhone}
             </div>
-          )}
+          ) : null}
+          {receipt.hospitalEmail ? (
+            <div className="text-[8.5px] text-black font-medium leading-tight">
+              {receipt.hospitalEmail}
+            </div>
+          ) : null}
           <div className="font-bold text-[10.5px] text-black uppercase tracking-wider mt-1 border-t border-b border-dashed border-black py-0.5">
             Pharmacy Sales Receipt
           </div>
           {receipt.isReprint && (
             <div className="inline-block border border-dashed border-black text-black px-1.5 py-0.5 text-[9px] font-bold uppercase mt-1">
-              *** Reprint / Duplicate ***
+              *** REPRINT / DUPLICATE ***
             </div>
           )}
         </div>
@@ -854,7 +861,7 @@ export const PharmacyThermalReceipt: React.FC<PharmacyThermalReceiptProps> = ({
               <tr className="border-b border-dashed border-black text-[9.5px] font-bold text-black uppercase">
                 <th className="text-left py-1 font-bold">Item</th>
                 <th className="text-center py-1 font-bold w-9">Qty</th>
-                <th className="text-right py-1 font-bold w-16">Net</th>
+                <th className="text-right py-1 font-bold w-16">Amount</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dotted divide-black">
@@ -888,16 +895,16 @@ export const PharmacyThermalReceipt: React.FC<PharmacyThermalReceiptProps> = ({
                       )}
                       {line.discountAmount != null && line.discountAmount > 0 && (
                         <div className="text-[8.5px] text-black font-normal leading-tight">
-                          Disc: -PKR {formatNumber(line.discountAmount)}
+                          Disc: -{formatNumber(line.discountAmount)}
                         </div>
                       )}
                     </td>
-                    <td className="text-center py-1 font-mono text-[10px]">
-                      {formatNumber(line.quantity)}
+                    <td className="text-center py-1 tabular-nums text-[10.5px] font-bold text-black">
+                      {line.quantity}
                       {line.unitName && <div className="text-[8px] font-normal">{line.unitName}</div>}
                     </td>
-                    <td className="text-right py-1 font-mono font-bold tabular-nums">
-                      PKR {formatNumber(line.netAmount)}
+                    <td className="text-right py-1 font-bold tabular-nums text-[11px] text-black">
+                      {formatNumber(line.netAmount)}
                     </td>
                   </tr>
                 );
@@ -911,38 +918,38 @@ export const PharmacyThermalReceipt: React.FC<PharmacyThermalReceiptProps> = ({
           {(receipt.discountTotal > 0 || receipt.taxTotal > 0) && (
             <div className="flex justify-between py-0.5">
               <span className="font-semibold text-black">Gross Subtotal</span>
-              <span className="font-mono text-black tabular-nums">PKR {formatNumber(receipt.subtotal)}</span>
+              <span className="text-black tabular-nums">{formatNumber(receipt.subtotal)}</span>
             </div>
           )}
           {receipt.discountTotal > 0 && (
             <div className="flex justify-between py-0.5">
               <span className="font-semibold text-black">Discount</span>
-              <span className="font-mono text-black tabular-nums">-PKR {formatNumber(receipt.discountTotal)}</span>
+              <span className="text-black tabular-nums">-{formatNumber(receipt.discountTotal)}</span>
             </div>
           )}
           {receipt.taxTotal > 0 && (
             <div className="flex justify-between py-0.5">
               <span className="font-semibold text-black">Tax / GST</span>
-              <span className="font-mono text-black tabular-nums">+PKR {formatNumber(receipt.taxTotal)}</span>
+              <span className="text-black tabular-nums">+{formatNumber(receipt.taxTotal)}</span>
             </div>
           )}
           <div className="flex justify-between text-[12px] font-bold text-black border-t border-dashed border-black pt-1">
             <span>NET TOTAL</span>
-            <span className="tabular-nums font-mono">PKR {formatNumber(receipt.total)}</span>
+            <span className="tabular-nums font-bold">{formatNumber(receipt.total)}</span>
           </div>
-          <div className="flex justify-between text-[11px] font-bold text-black">
+          <div className="flex justify-between text-[11.5px] font-bold text-black">
             <span>AMOUNT PAID</span>
-            <span className="tabular-nums font-mono">PKR {formatNumber(receipt.paidTotal)}</span>
+            <span className="tabular-nums font-bold">{formatNumber(receipt.paidTotal)}</span>
           </div>
           {receipt.outstanding > 0 ? (
             <div className="flex justify-between text-[11.5px] font-bold text-black border-t border-dotted border-black pt-0.5">
               <span>BALANCE DUE</span>
-              <span className="tabular-nums font-mono">PKR {formatNumber(receipt.outstanding)}</span>
+              <span className="tabular-nums font-bold">{formatNumber(receipt.outstanding)}</span>
             </div>
           ) : (
             <div className="flex justify-between text-[11px] font-bold text-black border-t border-dotted border-black pt-0.5">
               <span>BALANCE</span>
-              <span className="tabular-nums font-mono">PKR 0.00 (CLEARED)</span>
+              <span className="tabular-nums font-bold">0.00 (CLEARED)</span>
             </div>
           )}
         </div>
@@ -953,30 +960,35 @@ export const PharmacyThermalReceipt: React.FC<PharmacyThermalReceiptProps> = ({
             <div className="font-bold text-black uppercase">Payment Details:</div>
             {receipt.payments.map((p, idx) => (
               <div key={idx} className="flex justify-between text-black">
-                <span>
+                <span className="font-semibold text-black">
                   {p.method} {p.collectedBy ? `(${p.collectedBy})` : ''}
                 </span>
-                <span className="font-mono font-semibold">PKR {formatNumber(p.amount)}</span>
+                <span className="font-bold tabular-nums">{formatNumber(p.amount)}</span>
               </div>
             ))}
           </div>
         )}
 
         {/* Footer */}
-        <div className="border-t border-dashed border-black pt-2 text-center text-[10px] text-black leading-tight">
-          {receipt.footerText && (
-            <div className="text-[8.5px] font-medium text-black leading-tight mb-1">
-              {receipt.footerText}
-            </div>
-          )}
-          <div className="font-bold text-[11px] text-black uppercase">Thank You · Get Well Soon</div>
-          <div className="text-[8.5px] font-medium text-black mt-1 tracking-wide">
-            Powered by Isysware Software Solutions
+        {(receipt.footerText || receipt.footerMsg || receipt.footerPoweredBy) ? (
+          <div className="border-t border-dashed border-black pt-2 text-center text-[10px] text-black leading-tight">
+            {receipt.footerText ? (
+              <div className="text-[8.5px] font-medium text-black leading-tight mb-1 whitespace-pre-line text-left">
+                {receipt.footerText}
+              </div>
+            ) : null}
+            {receipt.footerMsg ? (
+              <div className="font-bold text-[11px] text-black">
+                {receipt.footerMsg}
+              </div>
+            ) : null}
+            {receipt.footerPoweredBy ? (
+              <div className="text-[8.5px] font-medium text-black mt-1 tracking-wide">
+                {receipt.footerPoweredBy}
+              </div>
+            ) : null}
           </div>
-          <div className="font-mono text-[9px] tracking-widest text-black mt-1">
-            ||| | ||||| || |||||| | ||||| |||
-          </div>
-        </div>
+        ) : null}
       </div>
 
       {/* Action Buttons Toolbar */}

@@ -497,7 +497,13 @@ export const SettingsPage: React.FC = () => {
 
             {/* Right: Live Thermal Slip Preview (5 cols) */}
             <div className="lg:col-span-5 flex flex-col items-center">
-              <div className="w-full max-w-[320px] bg-white border border-slate-300 rounded-xl shadow-md p-4 text-[11px] font-mono text-slate-800 space-y-2 select-none">
+              <div
+                className="w-full max-w-[320px] bg-white border border-slate-300 rounded-xl shadow-md p-4 text-[11px] text-slate-800 space-y-2 select-none"
+                style={{
+                  fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                  letterSpacing: '-0.011em',
+                }}
+              >
                 <div className="text-[10px] uppercase font-bold text-slate-400 text-center tracking-widest border-b border-slate-200 pb-1">
                   ★ Live Receipt Preview ★
                 </div>
@@ -507,55 +513,67 @@ export const SettingsPage: React.FC = () => {
                   <div className="font-bold text-xs uppercase text-slate-900 leading-tight">
                     {form.hospitalName || 'CH Sharif & Saeed Hospital'}
                   </div>
-                  <div className="text-[10px] font-semibold text-emerald-800 uppercase">
-                    {form.pharmacySubtitle || 'Central Pharmacy & Dispensary'}
-                  </div>
-                  <div className="text-[9.5px] text-slate-500 leading-tight">
-                    {form.address || 'Main Boulevard, Near Jail Road · 24/7 Care'}
-                  </div>
-                  <div className="text-[9.5px] text-slate-500">
-                    {form.phone || 'UAN: +92 42 111-467-748'}
-                  </div>
-                  {form.email && (
-                    <div className="text-[9px] text-slate-400">{form.email}</div>
-                  )}
-                  <div className="pt-1 border-t border-dashed border-slate-300 text-[10px] font-bold text-slate-700">
+                  {form.pharmacySubtitle?.trim() ? (
+                    <div className="text-[10px] font-bold text-slate-700 uppercase">
+                      {form.pharmacySubtitle.trim()}
+                    </div>
+                  ) : null}
+                  {form.address?.trim() ? (
+                    <div className="text-[9px] text-slate-600 font-medium leading-tight">
+                      {form.address.trim()}
+                    </div>
+                  ) : null}
+                  {form.phone?.trim() ? (
+                    <div className="text-[9px] text-slate-600 font-medium">
+                      {form.phone.trim()}
+                    </div>
+                  ) : null}
+                  {form.email?.trim() ? (
+                    <div className="text-[9px] text-slate-500 font-medium">
+                      {form.email.trim()}
+                    </div>
+                  ) : null}
+                  <div className="pt-1 border-t border-b border-dashed border-slate-300 text-[10.5px] font-bold text-slate-800 uppercase tracking-wider py-0.5">
                     PHARMACY SALES RECEIPT
                   </div>
                 </div>
 
                 {/* Sample items */}
                 <div className="py-2 border-y border-dashed border-slate-300 space-y-1 text-[10px]">
-                  <div className="flex justify-between">
+                  <div className="flex justify-between font-semibold">
                     <span className="truncate">Panadol Extra 500mg (Strip)</span>
-                    <span className="font-bold shrink-0">PKR 350.00</span>
+                    <span className="font-bold tabular-nums shrink-0">350.00</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between font-semibold">
                     <span className="truncate">Augmentin 625mg (Box)</span>
-                    <span className="font-bold shrink-0">PKR 480.00</span>
+                    <span className="font-bold tabular-nums shrink-0">480.00</span>
                   </div>
                   <div className="flex justify-between pt-1 border-t border-dotted border-slate-200 font-bold text-xs text-slate-900">
                     <span>NET TOTAL</span>
-                    <span>PKR 830.00</span>
+                    <span className="tabular-nums">830.00</span>
                   </div>
                 </div>
 
                 {/* Footer Preview */}
-                <div className="text-center space-y-1 pt-1">
-                  <div className="text-[9px] text-slate-500 leading-tight whitespace-pre-line text-left bg-slate-50 p-1.5 rounded border border-slate-200">
-                    {form.footerTerms ||
-                      'Medicines once sold can only be returned within 3 days with this original receipt. Fridge and cold-chain items are non-returnable.'}
+                {(form.footerTerms?.trim() || form.footerMessage?.trim() || form.footerPoweredBy?.trim()) ? (
+                  <div className="text-center space-y-1 pt-1 border-t border-dashed border-slate-200">
+                    {form.footerTerms?.trim() ? (
+                      <div className="text-[8.5px] font-medium text-slate-600 leading-tight whitespace-pre-line text-left bg-slate-50 p-1.5 rounded border border-slate-200">
+                        {form.footerTerms.trim()}
+                      </div>
+                    ) : null}
+                    {form.footerMessage?.trim() ? (
+                      <div className="font-bold text-[10.5px] uppercase text-slate-900 pt-0.5">
+                        {form.footerMessage.trim()}
+                      </div>
+                    ) : null}
+                    {form.footerPoweredBy?.trim() ? (
+                      <div className="text-[8.5px] font-medium text-slate-500">
+                        {form.footerPoweredBy.trim()}
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="font-bold text-[10.5px] uppercase text-slate-900 pt-1">
-                    {form.footerMessage || 'Thank You · Get Well Soon'}
-                  </div>
-                  <div className="text-[8.5px] text-slate-400">
-                    {form.footerPoweredBy || 'Powered by Isysware Software Solutions'}
-                  </div>
-                  <div className="tracking-widest text-[8px] text-slate-300 pt-0.5">
-                    ||| | ||||| || |||||| | ||||| |||
-                  </div>
-                </div>
+                ) : null}
               </div>
               <span className="text-[10.5px] text-slate-400 mt-2 text-center">
                 Updates automatically as you type above.

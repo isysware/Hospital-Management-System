@@ -22,9 +22,9 @@ declare global {
 }
 
 export const prisma: AppPrismaClient = globalThis.__prisma ?? createPrismaClient();
+globalThis.__prisma = prisma;
 
 if (env.NODE_ENV === 'development') {
-  globalThis.__prisma = prisma;
 }
 
 prisma.$use(async (params, next) => {

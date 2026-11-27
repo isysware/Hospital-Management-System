@@ -223,7 +223,7 @@ export const PharmacyInvoiceModal: React.FC<PharmacyInvoiceModalProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 truncate">
-                {pharmacySettings?.hospitalName || pharmacySettings?.receiptHeaderText || hospitalProfile?.name || 'CH Sharif & Saeed Hospital'} · {pharmacySettings?.pharmacySubtitle || 'Central Pharmacy POS Slip'}
+                {pharmacySettings?.hospitalName || pharmacySettings?.receiptHeaderText || hospitalProfile?.name || 'CH Sharif & Saeed Hospital'}{pharmacySettings?.pharmacySubtitle ? ` · ${pharmacySettings.pharmacySubtitle}` : ''}
               </p>
             </div>
           </div>

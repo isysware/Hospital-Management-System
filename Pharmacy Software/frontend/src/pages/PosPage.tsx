@@ -1017,30 +1017,53 @@ export const PosPage: React.FC = () => {
                             />
                           </div>
 
-                          {/* Stepper */}
+                          {/* Stepper & Editable Quantity Input */}
                           <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-0.5">
                             <button
                               type="button"
                               onClick={() =>
                                 updateLine(line.medicine.id, {
-                                  quantity: Math.max(1, line.quantity - 1),
+                                  quantity: Math.max(1, (line.quantity || 1) - 1),
                                 })
                               }
                               className="h-5.5 w-5.5 rounded flex items-center justify-center hover:bg-white hover:shadow-2xs text-slate-700 transition-all cursor-pointer"
+                              title="Decrease quantity"
                             >
                               <Minus className="h-2.5 w-2.5" />
                             </button>
-                            <span className="w-7 text-center font-bold text-xs tabular-nums text-slate-900">
-                              {line.quantity}
-                            </span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={line.quantity || ''}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                if (raw === '') {
+                                  updateLine(line.medicine.id, { quantity: 0 as any });
+                                  return;
+                                }
+                                const val = parseInt(raw, 10);
+                                if (!isNaN(val)) {
+                                  updateLine(line.medicine.id, { quantity: Math.max(1, val) });
+                                }
+                              }}
+                              onBlur={() => {
+                                if (!line.quantity || line.quantity < 1) {
+                                  updateLine(line.medicine.id, { quantity: 1 });
+                                }
+                              }}
+                              onFocus={(e) => e.target.select()}
+                              className="w-10 h-5.5 text-center font-bold text-xs tabular-nums text-slate-900 bg-transparent focus:bg-white focus:outline-hidden rounded px-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              title="Click or type to edit quantity directly"
+                            />
                             <button
                               type="button"
                               onClick={() =>
                                 updateLine(line.medicine.id, {
-                                  quantity: line.quantity + 1,
+                                  quantity: (line.quantity || 0) + 1,
                                 })
                               }
                               className="h-5.5 w-5.5 rounded flex items-center justify-center hover:bg-white hover:shadow-2xs text-slate-700 transition-all cursor-pointer"
+                              title="Increase quantity"
                             >
                               <Plus className="h-2.5 w-2.5" />
                             </button>

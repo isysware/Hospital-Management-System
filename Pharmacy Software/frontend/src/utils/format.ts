@@ -8,8 +8,12 @@ export function formatPKR(value: number | string | null | undefined): string {
   }).format(n);
 }
 
-export function formatNumber(value: number | string | null | undefined): string {
-  return new Intl.NumberFormat('en-PK', { maximumFractionDigits: 2 }).format(Number(value ?? 0));
+export function formatNumber(value: number | string | null | undefined, decimals = 2): string {
+  const n = Number(value ?? 0);
+  return new Intl.NumberFormat('en-PK', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(Number.isFinite(n) ? n : 0);
 }
 
 export function formatDateTime(d: string | Date | null | undefined): string {

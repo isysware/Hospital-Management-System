@@ -23,9 +23,9 @@ declare global {
 }
 
 export const prisma: AppPrismaClient = globalThis.__pharmacyPrisma ?? createPrismaClient();
+globalThis.__pharmacyPrisma = prisma;
 
 if (env.NODE_ENV === 'development') {
-  globalThis.__pharmacyPrisma = prisma;
   prisma.$on('query', (e: { query: string; duration: number }) => {
     logger.debug('prisma:query', { query: e.query, durationMs: e.duration });
   });

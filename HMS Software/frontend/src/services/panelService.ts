@@ -234,6 +234,11 @@ export async function fetchPanelCategories(): Promise<{ name: string; isActive: 
   return res.data.data;
 }
 
+export async function createPanelCategory(name: string): Promise<{ name: string; isActive: boolean }> {
+  const res = await apiClient.post('/setup/panel-categories', { name: name.trim() });
+  return res.data.data;
+}
+
 export type PanelRuleHistory = PanelDiscountRule & { createdAt: string; archivedAt: string | null; createdByLabel: string; targetName: string };
 export async function fetchPanelRuleHistory(id: string): Promise<PanelRuleHistory[]> {
   const res = await apiClient.get(`/setup/corporate-panels/${id}/rule-history`);

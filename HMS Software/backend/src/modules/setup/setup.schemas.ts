@@ -241,6 +241,10 @@ export const updateBedSchema = z.object({
 export type UpdateBedBody = z.infer<typeof updateBedSchema>;
 
 // ── Corporate Panels ─────────────────────────────────────────────────
+export const createPanelCategorySchema = z.object({
+  name: z.string().trim().min(1, 'Category name is required').max(100),
+});
+
 export const createCorporatePanelSchema = z.object({
   code: z.string().max(20).optional(),
   organizationName: z.string().min(1).max(200),

@@ -1,4 +1,5 @@
 import { assertSelectableService } from '@/shared/serviceClassification';
+import { assertInvoicePanelCredit } from '@/shared/panelCreditLimit';
 import { hospitalClock, postingTimeMinutes } from '@/shared/hospitalClock';
 import bcrypt from 'bcryptjs';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -74,6 +75,7 @@ async function recalcInvoiceTotals(
       invoice.paidTotal,
     );
 
+  await assertInvoicePanelCredit(tx, invoice.id, newPanelReceivable);
   await tx.hospitalInvoice.update({
     where: { id: invoice.id },
     data: {

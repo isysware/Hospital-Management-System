@@ -1,4 +1,5 @@
 import { invoiceTransactions } from '../../shared/invoiceTransactions';
+import { assertInvoicePanelCredit } from '@/shared/panelCreditLimit';
 import { assertSelectableService } from '@/shared/serviceClassification';
 import { resolvePanelCoverage } from '@/shared/panelCoverage';
 import { assertMembershipEligible } from '@/shared/panelMembership';
@@ -176,6 +177,7 @@ export const invoicesService = {
             { panelPatientId: invoice.panelPatientId, total: coverage.eligibleNet, patientShare: coverage.patientShare, panelReceivable: coverage.panelReceivable },
             invoice.paidTotal,
           );
+          await assertInvoicePanelCredit(tx, invoice.id, coverage.panelReceivable);
           await tx.hospitalInvoice.update({
             where: { id: invoice.id },
             data: {
@@ -372,6 +374,7 @@ export const invoicesService = {
         invoice.paidTotal,
       );
 
+      await assertInvoicePanelCredit(tx, invoice.id, newPanelReceivable);
       await tx.hospitalInvoice.update({
         where: { id: invoice.id },
         data: {

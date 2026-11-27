@@ -1,4 +1,5 @@
 import { Decimal } from '@prisma/client/runtime/library';
+import { assertPanelCreditLimitChange } from '@/shared/panelCreditLimit';
 import { lockMainFund } from '@/shared/mainFundLock';
 import { departmentCollectionLedger } from '@/shared/departmentCollections';
 import { isCoreEncounterService, serviceSelectionWhere, validateServiceMaster, type ServiceFilters } from '@/shared/serviceClassification';
@@ -1275,6 +1276,26 @@ export const setupService = {
     return prisma.panelCategory.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
   },
 
+  async createPanelCategory(body: { name: string }) {
+    const name = body.name.trim();
+    const existing = await prisma.panelCategory.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' } },
+    });
+    if (existing) {
+      throw new ConflictError(existing.isActive
+        ? `Panel category "${existing.name}" already exists. Select it from the list.`
+        : `Panel category "${existing.name}" exists but is inactive.`);
+    }
+    try {
+      return await prisma.panelCategory.create({ data: { name, isActive: true } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictError(`Panel category "${name}" already exists.`);
+      }
+      throw error;
+    }
+  },
+
   async validatePanelCategory(category: string | undefined) {
     if (!category || !await prisma.panelCategory.findFirst({ where: { name: category, isActive: true } })) {
       throw new ValidationError('Select an active configured panel category');
@@ -1299,10 +1320,15 @@ export const setupService = {
     if (body.category !== undefined) await this.validatePanelCategory(body.category);
     await this.assertExists('corporatePanel', id);
     try {
-      const updated = await prisma.corporatePanel.update({
+      const updated = await prisma.$transaction(async (tx) => {
+        if (body.creditLimit !== undefined) {
+          await assertPanelCreditLimitChange(tx, id, new Decimal(body.creditLimit));
+        }
+        return tx.corporatePanel.update({
         where: { id },
         data: { ...body, code: normalizeCode(body.code), updatedById },
         include: this.corporatePanelInclude,
+        });
       });
       return this.decorateCorporatePanel(updated as any);
     } catch (error) {
@@ -1354,19 +1380,19 @@ export const setupService = {
   },
 
   async deleteCorporatePanel(id: string) {
-    const existing = await this.assertExists('corporatePanel', id);
-    if (await prisma.panelDiscountRule.count({ where: { corporatePanelId: id } })) {
-      throw new ConflictError('This panel has contract history. Deactivate it to preserve its records.');
-    }
-    const linkedPatientsCount = await prisma.panelPatient.count({
-      where: { corporatePanelId: id },
-    });
-    if (linkedPatientsCount > 0) {
-      throw new ConflictError(
-        `Cannot delete "${(existing as any).organizationName}" because it is linked to ${linkedPatientsCount} registered patient(s). Deactivate the panel instead.`
-      );
-    }
     return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM corporate_panels WHERE id = ${id} FOR UPDATE`;
+      const existing = await tx.corporatePanel.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundError('Corporate panel not found');
+      const where = { corporatePanelId: id };
+      const patients = await tx.panelPatient.count({ where });
+      const invoices = await tx.hospitalInvoice.count({ where });
+      const remittances = await tx.panelRemittance.count({ where });
+      if (patients || invoices || remittances) {
+        throw new ConflictError(`Cannot permanently delete "${existing.organizationName}": linked to ${patients} patient(s), ${invoices} invoice(s) and ${remittances} payment(s). Deactivate it to preserve these records.`);
+      }
+      // Configured rules alone are not financial history. Remove them with
+      // the unused panel in one transaction, including archived rule versions.
       await tx.panelDiscountRule.deleteMany({ where: { corporatePanelId: id } });
       return tx.corporatePanel.delete({ where: { id } });
     });

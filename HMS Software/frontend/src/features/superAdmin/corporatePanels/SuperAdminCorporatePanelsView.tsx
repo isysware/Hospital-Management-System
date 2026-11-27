@@ -23,6 +23,7 @@ import {
   CorporatePanelFormValues,
   fetchCorporatePanels,
   fetchPanelCategories,
+  createPanelCategory,
   createCorporatePanel,
   updateCorporatePanel,
   deleteCorporatePanel,
@@ -67,6 +68,10 @@ const EMPTY_FORM: CorporatePanelFormValues = {
 
 export const SuperAdminCorporatePanelsView: React.FC = () => {
   const [categories, setCategories] = useState<{ name: string; isActive: boolean }[]>([]);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [categoryName, setCategoryName] = useState('');
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [panels, setPanels] = useState<CorporatePanel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -136,6 +141,7 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
   }, [formValues.billingTerms]);
 
   const handleOpenAdd = () => {
+    resetCategoryForm();
     setEditingPanel(null);
     const autoCode = generateNextCode(
       panels.map((p) => p.code),
@@ -147,6 +153,7 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
   };
 
   const handleOpenEdit = (panel: CorporatePanel) => {
+    resetCategoryForm();
     setEditingPanel(panel);
     setFormValues({
       code: panel.code,
@@ -171,8 +178,40 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
     setIsFormOpen(true);
   };
 
+  const resetCategoryForm = () => {
+    setIsAddingCategory(false);
+    setCategoryName('');
+    setCategoryError(null);
+  };
+
+  const handleAddCategory = async () => {
+    const name = categoryName.trim();
+    if (!name || name.length > 100) {
+      setCategoryError('Enter a category name between 1 and 100 characters.');
+      return;
+    }
+    setIsSavingCategory(true);
+    setCategoryError(null);
+    try {
+      const category = await createPanelCategory(name);
+      setCategories((current) => [...current.filter((c) => c.name !== category.name), category]
+        .sort((a, b) => a.name.localeCompare(b.name)));
+      setFormValues((current) => ({ ...current, category: category.name }));
+      resetCategoryForm();
+      showToast(`Category "${category.name}" added successfully.`);
+    } catch (err: any) {
+      setCategoryError(err?.message || 'Failed to add category. Please try again.');
+    } finally {
+      setIsSavingCategory(false);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingCategory || isAddingCategory) {
+      setCategoryError('Save or cancel the custom category before saving the panel.');
+      return;
+    }
     if (!formValues.organizationName.trim()) {
       const msg = 'Organization / Panel name is required.';
       setFormError(msg);
@@ -482,7 +521,7 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
       {/* Add / Edit Modal */}
       <Modal
         isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
+        onClose={() => { if (!isSavingCategory && !isSaving) setIsFormOpen(false); }}
         title={editingPanel ? 'Edit Corporate Panel' : 'Register Corporate Panel'}
         subtitle={
           editingPanel
@@ -500,6 +539,7 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsFormOpen(false)}
+                disabled={isSavingCategory || isSaving}
                 className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               >
                 Cancel
@@ -507,7 +547,7 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
               <button
                 type="submit"
                 form="corporate-panel-modal-form"
-                disabled={isSaving}
+                disabled={isSaving || isSavingCategory || isAddingCategory}
                 className="inline-flex items-center gap-2 px-5 py-2 bg-[#149E75] hover:bg-[#08775A] disabled:opacity-60 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
                 {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -542,6 +582,7 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
                 onChange={(e) => setFormValues({ ...formValues, organizationName: e.target.value })}
                 required
               />
+              <div className="space-y-2">
               <Select
                 label="Panel Category"
                 value={formValues.category}
@@ -552,6 +593,33 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
                 ]}
                 required
               />
+              {!isAddingCategory ? (
+                <>
+                  {categories.length === 0 && <p className="text-xs text-amber-700">No categories configured. Add your first category below.</p>}
+                  <button type="button" disabled={isSaving} onClick={() => setIsAddingCategory(true)}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#08775A] disabled:opacity-60">
+                    <Plus className="h-3.5 w-3.5" /> Add Custom Category
+                  </button>
+                </>
+              ) : (
+                <div className="rounded-lg border border-[#c2e7db] bg-[#effaf5] p-3 space-y-2">
+                  <TextInput label="New Category Name" placeholder="e.g. Corporate Employees"
+                    value={categoryName} maxLength={100} disabled={isSavingCategory}
+                    onChange={(e) => { setCategoryName(e.target.value); setCategoryError(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (!isSavingCategory) void handleAddCategory(); } }}
+                    hint="Saved categories are available for all corporate panels." />
+                  {categoryError && <p role="alert" className="text-xs text-rose-700">{categoryError}</p>}
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={handleAddCategory} disabled={isSavingCategory}
+                      className="px-3 py-1.5 rounded-lg bg-[#08775A] text-white text-xs font-semibold disabled:opacity-60">
+                      {isSavingCategory ? 'Saving...' : 'Save Category'}
+                    </button>
+                    <button type="button" onClick={resetCategoryForm} disabled={isSavingCategory}
+                      className="text-xs font-semibold text-slate-600 disabled:opacity-60">Cancel</button>
+                  </div>
+                </div>
+              )}
+              </div>
               <TextInput
                 label="Panel Code"
                 placeholder="Auto-generated (e.g. PNL-0001)"
@@ -618,7 +686,7 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
                 value={formValues.creditLimit}
                 onChange={(e) => setFormValues({ ...formValues, creditLimit: Number(e.target.value) || 0 })}
                 min={0}
-                hint="Maximum outstanding claim balance allowed"
+                hint="Maximum unpaid company balance. Charges above this limit are blocked. 0 means no credit allowed."
               />
               <Select
                 label="Billing Terms"
@@ -627,15 +695,6 @@ export const SuperAdminCorporatePanelsView: React.FC = () => {
                 options={billingOptions}
                 hint="Claim settlement schedule agreed in MoU / contract"
               />
-              <div className="md:col-span-2">
-                <TextInput
-                  label="Discount Agreement Summary"
-                  placeholder="e.g. 15% Institutional Concession, Special OPD Tariff"
-                  value={formValues.discountAgreement}
-                  onChange={(e) => setFormValues({ ...formValues, discountAgreement: e.target.value })}
-                  hint="Brief summary of contract terms (detailed rules configured via Rules button)"
-                />
-              </div>
               <div className="md:col-span-2">
                 <Textarea
                   label="Internal Contract Notes / Remarks"

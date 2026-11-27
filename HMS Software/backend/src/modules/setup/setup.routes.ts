@@ -65,6 +65,7 @@ router.post('/shifts/:id/deactivate', write, validate({ params: s.idParamsSchema
 
 // Corporate Panels
 router.get('/panel-categories', view, asyncHandler(c.listPanelCategories));
+router.post('/panel-categories', create, validate({ body: s.createPanelCategorySchema }), asyncHandler(c.createPanelCategory));
 router.get('/corporate-panels', view, asyncHandler(c.listCorporatePanels));
 router.post('/corporate-panels', create, validate({ body: s.createCorporatePanelSchema }), asyncHandler(c.createCorporatePanel));
 router.patch('/corporate-panels/:id', write, validate({ params: s.idParamsSchema, body: s.updateCorporatePanelSchema }), asyncHandler(c.updateCorporatePanel));

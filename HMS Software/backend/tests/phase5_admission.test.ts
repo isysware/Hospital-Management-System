@@ -78,6 +78,8 @@ vi.mock('@/db/client', () => {
       update: vi.fn(),
     },
     hospitalInvoice: {
+      findUnique: vi.fn().mockResolvedValue({ corporatePanelId: 'panel-1', panelReceivable: new Decimal(0) }),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { panelReceivable: new Decimal(0) } }),
       findFirst: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
@@ -87,6 +89,8 @@ vi.mock('@/db/client', () => {
       findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn(),
     },
+    corporatePanel: { findUnique: vi.fn().mockResolvedValue({ organizationName: 'Test Panel', creditLimit: new Decimal(100000) }) },
+    panelRemittanceAllocation: { aggregate: vi.fn().mockResolvedValue({ _sum: { allocatedAmount: new Decimal(0) } }) },
     serviceRate: {
       findUnique: vi.fn(),
     },

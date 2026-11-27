@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { assertInvoicePanelCredit } from './panelCreditLimit';
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '@/db/client';
 import { NotFoundError, ValidationError } from './errors/AppError';
@@ -38,6 +39,7 @@ export const doctorCharges = {
       if (invoice.panelPatient) assertCaseAuthorization(invoice.panelPatient.corporatePanel.authorizationRequired, coverage.matchedRule?.preauthorizationRequired, admission ?? invoice);
       const line = await tx.invoiceLineItem.create({ data: { hospitalInvoiceId: invoice.id, billingSource: 'DOCTOR_CHARGE', descriptionSnapshot: doctor.fullName + ' Visit', performedByStaffId: doctor.id, rateSnapshot: doctor.consultationFee, quantity, lineGross: gross, discountAmount: coverage.discountAmount, discountReason: coverage.discountReason, lineNet: coverage.eligibleNet, patientShare: coverage.patientShare, panelReceivable: coverage.panelReceivable, coverageSnapshot: coverage.coverageSnapshot, isCompleted: true } });
       const total = invoice.total.plus(line.lineNet), patientShare = invoice.patientShare.plus(line.patientShare), panelReceivable = invoice.panelReceivable.plus(line.panelReceivable);
+      await assertInvoicePanelCredit(tx, invoice.id, panelReceivable);
       await tx.hospitalInvoice.update({ where: { id: invoice.id }, data: { subtotal: invoice.subtotal.plus(gross), discountTotal: invoice.discountTotal.plus(line.discountAmount), total, patientShare, panelReceivable, status: patientPaymentStatus({ ...invoice, total, patientShare, panelReceivable }, invoice.paidTotal) } });
       return line;
     });

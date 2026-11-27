@@ -1,4 +1,5 @@
 import { releasePharmacySettlement } from './settlementRelease';
+import { assertInvoicePanelCredit } from '@/shared/panelCreditLimit';
 import { requirePharmacyDepartment } from '@/shared/pharmacyDepartment';
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '@/db/client';
@@ -288,6 +289,7 @@ export const pharmacyBridgeService = {
         ? 'PARTIALLY_PAID'
         : 'UNPAID';
 
+      await assertInvoicePanelCredit(tx, hospitalInvoice.id, newPanelReceivable);
       hospitalInvoice = await tx.hospitalInvoice.update({
         where: { id: hospitalInvoice.id },
         data: {

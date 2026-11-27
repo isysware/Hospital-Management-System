@@ -120,6 +120,9 @@ export const setupController = {
   },
 
   // Corporate Panels
+  createPanelCategory: async (req: Request, res: Response) => {
+    res.status(201).json({ data: await setupService.createPanelCategory(req.body) });
+  },
   listPanelCategories: async (_req: Request, res: Response) => {
     res.json({ data: await setupService.listPanelCategories() });
   },

@@ -1,4 +1,5 @@
 import { assertSelectableService, isCoreEncounterService } from '@/shared/serviceClassification';
+import { assertPanelCreditAvailable } from '@/shared/panelCreditLimit';
 import { Decimal } from '@prisma/client/runtime/library';
 import { commissionService } from '@/modules/commission/commission.service';
 import type { Prisma } from '@prisma/client';
@@ -403,6 +404,9 @@ export const appointmentsService = {
           newPaidTotal,
         );
 
+        if (appointment.panelPatient) {
+          await assertPanelCreditAvailable(tx, appointment.panelPatient.corporatePanelId, panelReceivable);
+        }
         invoice = await tx.hospitalInvoice.create({
           data: {
             invoiceNumber,
